@@ -1,33 +1,33 @@
 ---
-name: Teste voluntário de controle
-about: Ofereça um modelo de controle para validação
-title: "Teste voluntário: [marca/modelo]"
+name: Volunteer controller test
+about: Offer a controller model for validation
+title: "Volunteer test: [brand/model]"
 labels: [testing, help wanted]
 ---
 
-## Controle
+## Controller
 
-- Marca e modelo exatos:
-- Revisão/firmware, se conhecido:
-- Distribuição Linux:
+- Exact brand and model:
+- Revision/firmware, if known:
+- Linux distribution:
 - Kernel:
-- Conexão testada: USB / Bluetooth / receptor
-- Modo: XInput / DInput / Switch / outro
+- Connection tested: USB / Bluetooth / receiver
+- Mode: XInput / DInput / Switch / other
 
-## Recursos
+## Features
 
-- Bateria exposta: sim / não / desconhecido
-- LEDs de jogador: sim / não / desconhecido
-- RGB: sim / não / desconhecido
-- Vibração: sim / não / desconhecido
+- Battery exposed: yes / no / unknown
+- Player LEDs: yes / no / unknown
+- RGB: yes / no / unknown
+- Rumble: yes / no / unknown
 
-## Resultado
+## Result
 
-- Detectado pelo Linux:
-- Botões e eixos funcionando:
-- Número do jogador exibido corretamente:
-- Bateria funcionando:
-- LEDs funcionando:
-- Duplicação observada:
+- Detected by Linux:
+- Buttons and axes working:
+- Player number displayed correctly:
+- Battery working:
+- LEDs working:
+- Duplication observed:
 
-Remova endereços MAC completos, números de série, nomes de usuário e caminhos pessoais dos logs antes de anexá-los.
+Remove full MAC addresses, serial numbers, user names and personal paths from logs before attaching them.
