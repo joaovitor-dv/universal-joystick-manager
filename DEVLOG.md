@@ -26,12 +26,32 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Credits, testers and the `joycond` note
+
+- **What changed:** the README now says that `joycond` is not only for Joy-Cons: it also manages **Pro Controllers**, which then wait for a logical pairing (L + R) before their player LEDs settle. The first line of the README now says UJM numbers controllers *consistently every time*. New [`CREDITS.md`](CREDITS.md) lists maintainers, volunteer testers, the software UJM builds on and an artwork and trademarks notice; the volunteer guide, the test-report template (*Credit name* field) and the README explain that testers are built into the credits, only with their consent.
+- **Why:** the `joycond` behavior surprised us on hardware, and volunteers deserve to be credited.
+- **Evidence:** the `joycond` behavior comes from our own hardware runs (LEDs steady on the player number only after L + R); it was not measured systematically.
+- **Open questions:** none.
+
+### Interface prototype: Credits & Info and a dark-only theme configurator
+
+- **What changed:** the prototype got working **View** and **Help** menus, a **Help → Credits & Info** page that mirrors `CREDITS.md`, and **View → Theme…**: three color pickers (background, accent, text) plus six dark presets, saved in the browser. The two view tabs were removed earlier the same day: *Combined Joy-Cons* is just another entry in the controller list. The theme is **dark only**: a light background is refused, with jokes ("Do you hate your sight?", "What's wrong with you? Daywalker." and a few more; the fifth attempt tells you to touch grass).
+- **Why:** credits and theming were requested for the app; refusing light mode is a design choice, not a limitation.
+- **How it works:** the page's stylesheet is not edited. The configurator keeps a recolored copy of it in a later `<style>` and only remaps the green theme family (surfaces, highlights, text); semantic colors (A/B/X/Y, LEDs, warnings) are kept, and the default theme is the page's own palette.
+- **Evidence:** a scripted headless-Chromium run of 28 checks passed with 0 JavaScript errors: menus, the credits page, the first two jokes verbatim, refusal of too-bright backgrounds, too-dark text and accents and of garbage input, presets, persistence after reload, reset, and that the controller cards still work. **The prototype is still not connected to the service**, and it lives outside this repository for now.
+- **Open questions:** whether the theme should become a setting of the real application (it would be stored with the other settings); the screenshots still contain Steam-derived artwork and platform logos.
+
+### The technical rename is off the table
+
+- **What changed:** nothing in the code. The README roadmap no longer plans renaming `joystickmanager.service`, `JOYMANAGER_*` and `/run/joystickmanager`.
+- **Why:** renaming them on their own would break existing installs for no gain. It would only make sense together with a **console-only edition** installed as plain `ujm` (command and service id). That edition is an idea, not a commitment.
+
 ### The GitHub page becomes a manual
 
 - **What changed:** the README is now a user manual (install, use, configuration, troubleshooting, roadmap, patch notes). This devlog, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, a bug-report form, a PR template and a CI workflow were added. Screenshots of the interface prototype live in `docs/images/`.
 - **Why:** the old README mixed scope, rationale and instructions in one long list. New visitors could not tell what works today.
 - **Evidence:** screenshots are of the **static UI prototype with simulated data**; the interface is not connected to the daemon yet. The first CI run on GitHub passed all steps of the `Tests` job (unit tests, syntax checks, udev rule validation, profile table check) on the Ubuntu runner, which uses `mawk`. The informational ShellCheck job reports warnings, mostly false positives (variables defined in a sourced file, and an intentional glob in a `case`); cleaning them up is a follow-up. All 22 tags were published as GitHub pre-releases, the repository description and topics were set, and private vulnerability reporting was enabled.
-- **Open questions:** whether to rename the technical identifiers (`joystickmanager.service`, `JOYMANAGER_*`) to `ujm` in a later breaking release; the social preview image must be uploaded by hand (`docs/images/social-preview.png`); the screenshots contain controller artwork derived from Steam client assets and platform logos, whose publication rights are the maintainer's call.
+- **Open questions:** the social preview image must be uploaded by hand (`docs/images/social-preview.png`); the screenshots contain controller artwork derived from Steam client assets and platform logos, whose publication rights are the maintainer's call.
 
 ---
 
@@ -42,7 +62,7 @@ When you cut a release: add the tag, add its entry here, update the version in t
 - **What changed:** code comments, messages, tests, README and docs were translated to en-US. The product name is now **UJM - Universal Joystick Manager** in the README and package descriptions. Technical identifiers are unchanged on purpose.
 - **Why:** make the project accessible to more people, and give it a short name.
 - **Evidence:** the test suite has the same 38 passing checks before and after the translation.
-- **Open questions:** the technical rename (`ujm`, `ujm.service`, `UJM_*`) would break existing installs, so it is deferred to a separate release.
+- **Open questions:** none for the brand. Decision, 2026-10-16: the technical identifiers (`joystickmanager.service`, `JOYMANAGER_*`, `/run/joystickmanager`) are **not** going to be renamed on their own; it would only make sense with a console-only edition installed as plain `ujm`.
 
 ## v0.7.0 - Charge the Pro Controller without losing Bluetooth (opt-in)
 
