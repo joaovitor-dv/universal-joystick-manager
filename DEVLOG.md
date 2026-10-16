@@ -1,0 +1,207 @@
+# UJM devlog
+
+A running log of what we build, why, and what we measured on real hardware. The [README](README.md) is the user manual; this file is the story behind it.
+
+- **Newest first.** Every release tag has an entry; work that is not released yet goes under *Unreleased*.
+- **Honest by default.** Entries say what was verified on hardware, what was only reasoned about, and what is still open.
+- **Dates** are the commit dates of 2026 (UTC-3). The first commit is `2026-10-15 20:59`.
+- Release pages: <https://github.com/joaovitor-dv/universal-joystick-manager/releases>
+
+## How to add an entry
+
+Copy this block under *Unreleased* for every change worth remembering, and move it under its version when you tag a release:
+
+```markdown
+### Short title
+
+- **What changed:** ...
+- **Why:** ...
+- **Evidence:** what you measured, on which hardware, how many runs (or "not verified").
+- **Open questions:** ...
+```
+
+When you cut a release: add the tag, add its entry here, update the version in the README title and the patch-notes index at the end of the README, and create the GitHub release.
+
+---
+
+## Unreleased
+
+### The GitHub page becomes a manual
+
+- **What changed:** the README is now a user manual (install, use, configuration, troubleshooting, roadmap, patch notes). This devlog, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, a bug-report form, a PR template and a CI workflow were added. Screenshots of the interface prototype live in `docs/images/`.
+- **Why:** the old README mixed scope, rationale and instructions in one long list. New visitors could not tell what works today.
+- **Evidence:** screenshots are of the **static UI prototype with simulated data**; the interface is not connected to the daemon yet. The CI workflow is new and has not run on GitHub at the time of writing.
+- **Open questions:** whether to rename the technical identifiers (`joystickmanager.service`, `JOYMANAGER_*`) to `ujm` in a later breaking release.
+
+---
+
+## v0.7.1 - English docs and the UJM name
+
+*2026-10-16 · docs only · `fa691a5`*
+
+- **What changed:** code comments, messages, tests, README and docs were translated to en-US. The product name is now **UJM - Universal Joystick Manager** in the README and package descriptions. Technical identifiers are unchanged on purpose.
+- **Why:** make the project accessible to more people, and give it a short name.
+- **Evidence:** the test suite has the same 38 passing checks before and after the translation.
+- **Open questions:** the technical rename (`ujm`, `ujm.service`, `UJM_*`) would break existing installs, so it is deferred to a separate release.
+
+## v0.7.0 - Charge the Pro Controller without losing Bluetooth (opt-in)
+
+*2026-10-16 · minor · `da867c4`*
+
+- **What changed:** an optional udev rule, `udev/99-joystickmanager-procontroller-charge-only.rules`, deauthorizes the Pro Controller's USB device when it is plugged in. `install.sh --pro-charge-only` installs it.
+- **Why:** plugging a Pro Controller in with a *data* cable makes its firmware leave Bluetooth, so you could not charge while playing.
+- **Evidence:** by hand, `echo 0 | sudo tee /sys/bus/usb/devices/<port>/authorized` kept the controller on Bluetooth with the battery reporting `Charging` (several minutes, in separate runs). **The udev rule itself has not been tested on hardware.**
+- **Open questions:** the kernel enumerates the device before udev runs, so the controller may drop Bluetooth for a moment on plug-in; it is not known whether it returns without pressing HOME. With the rule installed the controller does not work wired. A charge-only cable remains the solution without caveats.
+
+## v0.6.1 - Gentler LED updates: no more Pro Controller drops
+
+*2026-10-16 · patch · `f7a58de`*
+
+- **What changed:** LEDs are re-applied every 10 s (`JOYMANAGER_LED_REFRESH`, `0` keeps the old behavior) instead of every 2 s. Real changes, such as starting to charge, are still written immediately. The periodic device scan no longer re-applies LEDs for a controller it already knows.
+- **Why:** with a Pro Controller connected, the kernel logged hundreds of `joycon_enforce_subcmd_rate: exceeded max attempts` per hour, followed by `timeout waiting for input report` and a Bluetooth drop. Every LED write is an HID subcommand, and the loop was sending many of them every cycle.
+- **Evidence:** on one Pro Controller, one run per setting: old script with the service on dropped after 31 s and after 2.5 min (49-64 errors in a 3-4 minute window); with the service stopped it stayed up for 4 minutes with 0 errors; the new script with the service on stayed up for 5+ minutes, charging, with 0 errors, and the LEDs looked correct. **A short sample; the Joy-Con R was not connected.**
+- **Open questions:** a longer soak test with a Pro Controller and a Joy-Con R together; whether the idle-disconnect worker, which now also starts for USB controllers, behaves.
+
+## v0.6.0 - `joystickmanager-doctor` and wider packaging
+
+*2026-10-16 · minor · `5eb449e`*
+
+- **What changed:** `joystickmanager-doctor` is a read-only command that shows, per controller family, whether each kernel module is loaded, available or absent, and which connected controllers matched a profile. `install.sh` and the Arch, Debian and Fedora packaging install it with `controllers.tsv`.
+- **Why:** "my controller is not detected" needs a one-command answer.
+- **Evidence:** run against the real system: the Pro Controller was listed with its driver and marked active. Covered by a test using a fake sysfs.
+- **Open questions:** the packages have not been built on each distribution.
+
+## v0.5.0 - Controller profiles
+
+*2026-10-16 · minor · `8f54858`*
+
+- **What changed:** `controllers.tsv` describes each controller family (match rule, state, expected kernel module, notes). Only `validated` profiles are active by default; `experimental` and `planned` need `JOYMANAGER_EXPERIMENTAL=1`. Controllers without HID identity (for example `xpad` devices) get a slot but no LEDs. Without the table the service falls back to the old fixed list.
+- **Why:** the supported list was a hard-coded `case`; adding Xbox, DualShock 4, DualSense, 8BitDo, GameSir, Logitech, Razer or Redragon would have meant editing code and silently claiming support.
+- **Evidence:** unit tests (profile matching, state gating, IMU/touchpad nodes ignored, fallback). **The experimental entries are expected values from general Linux knowledge, not validated on hardware.**
+- **Open questions:** volunteers with those controllers (see `docs/volunteer-testing.md`).
+
+## v0.4.2 - The Bluetooth adapter stays connectable
+
+*2026-10-16 · patch · `e0a4a55`*
+
+- **What changed:** the service re-asserts `btmgmt connectable on` every ~20 s and restarts with `bluetooth.service`.
+- **Why:** pressing HOME on a Pro Controller did not reconnect it. A packet capture (`btmon`) showed the adapter received nothing from the Pro, while a Joy-Con R reconnected fine; `btmgmt info` showed the adapter without the `connectable` setting. With `connectable on`, the Pro Controller reconnected with a single HOME press.
+- **Evidence:** reproduced and fixed on hardware. A first version that set the mode only once at service start was **not enough**: after `systemctl restart bluetooth` the mode was gone a minute later, which is why it is now re-asserted periodically. After the change, `connectable` was back within 25 s of a Bluetooth restart (checked with `btmgmt info`).
+- **Open questions:** why `bluetoothd` clears the mode is not confirmed.
+
+## v0.4.1 - Pro Controller recognized over USB
+
+*2026-10-16 · patch · `faa8fb1`*
+
+- **What changed:** the Pro Controller is recognized when it appears over USB.
+- **Why:** over USB the kernel names the input "Nintendo Co., Ltd. Pro Controller" instead of "Pro Controller", so the service ignored it: no slot, no LEDs, missing from `slots.tsv`.
+- **Evidence:** three user scenarios on hardware (Bluetooth first then cable; two on Bluetooth with one plugged in; USB first then a second on Bluetooth) behave correctly after the fix.
+- **Open questions:** none for this change.
+
+## v0.4.0 - Players numbered by connection order, and the first tests
+
+*2026-10-16 · minor by judgment (a `fix`) · `b29738d`*
+
+- **What changed:** a controller that reconnects before the periodic cleanup no longer inherits its old slot because it has the same MAC; a controller that is still present (for example Bluetooth to USB) keeps its slot. The script can now be sourced, and `tests/test_slots.sh` runs against a fake sysfs.
+- **Why:** numbering by connection order was always the design, but the code could hand an old slot back to a reconnecting controller.
+- **Evidence:** four test functions at this point (now 17); the suite has 38 checks.
+- **Open questions:** none.
+
+## v0.3.5 - Right Joy-Con LED order fixed
+
+*2026-10-15 · patch · `9548d6f`*
+
+- **What changed:** the player LED pattern for the right Joy-Con is reversed, so the pattern reads in the same direction as on the left one.
+- **Evidence:** not recorded in the commit.
+
+## v0.3.4 - Idle power-off raised to 30 minutes
+
+*2026-10-15 · patch (a default change, committed as `test:`) · `38e7ccc`*
+
+- **What changed:** the idle power-off, a fixed 300 s, became configurable through `JOYMANAGER_IDLE_TIMEOUT` with a default of 1800 s (30 minutes), set in the service, the script and the README.
+- **Why:** a longer window makes long hardware tests practical. It is temporary.
+- **Open questions:** restore 300 s once the planned hardware tests are done.
+
+## v0.3.3 - Pro Controller LEDs addressed by Bluetooth address
+
+*2026-10-15 · patch · `0ec25a5`*
+
+- **What changed:** the service passes the controller's Bluetooth address (`--id`) to the helper, which finds the matching hidraw device, so the LED command reaches the right controller when several are connected.
+
+## v0.3.2 - Pro Controller LEDs use the right HID interface
+
+*2026-10-15 · patch · `238113e`*
+
+- **What changed:** `switchpro-leds.py` prefers the hidraw interface whose device name is "Pro Controller" and only falls back to the first one found.
+
+## v0.3.1 - Pro Controller LEDs: output report sequence
+
+*2026-10-15 · patch · `a4c9423`*
+
+- **What changed:** the helper now fills the output-report sequence number (the low nibble of the report counter) instead of always sending a fixed value.
+- **Why:** the helper's own comment says the controller uses that nibble as an output-report sequence.
+
+## v0.3.0 - Pro Controller player LEDs via HID
+
+*2026-10-15 · minor · `c4b6681`*
+
+- **What changed:** a small helper, `switchpro-leds.py`, sets the Pro Controller's player LEDs by writing HID output reports.
+- **Why:** not recorded in the commit message; the service already wrote the LEDs through the kernel interface and this adds a direct HID path for the Pro Controller.
+- **Evidence:** three follow-up fixes (v0.3.1-v0.3.3) were needed before it behaved on hardware.
+- **Also in this range:** `dd6704a` documented that a data cable can move a Pro Controller from Bluetooth to USB.
+
+## v0.2.1 - Faster LED re-apply
+
+*2026-10-15 · patch · `a6202cd`*
+
+- **What changed:** player LEDs are re-applied more often.
+- **Why:** the controller firmware could put its own pairing pattern back after an input report. (v0.6.1 later reversed the trade-off: too frequent writes overload the controller.)
+
+## v0.2.0 - HOME LED as a connection indicator
+
+*2026-10-15 · minor · `99518d6`*
+
+- **What changed:** the service keeps the HOME LED on while a controller is connected.
+- **Open questions:** the current `hid-nintendo` exposes the blue HOME LED as `player-5`, and its brightness can change without any physical change, so it is not a trustworthy indicator on every controller.
+
+## v0.1.3 - Battery status on the player LED
+
+*2026-10-15 · patch · `d559302`*
+
+- **What changed:** battery state moved from the blue HOME LED to the player LED: steady when normal, blinking when charging or low.
+- **Why:** the commit calls the player LEDs the reliable ones; the HOME LED could not be trusted (see v0.2.0).
+
+## v0.1.2 - Player and blue battery LEDs restored
+
+*2026-10-15 · patch · `c3f81a6`*
+
+- **What changed:** the player LEDs are re-applied before the battery state on every cycle, and a controller is also looked up by its hardware prefix. This restores the LEDs after the controller firmware refreshes them.
+
+## v0.1.1 - Connection LED stays on outside battery alerts
+
+*2026-10-15 · patch · `e46bd0a`*
+
+- **What changed:** when the battery is normal, the blue LED stays on as a connection confirmation; only charging and low-battery alerts change it.
+- **Also in this range:** `66131c6` added the experimental 8BitDo and GameSir scope, the volunteer testing program and an issue template.
+
+## v0.1.0 - `joycond` integration, installers and packages
+
+*2026-10-15 · minor · `a1997a9`*
+
+- **What changed:** two physical Joy-Cons combined by `joycond` into one virtual device take a single player slot, and their LEDs stay in sync. `install.sh` and the Arch, Debian and Fedora packaging skeletons were added. The packages declare version `0.1.0`.
+- **Evidence:** the first version that can be installed. Packages have not been built on every distribution.
+- **Also in this range:** `6e2516d` documented the cross-distribution dependencies.
+
+## v0.0.2 - Eight players
+
+*2026-10-15 · pre-0.1.0 · `93967b2`*
+
+- **What changed:** the player limit went from four to eight. The four player LEDs encode players 5-8 with binary masks (for example player 5 lights LEDs 1 and 4).
+- **Why:** a four-LED row can still tell eight players apart.
+
+## v0.0.1 - Bootstrap
+
+*2026-10-15 · pre-0.1.0 · `2db2fc5`*
+
+- **What changed:** the first unified service: `joystickmanager.sh` and its systemd unit, with global player numbering by connection order and a first README and architecture note, under the MIT license.
+- **Why:** several per-model scripts existed; the goal is one service that numbers every controller the same way.
