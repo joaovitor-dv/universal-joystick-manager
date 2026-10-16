@@ -166,7 +166,10 @@ idle_worker() {
         timeout 300 stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:' || true
         [ -e "/sys/class/input/$event" ] || break
         bluetoothctl disconnect "$id" >/dev/null 2>&1 || true
-        sleep 2
+        # O hid-nintendo pode restaurar o padrão de pareamento dos LEDs
+        # após um relatório de entrada; reaplicamos a indicação com baixa
+        # latência para mantê-la estável fisicamente.
+        sleep 0.25
     done
 }
 
