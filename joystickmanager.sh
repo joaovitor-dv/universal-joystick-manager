@@ -94,9 +94,13 @@ set_battery_led() {
     blue="/sys/class/leds/$prefix:blue:player-5/brightness"
     if [ -e "$blue" ]; then
         max=$(read_file "${blue%/brightness}/max_brightness"); [ -n "$max" ] || max=1
-        if [ "$charging" -eq 1 ]; then v=$(( phase * max / 4 + max / 4 ))
-        elif [ "$state" = low ] || [ "$state" = critical ]; then v=$(( phase == 0 ? max : 0 ))
-        else v=0
+        if [ "$charging" -eq 1 ]; then
+            v=$(( phase * max / 4 + max / 4 ))
+        elif [ "$state" = low ] || [ "$state" = critical ]; then
+            v=$(( phase == 0 ? max : 0 ))
+        else
+            # LED azul também confirma que o controle está conectado.
+            v=$max
         fi
         write_led "$blue" "$v"
     elif [ "$charging" -eq 1 ]; then
