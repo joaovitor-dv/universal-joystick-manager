@@ -361,22 +361,17 @@
     };
     // Remove the template's exact dark shell fill by alpha while retaining its
     // own line geometry; lift visible details toward the shared cool-white tone.
-    const smoothContrastFilter = (id, base) => {
-      const [r,g,b] = base;
-      const detailSlope = .018, shellLuma = .2126*13 + .7152*19 + .0722*27;
+    const smoothContrastFilter = (id, shell) => {
+      const [r,g,b] = [220,230,239];
+      const detailSlope = .018, shellLuma = .2126*shell[0] + .7152*shell[1] + .0722*shell[2];
       const alpha = [.2126,.7152,.0722].map(weight => (weight*detailSlope*255).toFixed(5));
       const shellOffset = (-shellLuma*detailSlope).toFixed(5);
       return `<filter id="${id}" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" result="contrast-lines" type="matrix" values="0 0 0 0 ${(r/255).toFixed(5)} 0 0 0 0 ${(g/255).toFixed(5)} 0 0 0 0 ${(b/255).toFixed(5)} ${alpha[0]} ${alpha[1]} ${alpha[2]} 0 ${shellOffset}"/><feComposite in="contrast-lines" in2="SourceAlpha" operator="in"/></filter>`;
     };
-    const shoulderShapes = {
-      nintendo: `<path d="M58 131Q72 34 113 15Q153-1 231 29L259 131Z M942 131Q928 34 887 15Q847-1 769 29L741 131Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="149" y="51">ZL</text><text x="851" y="51">ZR</text>`,
-      playstation: `<path d="M54 130L72 31Q83 4 133 6Q182 6 207 32L238 130Z M946 130L928 31Q917 4 867 6Q818 6 793 32L762 130Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="144" y="49">L2</text><text x="856" y="49">R2</text>`,
-      xbox: `<path d="M56 131Q64 40 109 14Q151-4 226 37L250 131Z M944 131Q936 40 891 14Q849-4 774 37L750 131Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="147" y="51">LT</text><text x="853" y="51">RT</text>`
-    };
-    const shoulderButtons = {
-      nintendo: `<path d="M46 128Q83 82 173 88Q240 90 302 128L302 156Q169 122 46 158Z M954 128Q917 82 827 88Q760 90 698 128L698 156Q831 122 954 158Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="167" y="124">L</text><text x="833" y="124">R</text>`,
-      playstation: `<path d="M43 132Q104 83 181 92Q240 97 292 137L292 159Q148 120 43 161Z M957 132Q896 83 819 92Q760 97 708 137L708 159Q852 120 957 161Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="160" y="129">L1</text><text x="840" y="129">R1</text>`,
-      xbox: `<path d="M43 133Q101 85 180 91Q246 98 299 137L299 158Q155 120 43 162Z M957 133Q899 85 820 91Q754 98 701 137L701 158Q845 120 957 162Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="164" y="130">LB</text><text x="836" y="130">RB</text>`
+    const shoulderControls = {
+      nintendo: [['ZL',115,56,'trigger'],['L',205,111,'bumper'],['R',795,111,'bumper'],['ZR',885,56,'trigger']],
+      playstation: [['L2',115,56,'trigger'],['L1',205,111,'bumper'],['R1',795,111,'bumper'],['R2',885,56,'trigger']],
+      xbox: [['LT',115,56,'trigger'],['LB',205,111,'bumper'],['RB',795,111,'bumper'],['RT',885,56,'trigger']]
     };
     function perspectiveDiagram(type) {
       const [src,height,family] = perspectiveAssets[type];
@@ -388,7 +383,13 @@
       const psFaces = family === 'playstation' ? psPositions.map(([name,x,y]) => `<image href="${icon(`ps_wire_button_${name}`)}" x="${x-34}" y="${bodyTop+y-34}" width="68" height="68"/>`).join('') : '';
       const series = type === 'xboxseries' ? `<g transform="translate(500 ${423+bodyTop-105})" fill="none" stroke="#d2dce5" stroke-width="4"><rect x="-17" y="-12" width="34" height="24" rx="4"/><path d="M-9 0h18m-5-6 6 6-6 6"/></g>` : '';
       const lineFilter = smoothContrastFilter('controller-outline',[13,19,27]);
-      return `<div class="controller-art controller-art--perspective" data-family="${family}"><svg viewBox="0 0 1000 ${height+bodyTop}" role="img" aria-label="${names[type][0]} elevated front diagram, with shoulders and triggers visible" xmlns="http://www.w3.org/2000/svg"><defs>${psClip}${lineFilter}</defs><g font-family="Segoe UI, sans-serif" font-size="25" font-weight="700" fill="#e6edf4" text-anchor="middle">${shoulderShapes[family]}</g><image href="${src}" x="0" y="${bodyTop}" width="1000" height="${height}" ${psClip ? 'clip-path="url(#playstation-face-clip)"' : ''} filter="url(#controller-outline)"/>${series}${face}${psFaces}<g transform="translate(0 -20)" font-family="Segoe UI, sans-serif" font-size="25" font-weight="700" fill="#e6edf4" text-anchor="middle">${shoulderButtons[family]}</g></svg></div>`;
+      const shoulders = shoulderControls[family].map(([label,x,y,kind]) => {
+        const path = kind === 'trigger'
+          ? `M${x-40} ${y+18}Q${x-33} ${y-20} ${x-12} ${y-24}Q${x+18} ${y-29} ${x+35} ${y-12}L${x+40} ${y+18}Z`
+          : `M${x-44} ${y-12}Q${x} ${y-24} ${x+44} ${y-12}L${x+44} ${y+13}Q${x} ${y+4} ${x-44} ${y+13}Z`;
+        return `<g data-shoulder-control="${label}" fill="none" stroke="#dce6ef" stroke-width="4" stroke-linejoin="round"><path d="${path}"/><text x="${x}" y="${y+6}" fill="#f4f8fc" stroke="none" font-family="Segoe UI,sans-serif" font-size="23" font-weight="700" text-anchor="middle">${label}</text></g>`;
+      }).join('');
+      return `<div class="controller-art controller-art--perspective" data-family="${family}"><svg viewBox="0 0 1000 ${height+bodyTop}" role="img" aria-label="${names[type][0]} elevated front diagram with four separate shoulder and trigger buttons" xmlns="http://www.w3.org/2000/svg"><defs>${psClip}${lineFilter}</defs><image href="${src}" x="0" y="${bodyTop}" width="1000" height="${height}" ${psClip ? 'clip-path="url(#playstation-face-clip)"' : ''} filter="url(#controller-outline)"/>${series}${face}${psFaces}${shoulders}</svg></div>`;
     }
     function xbox360Diagram() {
       // The housing is a traced vector with transparent interior. Keep only the four

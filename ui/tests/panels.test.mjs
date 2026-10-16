@@ -42,6 +42,26 @@ for (const [type, list] of Object.entries(faces)) {
   t.ok(`${type}: colored A/B/X/Y sit on the drawn circles (max ${Math.max(...dev).toFixed(1)} px)`, Math.max(...dev) <= 2);
 }
 
+// Perspective diagrams must expose four distinct, separated shoulder/trigger shapes,
+// and the filtered source linework must be mapped to a visible cool-white rather than shell black.
+const shoulders = {
+  pro: ['ZL','L','R','ZR'], dualsense: ['L2','L1','R1','R2'], ds4: ['L2','L1','R1','R2'],
+  xboxone: ['LT','LB','RB','RT'], xboxseries: ['LT','LB','RB','RT']
+};
+for (const [type, expected] of Object.entries(shoulders)) {
+  await click(`.card[data-controller="${type}"]`); await sleep(500);
+  const found = await ev(`(() => {
+    const art = document.querySelector('#controller-diagram .controller-art');
+    const shapes = [...art.querySelectorAll('[data-shoulder-control]')].map(el => { const r = el.getBBox(); return {label:el.dataset.shoulderControl, x:r.x, y:r.y, right:r.x+r.width, bottom:r.y+r.height}; });
+    const matrix = art.querySelector('#controller-outline feColorMatrix');
+    const values = matrix?.getAttribute('values').trim().split(/\\s+/).map(Number) || [];
+    return {labels:shapes.map(s=>s.label), shapes, light:values.length===20 && values[4]>.8 && values[9]>.8 && values[14]>.8};
+  })()`);
+  const separated = found.shapes.length === 4 && found.shapes.every((a,i) => found.shapes.slice(i+1).every(b => a.right <= b.x + .1 || b.right <= a.x + .1 || a.bottom <= b.y + .1 || b.bottom <= a.y + .1));
+  t.ok(`${type}: exactly four separately outlined L/R shoulder and trigger buttons`, JSON.stringify(found.labels) === JSON.stringify(expected) && separated, JSON.stringify(found));
+  t.ok(`${type}: controller detail lines render in a light palette`, found.light, JSON.stringify(found));
+}
+
 const assetFailures = page.failed.filter(f => !/favicon\.ico/.test(f));
 t.ok('no asset request failed', assetFailures.length === 0, assetFailures.join(' | '));
 const failures = t.finish(); page.close(); process.exit(failures ? 1 : 0);
