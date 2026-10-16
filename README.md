@@ -12,6 +12,7 @@ Serviço Linux para gerenciamento unificado de controles de jogos no Arch Linux/
 - Controles USB e Bluetooth, com Joy-Con exclusivamente via Bluetooth.
 - `joycond` como componente opcional para combinar um par de Joy-Cons em um único dispositivo virtual.
 - LEDs de jogador, indicação de bateria quando o driver expuser o recurso e desligamento automático apenas para Bluetooth.
+- O desligamento automático fica configurado inicialmente para 30 minutos (`JOYMANAGER_IDLE_TIMEOUT=1800`) durante a fase de testes.
 - Bluetooth mantido quando o mesmo controle também for conectado por USB para carregamento, quando o firmware permitir.
 
 ### Pro Controller: USB e Bluetooth

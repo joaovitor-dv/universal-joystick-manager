@@ -4,6 +4,7 @@ set -u
 runtime_dir=/run/joystickmanager
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
+idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
 switchpro_helper=/usr/local/libexec/joystickmanager-switchpro-leds
 mkdir -p "$runtime_dir"
 touch "$slots_file"
@@ -171,7 +172,7 @@ idle_worker() {
     local id=$1 event=$2
     case "$id" in [0-9A-Fa-f][0-9A-Fa-f]:*) ;; *) return;; esac
     while [ -e "/sys/class/input/$event" ]; do
-        timeout 300 stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:' || true
+        timeout "$idle_timeout" stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:' || true
         [ -e "/sys/class/input/$event" ] || break
         bluetoothctl disconnect "$id" >/dev/null 2>&1 || true
         # O hid-nintendo pode restaurar o padrão de pareamento dos LEDs
