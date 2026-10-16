@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/joaovitor-dv/universal-joystick-manager?include_prereleases&label=release)](https://github.com/joaovitor-dv/universal-joystick-manager/releases)
 ![Status: pre-release](https://img.shields.io/badge/status-pre--release-orange)
 
-**UJM numbers your game controllers the same way every time, keeps their LEDs and battery indicators honest, and handles the Bluetooth/USB quirks of each family, as one small Linux service.**
+**UJM numbers your game controllers consistently every time, keeps their LEDs and battery indicators honest, and handles the Bluetooth/USB quirks of each family, as one small Linux service.**
 
 <p align="center">
   <img src="docs/images/ui-overview.png" alt="UJM interface prototype showing the controller list and a Pro Controller diagram" width="860">
@@ -25,7 +25,7 @@ UJM is **pre-release software** (version 0.x). It was developed and tested on Ar
 | **Player LEDs** | The player number is shown on the controller's LEDs. Players 5-8 use combinations of the four LEDs. |
 | **Battery indication** | Where the driver exposes a battery, the player LED stays steady when the level is normal, blinks while charging, and pulses at low (25% or less) and critical (10% or less) levels. |
 | **Idle power-off (Bluetooth)** | A Bluetooth controller with no input for 30 minutes (configurable) is disconnected to save its battery. |
-| **Joy-Con pairs** | With the optional [`joycond`](https://github.com/DanielOgorchock/joycond), two Joy-Cons combined into one virtual device take one slot and keep their LEDs in sync. |
+| **`joycond` integration (optional)** | With the optional [`joycond`](https://github.com/DanielOgorchock/joycond), two Joy-Cons combined into one virtual device take one slot and keep their LEDs in sync. `joycond` also manages **Pro Controllers**: while it runs, each one waits for a logical pairing (blinking player LEDs) until you press L + R on it. |
 | **Pro Controller on USB** | A Pro Controller plugged in by cable is recognized and numbered like any other. |
 | **Reliable reconnection** | UJM keeps the Bluetooth adapter *connectable* (it needs `btmgmt`, from `bluez-utils` on Arch), so pressing HOME on a Pro Controller reconnects it. |
 | **Controller profiles** | A table ([`controllers.tsv`](controllers.tsv)) says which families are recognized and which kernel driver to expect. Only validated families are active by default. |
@@ -80,7 +80,7 @@ sudo systemctl start joystickmanager
 
 **Optional components**
 
-- **Joy-Con pairs:** install [`joycond`](https://github.com/DanielOgorchock/joycond) yourself (on Arch, the AUR package `joycond-git`) and enable `joycond.service`. UJM does not install it for you.
+- **`joycond` (Joy-Con pairs, and it also affects Pro Controllers):** install [`joycond`](https://github.com/DanielOgorchock/joycond) yourself (on Arch, the AUR package `joycond-git`) and enable `joycond.service`. UJM does not install it for you. Be aware that `joycond` is not only for Joy-Cons: it manages **Pro Controllers too**. While it is running, a Pro Controller shows blinking player LEDs until you press **L + R** on it to complete the logical pairing; in our tests the LEDs only settled on the steady player number after that step. If you do not want that extra step, leave `joycond` disabled.
 - **External drivers** such as `xone` and `xpadneo` are third-party code built through DKMS. UJM does not install or package them.
 - **Charge the Pro Controller without losing Bluetooth:** `sudo ./install.sh --pro-charge-only` adds a udev rule. Read [the caveats](#the-pro-controller-and-usb-cables) first.
 
@@ -129,7 +129,7 @@ Next time, press **HOME** (Switch controllers) or the PS button (DualShock 3) to
 cat /run/joystickmanager/slots.tsv
 ```
 
-**Pair Joy-Cons with `joycond`.** While `joycond` waits for a logical pairing the player LEDs may blink. Press **L + R** together on each Pro Controller to complete it. For a virtual device made of two Joy-Cons, press **+ and -**.
+**Pair with `joycond` (Joy-Cons and Pro Controllers).** While `joycond` waits for a logical pairing the player LEDs may blink. Press **L + R** together on each Pro Controller to complete it. For a virtual device made of two Joy-Cons, press **+ and -**.
 
 **Check a controller that is not detected.** Run `joystickmanager-doctor`: it lists, per family, whether each kernel module is loaded, available or absent, and which connected controllers matched a profile.
 
@@ -169,7 +169,7 @@ then `sudo systemctl restart joystickmanager`.
 | **The controller drops Bluetooth when I plug in a cable** | Expected for data cables, see [above](#the-pro-controller-and-usb-cables). |
 | **The Pro Controller disconnects every few minutes; `journalctl -k` shows `exceeded max attempts` or `timeout waiting for input report`** | Make sure you run v0.6.1 or newer; older versions rewrote the LEDs too often. |
 | **LEDs show the wrong pattern for a few seconds** | The firmware sometimes restores its own pattern; UJM fixes it at the next refresh (10 s by default). Lower `JOYMANAGER_LED_REFRESH` if it bothers you, but very low values can overload the controller. |
-| **Joy-Con LEDs keep blinking** | `joycond` is waiting for a logical pairing: press **L + R** (Pro Controller) or **+ and -** (combined Joy-Cons). |
+| **Player LEDs keep blinking (Joy-Cons or Pro Controllers)** | `joycond` is waiting for a logical pairing: press **L + R** (Pro Controller) or **+ and -** (combined Joy-Cons). |
 | **I need logs** | `journalctl -u joystickmanager`, `journalctl -k \| grep -i nintendo`, `journalctl -u bluetooth`. |
 
 ## The interface prototype
@@ -180,8 +180,9 @@ A graphical interface is being designed. Today it is a static HTML **prototype w
 |---|---|
 | <img src="docs/images/ui-dualsense.png" alt="DualSense diagram" width="420"> | <img src="docs/images/ui-xbox360.png" alt="Xbox 360 controller diagram" width="420"> |
 | <img src="docs/images/ui-dualshock3.png" alt="DualShock 3 diagram" width="420"> | <img src="docs/images/ui-joycon-combined.png" alt="Combined Joy-Cons panel" width="420"> |
+| <img src="docs/images/ui-credits.png" alt="Credits and Info page" width="420"> | <img src="docs/images/ui-theme-midnight.png" alt="The Midnight theme" width="420"> |
 
-What the prototype already explores: a list of controllers with player number, transport and LEDs; a per-controller diagram with the real button names of each family; stick values; and a **Combined Joy-Cons** entry in the list.
+What the prototype already explores: a list of controllers with player number, transport and LEDs; a per-controller diagram with the real button names of each family; stick values; a **Combined Joy-Cons** entry in the list (it is just another controller, not a separate tab); **Help → Credits & Info** (version, collaborators, the volunteer testers from [`CREDITS.md`](CREDITS.md), third-party software and trademarks); and **View → Theme…**, where you pick your own background, accent and text colors or a preset. The theme is **dark only, on purpose**: the interface has no light mode, and anyone who tries to force one gets teased for it. Semantic colors such as the A/B/X/Y buttons are never recolored.
 
 ## Roadmap
 
@@ -205,13 +206,15 @@ Nothing below is promised for a date. The order follows the current priorities.
 - Integration with Steam Input without duplicated devices.
 
 **Longer term**
-- **Technical rename.** Today the brand is UJM but the identifiers are still `joystickmanager.service`, `JOYMANAGER_*` and `/run/joystickmanager`. Renaming them to `ujm` would break existing installs, so it is planned as a separate release with a migration path.
+- **A console-only edition (maybe).** The brand is UJM but the technical identifiers stay `joystickmanager.service`, `JOYMANAGER_*` and `/run/joystickmanager`: renaming them on their own would break existing installs for no gain, so it is not planned. It would only make sense together with a **console-only edition** installed as plain `ujm`, with a `ujm` command and a `ujm` service id. That edition is an idea, not a commitment, and it would ship with a migration path.
 - **Windows 10/11** as a future extension: the GUI and data model can be shared, but discovery, Bluetooth, battery and LEDs need a separate Windows backend. It is not a promise of parity with Linux.
 - **1.0.0** when the validated hardware matrix above is complete.
 
 ## Help us test
 
-Most controllers are not available to the maintainers. If you own one, the [volunteer testing guide](docs/volunteer-testing.md) explains what to collect safely, and you can [open a test report](https://github.com/joaovitor-dv/universal-joystick-manager/issues/new/choose). Other docs: [architecture](docs/architecture.md), [dependencies and drivers](docs/dependencies.md), [devlog](DEVLOG.md), [contributing](CONTRIBUTING.md), [security policy](SECURITY.md).
+Most controllers are not available to the maintainers. If you own one, the [volunteer testing guide](docs/volunteer-testing.md) explains what to collect safely, and you can [open a test report](https://github.com/joaovitor-dv/universal-joystick-manager/issues/new/choose).
+
+**Testers are part of the project.** Everyone who sends a reproducible report is built into the [credits](CREDITS.md) and into the app's **Credits & Info** page (Help menu), under the name or handle they choose. Say so in the *Credit name* field of the report; nothing is listed without your consent. Other docs: [credits](CREDITS.md), [architecture](docs/architecture.md), [dependencies and drivers](docs/dependencies.md), [devlog](DEVLOG.md), [contributing](CONTRIBUTING.md), [security policy](SECURITY.md).
 
 ## Patch notes
 
