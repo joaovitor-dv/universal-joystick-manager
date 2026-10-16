@@ -1,29 +1,29 @@
-# Programa de testes voluntários
+# Volunteer testing program
 
-O projeto precisa de pessoas com controles que não estão disponíveis para validação local. O objetivo é testar detecção, entrada, numeração, bateria, LEDs, Bluetooth, USB e receptores sem fio sem exigir acesso remoto ao computador do voluntário.
+The project needs people who own controllers that are not available for local validation. The goal is to test detection, input, numbering, battery, LEDs, Bluetooth, USB and wireless receivers without requiring remote access to the volunteer's computer.
 
-## Famílias procuradas
+## Families we are looking for
 
-- 8BitDo: Ultimate, Pro 2, SN30, SN30 Pro, M30, Zero, Lite e outros modelos.
-- GameSir: T4, T4 Pro, T4 Kaleid, Nova, G7, Cyclone e outros modelos.
-- Xbox 360, Xbox One e Xbox Series X/S.
-- DualShock 4 e DualSense.
-- Nintendo Switch 2 Pro Controller e Joy-Con 2.
+- 8BitDo: Ultimate, Pro 2, SN30, SN30 Pro, M30, Zero, Lite and other models.
+- GameSir: T4, T4 Pro, T4 Kaleid, Nova, G7, Cyclone and other models.
+- Xbox 360, Xbox One and Xbox Series X/S.
+- DualShock 4 and DualSense.
+- Nintendo Switch 2 Pro Controller and Joy-Con 2.
 
-## O que o voluntário precisa informar
+## What the volunteer needs to report
 
-- distribuição e versão do kernel;
-- modelo exato e revisão, se disponível;
-- conexão usada: USB, Bluetooth ou receptor;
-- se o controle aparece como XInput, DInput, Switch ou outro modo;
-- se há LEDs de jogador, RGB, indicador de bateria ou nenhum deles;
-- se o controle possui pilhas, bateria interna ou bateria removível.
+- distribution and kernel version;
+- exact model and revision, if available;
+- connection used: USB, Bluetooth or receiver;
+- whether the controller appears as XInput, DInput, Switch or another mode;
+- whether it has player LEDs, RGB, a battery indicator or none of them;
+- whether the controller uses batteries, an internal battery or a removable battery.
 
-Não publique endereço MAC completo, número de série, nome de usuário, caminho pessoal ou logs que contenham esses dados. Substitua identificadores por `XX` antes de enviar.
+Do not publish a full MAC address, serial number, user name, personal path or logs that contain them. Replace identifiers with `XX` before sending.
 
-## Coleta segura
+## Safe collection
 
-Execute os comandos abaixo com o controle conectado:
+Run the commands below with the controller connected:
 
 ```text
 uname -a
@@ -32,18 +32,18 @@ lsusb
 bluetoothctl devices Connected
 ```
 
-Para testar a entrada, use `evtest` apenas no `/dev/input/eventN` correspondente ao controle. Não envie o conteúdo de outros dispositivos.
+To test input, use `evtest` only on the `/dev/input/eventN` that corresponds to the controller. Do not send the contents of other devices.
 
-## Resultado esperado
+## Expected result
 
-O voluntário deve informar:
+The volunteer should report:
 
-1. se o controle foi detectado;
-2. qual nome e modo apareceram;
-3. quais botões e eixos funcionaram;
-4. se o controle recebeu um jogador de 1 a 8;
-5. se a bateria apareceu;
-6. se LEDs ou RGB responderam;
-7. se houve duplicação entre USB/Bluetooth, Steam Input ou receptor.
+1. whether the controller was detected;
+2. which name and mode appeared;
+3. which buttons and axes worked;
+4. whether the controller received a player number from 1 to 8;
+5. whether the battery appeared;
+6. whether LEDs or RGB responded;
+7. whether there was duplication between USB/Bluetooth, Steam Input or the receiver.
 
-Um modelo só será promovido de experimental para validado depois de pelo menos um teste reproduzível e documentado.
+A model is only promoted from experimental to validated after at least one reproducible, documented test.

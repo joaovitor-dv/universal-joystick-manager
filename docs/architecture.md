@@ -1,49 +1,49 @@
-# Arquitetura
+# Architecture
 
-## Fluxo
+## Flow
 
 ```text
-drivers Linux / Bluetooth / USB
+Linux drivers / Bluetooth / USB
           |
           v
-  joystickmanager.service ---- joycond (opcional)
+  joystickmanager.service ---- joycond (optional)
           |
-          +--> numeração global
-          +--> LEDs e bateria
-          +--> idle timeout Bluetooth
-          +--> filtro de duplicidade USB/Bluetooth
+          +--> global numbering
+          +--> LEDs and battery
+          +--> Bluetooth idle timeout
+          +--> USB/Bluetooth duplicate filter
           v
-      jogos / Steam
+      games / Steam
 ```
 
-## Decisões
+## Decisions
 
-1. A identidade de jogador é atribuída pela ordem de conexão e não pelo MAC.
-2. O limite lógico inicial é de oito jogadores; os LEDs de quatro posições usam máscaras para os jogadores 5–8.
-3. O estado de jogadores é efêmero e deve ser limpo quando o dispositivo desaparece.
-4. O `joycond` cria o par virtual; o gerenciador coordena a numeração e sincroniza a apresentação dos dois Joy-Cons.
-5. A bateria só será exibida quando o kernel ou o driver fornecer uma fonte confiável.
-6. O Xbox 360 participa da numeração, mas não terá medição de bateria.
-7. Interfaces USB que pertençam ao mesmo controle Bluetooth serão tratadas como carregamento quando a identidade puder ser confirmada.
-8. No Switch Pro Controller, um cabo USB de dados faz o firmware trocar do Bluetooth para USB. Para manter Bluetooth durante a carga, use um cabo somente de carga, ou desautorize o dispositivo USB (`echo 0 > /sys/bus/usb/devices/<porta>/authorized`): validado à mão no hardware, o controle ficou em Bluetooth e `Charging`. A regra udev opt-in em `udev/` automatiza isso, mas **não foi testada** e desliga o uso com fio.
-9. O Steam Input não deve criar um segundo dispositivo para os Joy-Cons combinados.
-10. Os controles reconhecidos vêm de `controllers.tsv` (nome do input, fabricante, driver esperado, estado). Só o estado `validated` é ativo por padrão; sem a tabela, o serviço usa uma lista fixa dos controles validados.
-11. O adaptador Bluetooth precisa estar `connectable` para controles como o Pro Controller reconectarem por HOME; o serviço reafirma o modo periodicamente porque o `bluetoothd` pode desligá-lo ao reiniciar.
-12. Os LEDs são reaplicados a cada `JOYMANAGER_LED_REFRESH` s (padrão 10), não a cada ciclo de 2 s: cada escrita é um subcomando HID, e reescrever tudo a cada ciclo derrubava o Pro Controller por timeout. Mudanças reais (carga, bateria) são escritas na hora.
+1. Player identity is assigned by connection order, not by MAC address.
+2. The initial logical limit is eight players; the four-position LEDs use masks for players 5-8.
+3. Player state is ephemeral and must be cleared when the device disappears.
+4. `joycond` creates the virtual pair; the manager coordinates numbering and synchronizes the presentation of the two Joy-Cons.
+5. Battery is only shown when the kernel or the driver provides a reliable source.
+6. The Xbox 360 takes part in numbering but will not have battery measurement.
+7. USB interfaces that belong to the same Bluetooth controller will be treated as charging when the identity can be confirmed.
+8. On the Switch Pro Controller, a USB data cable makes the firmware switch from Bluetooth to USB. To keep Bluetooth while charging, use a charge-only cable, or deauthorize the USB device (`echo 0 > /sys/bus/usb/devices/<port>/authorized`): validated by hand on hardware, the controller stayed on Bluetooth and `Charging`. The opt-in udev rule in `udev/` automates this, but it has **not been tested** and it disables wired use.
+9. Steam Input must not create a second device for the combined Joy-Cons.
+10. Recognized controllers come from `controllers.tsv` (input name, vendor, expected driver, state). Only the `validated` state is active by default; without the table, the service uses a fixed list of validated controllers.
+11. The Bluetooth adapter must be `connectable` for controllers such as the Pro Controller to reconnect with HOME; the service re-asserts the mode periodically because `bluetoothd` may clear it on restart.
+12. LEDs are re-applied every `JOYMANAGER_LED_REFRESH` s (default 10), not on every 2 s cycle: each write is an HID subcommand, and rewriting everything on every cycle made the Pro Controller drop by timeout. Real changes (charging, battery) are written immediately.
 
-## Limites
+## Limits
 
-O serviço sozinho não impede que o firmware troque para USB quando o cabo de dados entra; isso só se evita desautorizando o dispositivo USB ou usando um cabo de carga. Também não pode garantir que um clone de Joy-Con implemente o protocolo esperado pelo `joycond`. Com `joycond`, LEDs piscando podem indicar pareamento lógico pendente; Pro Controllers devem receber **L + R**, e um par virtual combinado de Joy-Cons deve receber **+ e -**.
+The service alone cannot prevent the firmware from switching to USB when a data cable is plugged in; that is only avoided by deauthorizing the USB device or by using a charge-only cable. It also cannot guarantee that a Joy-Con clone implements the protocol `joycond` expects. With `joycond`, blinking LEDs may indicate pending logical pairing; Pro Controllers must receive **L + R**, and a combined virtual pair of Joy-Cons must receive **+ and -**.
 
-## Extensões futuras não testadas
+## Untested future extensions
 
-- Xbox 360, Xbox One e Xbox Series X/S.
-- DualShock 4 e DualSense.
+- Xbox 360, Xbox One and Xbox Series X/S.
+- DualShock 4 and DualSense.
 - Nintendo Switch 2 Pro Controller.
 - Nintendo Switch 2 Joy-Con.
-- Controles 8BitDo.
-- Controles GameSir.
+- 8BitDo controllers.
+- GameSir controllers.
 
-Esses modelos só serão marcados como suportados após testes com hardware real e confirmação dos caminhos de bateria, LEDs, entrada e conexão.
+These models will only be marked as supported after tests with real hardware and confirmation of the battery, LED, input and connection paths.
 
-O mesmo critério vale para cada modelo específico dentro das marcas 8BitDo e GameSir. Modos XInput, DInput, Switch, Bluetooth, USB e receptores proprietários devem ser validados separadamente.
+The same criterion applies to each specific model within the 8BitDo and GameSir brands. XInput, DInput, Switch, Bluetooth, USB and proprietary receiver modes must be validated separately.
