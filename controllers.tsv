@@ -1,0 +1,27 @@
+# Perfis de controle do Universal Joystick Manager
+# Colunas (separadas por TAB, sem campos vazios: use '-'):
+#   familia  regra  estado  barramento  modulo_kernel  driver_externo  observacoes
+# regra: name:GLOB (nome do input) | vid:HEX4 | vidpid:HEX4:HEX4. vid:* só vale com nó js* (joystick).
+# estado: validated (ativo por padrão) | experimental e planned (só com JOYMANAGER_EXPERIMENTAL=1).
+# Drivers/módulos abaixo são o ESPERADO a partir do conhecimento do Linux, NÃO verificados em hardware,
+# exceto as linhas 'validated'. 'modulo_kernel' pode ser built-in; use joystickmanager-doctor para checar.
+ps3	name:PLAYSTATION(R)3 Controller	validated	bt,usb	hid_sony	-	DualShock 3; validado
+switch-pro	name:Pro Controller	validated	bt	hid_nintendo	-	Switch Pro via Bluetooth; validado
+switch-pro	name:Nintendo Co., Ltd. Pro Controller	validated	usb	hid_nintendo	-	Switch Pro via USB (nome com prefixo do fabricante); validado
+joycon	name:Joy-Con (L)	validated	bt	hid_nintendo	-	Joy-Con esquerdo; validado
+joycon	name:Joy-Con (R)	validated	bt	hid_nintendo	-	Joy-Con direito; validado
+joycon-combinado	name:Nintendo Switch Combined Joy-Cons	validated	virtual	uinput	joycond	Par virtual criado pelo joycond; validado
+xbox360	name:Microsoft X-Box 360 pad*	experimental	usb	xpad	-	Xbox 360 com fio ou receptor; sem bateria
+xbox-one-series	name:Microsoft X-Box One*	experimental	usb	xpad	xone (receptor sem fio)	Xbox One com fio
+xbox-one-series	name:Microsoft Xbox Series*	experimental	usb	xpad	xone (receptor sem fio)	Xbox Series X/S com fio
+xbox-bluetooth	name:Xbox Wireless Controller*	experimental	bt	hid_microsoft	xpadneo	Xbox One/Series por Bluetooth; o xpadneo melhora rumble e bateria
+dualshock4	name:Wireless Controller	experimental	bt,usb	hid_playstation	-	DualShock 4; hid_sony em kernels antigos
+dualsense	name:DualSense Wireless Controller	experimental	bt,usb	hid_playstation	-	DualSense
+dualsense	name:DualSense Edge Wireless Controller	experimental	bt,usb	hid_playstation	-	DualSense Edge
+switch2	-	planned	bt,usb	-	-	Switch 2 Pro/Joy-Con: sem driver estável nem identificação confirmada
+8bitdo	vid:2dc8	experimental	bt,usb,2.4g	hid_nintendo,xpad,hid_generic	-	Depende do modo (Switch, XInput, DInput); validar cada modelo e modo
+gamesir	vid:3537	experimental	bt,usb,2.4g	xpad,hid_generic	-	Depende do modelo e do modo; validar cada um
+logitech	vid:046d	experimental	usb,2.4g	xpad,hid_lg,hid_generic	-	F310/F510/F710: XInput usa xpad, DInput usa hid_generic; volantes também têm js
+razer	vid:1532	experimental	usb,bt	xpad,hid_generic	-	Varia por modelo (Wolverine, Raiju etc.)
+redragon	name:Redragon*	experimental	usb,2.4g	xpad,hid_generic	-	Muitos modelos se identificam como clone XInput genérico
+xinput-clone	name:Generic X-Box pad	experimental	usb	xpad	-	Clones XInput genéricos

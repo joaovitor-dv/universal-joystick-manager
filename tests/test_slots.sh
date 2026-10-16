@@ -96,10 +96,75 @@ t_connectable_e_reafirmado() {
     check "btmgmt connectable on chamado a cada reafirmação" "connectable on connectable on" "$(tr '\n' ' ' <"$T/btmgmt.log" | sed 's/ $//')"
 }
 
+# fake_input <evento> <nome> <vid> <pid> [js]  (dispositivo não-HID, como o xpad)
+fake_input() {
+    local ev=$1 d="$T/dev/in-$1"
+    mkdir -p "$d/id" "$sys_input/$ev"
+    printf '%s\n' "$2" >"$d/name"; printf '%s\n' "$3" >"$d/id/vendor"; printf '%s\n' "$4" >"$d/id/product"
+    printf 'usb-fake/%s\n' "$ev" >"$d/phys"
+    [ "${5:-}" = js ] && mkdir -p "$d/js0"
+    ln -sfn "$d" "$sys_input/$ev/device"
+}
+profile_of() { profile_for_event "$1" 2>/dev/null | cut -f1; }
+
+t_perfis_validados_sempre_ativos() {
+    experimental=0
+    fake_input event1 "PLAYSTATION(R)3 Controller" 054c 0268
+    fake_input event2 "Nintendo Co., Ltd. Pro Controller" 057e 2009
+    check "PS3 casa o perfil ps3" ps3 "$(profile_of event1)"
+    check "Pro via USB casa switch-pro" switch-pro "$(profile_of event2)"
+}
+
+t_perfis_experimentais_so_com_flag() {
+    fake_input event1 "DualSense Wireless Controller" 054c 0ce6
+    experimental=0; check "DualSense desligado por padrão" "" "$(profile_of event1)"
+    experimental=1; check "DualSense ativo com a flag" dualsense "$(profile_of event1)"
+}
+
+t_regra_por_fabricante_exige_js() {
+    experimental=1
+    fake_input event1 "8BitDo Pro 2" 2dc8 6003 js
+    fake_input event2 "8BitDo Pro 2 Motion" 2dc8 6003
+    check "8BitDo com nó js casa" 8bitdo "$(profile_of event1)"
+    check "nó sem js (IMU/teclado) não casa" "" "$(profile_of event2)"
+}
+
+t_nos_extras_de_dualshock4_ignorados() {
+    experimental=1
+    fake_input event1 "Wireless Controller" 054c 09cc
+    fake_input event2 "Wireless Controller Motion Sensors" 054c 09cc
+    fake_input event3 "Wireless Controller Touchpad" 054c 09cc
+    check "DS4 principal casa" dualshock4 "$(profile_of event1)"
+    check "Motion Sensors não casa" "" "$(profile_of event2)"
+    check "Touchpad não casa" "" "$(profile_of event3)"
+}
+
+t_controle_nao_hid_recebe_slot() {
+    experimental=1
+    fake_input event1 "Microsoft X-Box 360 pad" 045e 028e js
+    register_event event1
+    check "xpad registrado com 1 linha" 1 "$(wc -l <"$slots_file")"
+    check "xpad recebe slot 1" 1 "$(cut -f2 "$slots_file")"
+}
+
+t_sem_tabela_usa_lista_fixa() {
+    JOYMANAGER_PROFILES=/nao/existe
+    fake_input event1 "Pro Controller" 057e 2009
+    fake_input event2 "DualSense Wireless Controller" 054c 0ce6
+    is_supported_controller event1 "Pro Controller"; check "sem tabela, Pro Controller ok" 0 $?
+    is_supported_controller event2 "DualSense Wireless Controller"; check "sem tabela, DualSense fora" 1 $?
+}
+
 for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
          t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot \
          t_pro_controller_usb_e_registrado \
-         t_connectable_e_reafirmado; do
+         t_connectable_e_reafirmado \
+         t_perfis_validados_sempre_ativos \
+         t_perfis_experimentais_so_com_flag \
+         t_regra_por_fabricante_exige_js \
+         t_nos_extras_de_dualshock4_ignorados \
+         t_controle_nao_hid_recebe_slot \
+         t_sem_tabela_usa_lista_fixa; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s falha(s)\n' "$fails"

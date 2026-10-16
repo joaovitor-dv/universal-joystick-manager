@@ -7,11 +7,59 @@ slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
 switchpro_helper=/usr/local/libexec/joystickmanager-switchpro-leds
+# Controles "experimental" e "planned" de controllers.tsv só entram com JOYMANAGER_EXPERIMENTAL=1.
+experimental=${JOYMANAGER_EXPERIMENTAL:-0}
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
 mkdir -p "$runtime_dir"
 touch "$slots_file"
 
 write_led() { local p=$1 v=$2; [ -e "$p" ] && printf '%s\n' "$v" >"$p" 2>/dev/null || true; }
 read_file() { [ -r "$1" ] && cat "$1" || true; }
+
+# Caminho da tabela de perfis. JOYMANAGER_PROFILES, se definido, é o único
+# candidato; sem tabela, register_event usa a lista fixa de nomes (legado).
+profiles_path() {
+    local f
+    if [ -n "${JOYMANAGER_PROFILES:-}" ]; then
+        [ -r "$JOYMANAGER_PROFILES" ] && { printf '%s\n' "$JOYMANAGER_PROFILES"; return 0; }
+        return 1
+    fi
+    for f in /usr/local/share/joystickmanager/controllers.tsv /usr/share/joystickmanager/controllers.tsv "$script_dir/controllers.tsv"; do
+        [ -r "$f" ] && { printf '%s\n' "$f"; return 0; }
+    done
+    return 1
+}
+
+has_js() { compgen -G "$sys_input/$1/device/js*" >/dev/null; }
+
+# profile_for_event EVENTO -> imprime "familia<TAB>estado" da primeira regra que casa.
+# Falha se nada casa ou se a regra casada ainda não está habilitada.
+profile_for_event() {
+    local ev=$1 table name vid pid fam match status rest
+    table=$(profiles_path) || return 1
+    name=$(read_file "$sys_input/$ev/device/name")
+    vid=$(read_file "$sys_input/$ev/device/id/vendor")
+    pid=$(read_file "$sys_input/$ev/device/id/product")
+    while IFS=$'\t' read -r fam match status rest; do
+        case "$fam" in ''|'#'*) continue;; esac
+        case "$match" in
+            name:*) case "$name" in ${match#name:}) ;; *) continue;; esac;;
+            vid:*) [ "${match#vid:}" = "$vid" ] && has_js "$ev" || continue;;
+            vidpid:*) [ "${match#vidpid:}" = "$vid:$pid" ] && has_js "$ev" || continue;;
+            *) continue;;
+        esac
+        if [ "$status" != validated ] && [ "$experimental" != 1 ]; then return 1; fi
+        printf '%s\t%s\n' "$fam" "$status"; return 0
+    done <"$table"
+    return 1
+}
+
+is_supported_controller() {
+    local ev=$1 name=$2
+    if profiles_path >/dev/null; then profile_for_event "$ev" >/dev/null; return; fi
+    case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Nintendo Co., Ltd. Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons') return 0;; esac
+    return 1
+}
 
 controller_parent() {
     local p=$1 n
@@ -152,8 +200,7 @@ battery_state() {
 register_event() {
     local event=$1 name path id prefix slot tmp reverse
     name=$(read_file "$sys_input/$event/device/name")
-    # Via USB o hid-nintendo prefixa o nome com o fabricante ("Nintendo Co., Ltd. Pro Controller").
-    case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Nintendo Co., Ltd. Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons');;*) return;;esac
+    is_supported_controller "$event" "$name" || return
     path="$sys_input/$event/device"
     if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
         collapse_physical_joycons
@@ -161,7 +208,12 @@ register_event() {
         prefix=-
     else
         id=$(controller_id "$path" || true); prefix=$(controller_parent "$path" || true)
-        [ -n "$id" ] && [ -n "$prefix" ] || return
+        if [ -z "$id" ] || [ -z "$prefix" ]; then
+            # Drivers fora de HID (ex.: xpad) não têm uniq nem pai 0003/0005: só numeração, sem LEDs.
+            id="phys:$(read_file "$path/phys")"
+            [ "$id" != phys: ] || id="path:$(basename "$(readlink -f "$path" 2>/dev/null)")"
+            prefix=-
+        fi
     fi
     slot=$(assign_slot "$id"); [ "$slot" -gt 0 ] || return
     tmp="$slots_file.tmp"
