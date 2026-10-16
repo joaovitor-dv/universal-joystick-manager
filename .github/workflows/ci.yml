@@ -33,6 +33,33 @@ jobs:
         run: |
           awk -F'\t' '!/^#/ && NF != 7 { printf "line %d has %d fields, expected 7\n", NR, NF; bad=1 } END { exit bad }' controllers.tsv
 
+  ui:
+    name: Interface (headless Chrome, informational)
+    runs-on: ubuntu-latest
+    # Informational until it has proven stable on the runners: the tests wait on simulated delays.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Inline scripts parse
+        run: |
+          python3 - <<'PY'
+          import re, subprocess, tempfile
+          html = open('ui/index.html', encoding='utf-8').read()
+          for i, js in enumerate(re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)):
+              with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False) as f:
+                  f.write(js)
+              subprocess.run(['node', '--check', f.name], check=True)
+              print('script', i, 'ok')
+          PY
+      - name: Browser tests
+        env:
+          CHROME: google-chrome
+          CI: "1"
+        run: ui/tests/run.sh
+
   shellcheck:
     name: ShellCheck (informational)
     runs-on: ubuntu-latest
