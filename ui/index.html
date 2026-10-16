@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UJM — Universal Joystick Manager</title>
+  <style>
+    :root { color-scheme: dark; --desktop:#020402; --window:#050805; --panel:#080d09; --panel-2:#0b110c; --line:#294331; --dark:#e3f6e5; --muted:#91a794; --blue:#85d28a; --green:#71f08e; --orange:#edc56b; --accent:#9cff88; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:var(--desktop); color:#dff5e1; font:13px "Segoe UI",Tahoma,sans-serif; }
+    .window { max-width:1440px; min-height:720px; margin:28px auto; background:var(--window); border:1px solid #23422a; box-shadow:2px 3px 9px #000b; }
+    header { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; color:#eaffec; background:linear-gradient(#102014,#071009); border-bottom:1px solid #32633a; }
+    h1,h2,h3,p { margin:0; } h1 { font-size:16px; font-weight:600; } h2 { font-size:14px; margin-bottom:8px; } h3 { font-size:13px; font-weight:600; }
+    .subtitle,.muted { color:var(--muted); } .subtitle { margin-top:2px; color:#b8d6bb; font-size:12px; }
+    button { border:1px solid #3b6444; background:linear-gradient(#18271a,#0a120b); color:#e3f6e5; border-radius:2px; padding:5px 12px; cursor:pointer; box-shadow:inset 0 1px #294331; }
+    .menubar { padding:5px 10px; border-bottom:1px solid #294331; background:#080d09; color:#c7e2ca; } .menubar span { margin-right:20px; }
+    main { display:grid; grid-template-columns:280px minmax(0,1fr); gap:10px; padding:10px; }
+    .panel,.card { background:var(--panel); border:1px solid var(--line); border-radius:2px; box-shadow:inset 1px 1px #142318; }
+    .panel { padding:10px; } .cards { display:grid; gap:4px; }
+    .card { padding:8px; cursor:pointer; } .card.selected { background:#102117; border-color:#65bd73; } .card-top,.row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .identity { display:flex; align-items:center; gap:8px; } .player { width:26px; height:26px; display:grid; place-items:center; border:1px solid #47704e; background:#101a12; color:#dff5e1; font-weight:700; }
+    .status { color:var(--green); font-size:12px; } .transport { color:var(--blue); font-size:12px; } .battery { color:var(--orange); }
+    .leds { display:flex; gap:5px; margin-top:8px; } .led { width:9px; height:9px; border:1px solid #52735a; border-radius:50%; background:#26372a; } .led.on { background:#2670c2; border-color:#174a83; }
+    .home { margin-left:auto; color:#8bdf95; font-size:12px; } .bar { height:8px; border:1px solid #37543c; background:#101911; overflow:hidden; margin-top:5px; } .bar span { display:block; height:100%; background:#61d77c; width:82%; }
+    .diag { display:grid; gap:10px; } .section { border:1px solid var(--line); padding:8px; background:var(--panel-2); } .section-title { display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:5px; margin-bottom:8px; }
+    .stick-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; } .stick-grid.is-single { grid-template-columns:1fr; } .stick-grid [hidden] { display:none; } .stick { width:145px; height:145px; margin:5px auto 0; border:1px solid #55735b; border-radius:50%; position:relative; background:radial-gradient(circle,#55735b 0 1px,transparent 2px); background-size:18px 18px; }
+    .dot { position:absolute; width:20px; height:20px; border:2px solid #317540; border-radius:50%; background:#83d890; left:58%; top:38%; }
+    .keys { display:flex; flex-wrap:wrap; gap:6px; } .key { width:42px; height:38px; padding:3px; display:grid; place-items:center; text-align:center; border:1px solid #385a3e; border-radius:2px; color:#e3f6e5; background:linear-gradient(#18271a,#0a120b); } .key img { max-width:32px; max-height:32px; filter:url(#key-solid-silhouette); } .key--direction img,.key--face img,.key--system-home img { filter:none; } .key-symbol { display:grid; place-items:center; width:29px; height:29px; border:2px solid #f0fff1; border-radius:50%; background:#080d09; font-size:18px; font-weight:700; line-height:1; } .key--face .key-symbol { border-color:transparent; background:transparent; } .key-text { font-size:12px; font-weight:800; letter-spacing:0; text-shadow:none; } .key--ps-triangle { color:#24c494; } .key--ps-circle { color:#ee535d; } .key--ps-cross { color:#368efa; } .key--ps-square { color:#e576a5; } .key--nintendo-a { color:#f3424d; } .key--nintendo-b { color:#f5c443; } .key--nintendo-x { color:#337ff0; } .key--nintendo-y { color:#20c985; }
+    .axis { display:grid; grid-template-columns:65px 1fr 42px; gap:7px; align-items:center; color:#bed8c1; font-size:12px; margin:5px 0; } .axisbar { height:8px; border:1px solid #37543c; background:#101911; } .axisbar span { display:block; height:100%; width:65%; background:#65d77d; }
+    .adaptive-trigger[hidden] { display:none; } .adaptive-note { color:var(--muted); font-size:11px; line-height:1.45; margin:0 0 9px; }
+    .trigger-pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .trigger-channel { min-width:0; border:1px solid #294331; padding:7px; background:#070c08; }
+    .trigger-channel h3 { margin-bottom:7px; } .trigger-mode { width:100%; margin-bottom:8px; }
+    .trigger-setting { display:grid; grid-template-columns:105px 1fr 38px; gap:6px; align-items:center; margin:6px 0; color:#bed8c1; font-size:11px; }
+    .trigger-setting input { width:100%; accent-color:#71f08e; }
+    .trigger-track { height:10px; margin:7px 0 3px; border:1px solid #294331; background:linear-gradient(90deg,#060a07 0 var(--zone-start,0%),#2d7c42 var(--zone-start,0%) var(--zone-end,100%),#060a07 var(--zone-end,100%) 100%); }
+    .trigger-source { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; }
+    @media(max-width:620px){ .trigger-pair { grid-template-columns:1fr; } }
+    .controller-view { min-height:400px; display:grid; place-items:center; background:#020402; border:1px inset #294331; padding:16px; }
+    .controller { width:min(100%,440px); height:205px; position:relative; background:#d9dde1; border:2px solid #747c85; border-radius:42px 42px 58px 58px; box-shadow:inset 0 2px #fff, 2px 3px 4px #0003; }
+    .controller:before,.controller:after { content:""; position:absolute; width:105px; height:115px; bottom:-8px; background:#d9dde1; border:2px solid #747c85; z-index:-1; }
+    .controller:before { left:12px; transform:rotate(12deg); border-radius:45% 35% 55% 52%; } .controller:after { right:12px; transform:rotate(-12deg); border-radius:35% 45% 52% 55%; }
+    .control-part { position:absolute; display:grid; place-items:center; color:#39424c; font-size:10px; user-select:none; }
+    .part-stick { width:46px; height:46px; border:2px solid #737b84; border-radius:50%; background:radial-gradient(circle,#929ba4 0 8px,#c5cbd0 9px 15px,#858e98 16px 19px,transparent 20px); }
+    .part-dpad { left:76px; top:98px; width:54px; height:54px; background:linear-gradient(#737b84,#737b84) center/18px 54px no-repeat,linear-gradient(#737b84,#737b84) center/54px 18px no-repeat; }
+    .part-left-stick { left:78px; top:42px; } .part-right-stick { right:78px; top:94px; }
+    .part-abxy { right:58px; top:73px; width:76px; height:65px; }
+    .part-abxy i { position:absolute; width:22px; height:22px; border-radius:50%; border:1px solid #68717b; background:#e9ebed; display:grid; place-items:center; font-style:normal; font-size:11px; }
+    .part-abxy i:nth-child(1){top:21px;left:0}.part-abxy i:nth-child(2){top:0;left:27px}.part-abxy i:nth-child(3){top:42px;left:27px}.part-abxy i:nth-child(4){top:21px;right:0}.part-abxy i.active{color:#fff;background:#4d80b6;border-color:#315e8d}
+    .part-center { left:50%; top:82px; transform:translateX(-50%); gap:8px; } .part-center span { width:24px; height:10px; border:1px solid #7d858e; border-radius:8px; background:#f5f5f5; }
+    .part-shoulder { top:12px; width:62px; height:15px; border:1px solid #7d858e; border-radius:8px; background:#c2c8cd; } .part-l { left:54px; } .part-r { right:54px; }
+    .diagram-caption { margin-top:8px; text-align:center; color:#91a794; font-size:12px; }
+    .controller-reference { width:min(100%,620px); height:260px; object-fit:contain; background:#050805; border:1px solid #294331; padding:8px; image-rendering:auto; filter:contrast(1.2) brightness(1.15); }
+    .controller-art { position:relative; width:min(100%,440px); } .controller-art>img,.controller-art>svg { display:block; width:100%; height:auto; filter:contrast(1.2) brightness(1.15); } .controller-art--perspective { width:min(100%,720px); } .controller-art--perspective>svg { filter:none; } .diagram-face { position:absolute; width:7%; aspect-ratio:1; display:grid; place-items:center; transform:translate(-50%,-50%); border:2px solid #101820; border-radius:50%; color:#fff; font-size:clamp(9px,1.7vw,18px); font-weight:800; line-height:1; box-shadow:0 0 0 1px #e3edf7; } .diagram-face--a { background:#e23441; } .diagram-face--b { background:#edb929; } .diagram-face--x { background:#2879df; } .diagram-face--y { background:#1dae72; } .controller-art[data-family="xbox"] .diagram-face--a { background:#53b92c; } .controller-art[data-family="xbox"] .diagram-face--b { background:#d93635; } .controller-art[data-family="xbox"] .diagram-face--y { background:#e8bf1f; }
+    .pair-heading { margin:8px 0 4px; padding-top:8px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:600; }
+    .controller-art--joycon>svg { filter:none; }
+    .controller-art--pair { width:min(100%,440px); }
+    .wireframe { width:min(100%,520px); height:auto; color:#303942; }
+    .wireframe .outline,.wireframe .detail { fill:#f8f9fa; stroke:currentColor; stroke-width:2; }
+    .wireframe .detail { fill:none; stroke-width:1.5; } .wireframe .button { fill:#f8f9fa; stroke:currentColor; stroke-width:1.5; }
+    .wireframe .pressed { fill:#4d80b6; stroke:#244d79; color:#fff; } .wireframe text { fill:currentColor; font:11px "Segoe UI",Tahoma,sans-serif; text-anchor:middle; dominant-baseline:middle; }
+    .controller.joycon { width:150px; height:270px; border-radius:32px 32px 18px 18px; } .controller.joycon:before,.controller.joycon:after { display:none; }
+    .controller.joycon .part-left-stick { left:52px; top:62px; } .controller.joycon .part-dpad { left:48px; top:145px; }
+    .controller.joycon .part-center { top:195px; } .controller.joycon .part-center span { display:none; }
+    .controller.joycon .part-abxy { display:none; } .controller.joycon .part-shoulder { top:20px; } .controller.joycon .part-l { left:43px; }
+    .controller.dualshock { border-radius:70px 70px 45px 45px; } .controller.dualshock .part-left-stick { left:115px; top:105px; } .controller.dualshock .part-right-stick { right:115px; top:105px; }
+    .footer { border-top:1px solid #294331; padding:6px 10px; color:#91a794; font-size:12px; display:flex; justify-content:space-between; }
+    @media(max-width:850px){ .window{margin:0;min-height:100vh;} main{grid-template-columns:1fr;padding:6px;} }
+  </style>
+  <style id="ujm-extras">
+    /* Menus, toolbar, Credits & Info page and dialogs. Colors are variables of the main stylesheet
+       so the theme configurator recolors them too; the only fixed colors are semantic (service
+       running / stopped / busy). Dark only, on purpose. */
+    .window { position:relative; }
+    main[hidden], .footer[hidden], .page[hidden], .modal[hidden], .menu-pop[hidden], .toolbar[hidden], .banner[hidden], .toast[hidden] { display:none !important; }
+    button:disabled, .menu-pop button:disabled { opacity:.45; cursor:not-allowed; }
+    /* imported aliases can be long and have no spaces: let them wrap instead of pushing the status out of the card */
+    .card .identity, .card .identity > div { min-width:0; }
+    .card h3, .card p.muted { overflow-wrap:anywhere; }
+    .menubar .menu { position:relative; display:inline-block; }
+    .menubar .menu-label { display:inline-block; padding:1px 5px; margin:0 -5px; border-radius:2px; cursor:pointer; user-select:none; }
+    .menubar .menu-label:hover, .menubar .menu.open .menu-label, .menubar .menu-label:focus-visible { background:var(--panel-2); color:var(--dark); outline:1px solid var(--line); }
+    .menu-pop { position:absolute; left:-6px; top:100%; z-index:20; min-width:270px; margin-top:4px; padding:4px; background:var(--panel); border:1px solid var(--line); box-shadow:2px 3px 9px #000b; }
+    .menu-pop button, .menu-pop a { display:block; width:100%; padding:6px 10px; border:0; border-radius:2px; background:none; box-shadow:none; color:var(--dark); font:inherit; text-align:left; text-decoration:none; cursor:pointer; }
+    .menu-pop button:hover:not(:disabled), .menu-pop a:hover, .menu-pop button:focus-visible, .menu-pop a:focus-visible { background:var(--panel-2); outline:1px solid var(--line); }
+    .menu-pop hr { margin:4px 2px; border:0; border-top:1px solid var(--line); }
+
+    .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--line); background:var(--panel); }
+    .toolbar .sep { width:1px; align-self:stretch; margin:0 4px; background:var(--line); }
+    .toolbar .grow { flex:1; }
+    .pill { display:inline-flex; align-items:center; gap:7px; padding:3px 10px; border:1px solid var(--line); border-radius:11px; background:var(--panel-2); color:var(--dark); }
+    .pill .pill-dot { flex:none; width:9px; height:9px; border-radius:50%; background:#3ddc84; box-shadow:0 0 6px #3ddc8488; }
+    .pill[data-state="stopped"] .pill-dot { background:#e5534b; box-shadow:0 0 6px #e5534b88; }
+    .pill[data-state="starting"] .pill-dot, .pill[data-state="stopping"] .pill-dot { background:#edc56b; box-shadow:0 0 6px #edc56b88; }
+    .banner { padding:7px 12px; border-bottom:1px solid #6b3b2f; background:#2a1511; color:#ffb4a8; }
+
+    .page { display:grid; gap:12px; padding:14px 18px 22px; }
+    .page-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .page-head h2 { margin:0; font-size:18px; }
+    .page-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+    .page .panel h3 { margin-bottom:6px; color:var(--accent); }
+    .page .panel ul { margin:6px 0 0; padding-left:18px; } .page .panel li { margin:3px 0; }
+    .page a { color:var(--accent); }
+    .kv { display:grid; grid-template-columns:110px 1fr; gap:5px 10px; margin:0; } .kv dt { color:var(--muted); } .kv dd { margin:0; }
+
+    .modal { position:fixed; inset:0; z-index:30; display:grid; place-items:center; padding:16px; background:#000c; }
+    .dialog { width:min(580px,100%); max-height:calc(100vh - 32px); overflow:auto; padding:12px 14px 14px; background:var(--window); border:1px solid var(--line); box-shadow:2px 3px 14px #000; }
+    .dialog-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; } .dialog-head h2 { margin:0; }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+    .presets { display:grid; gap:6px; grid-template-columns:repeat(3,minmax(0,1fr)); margin:10px 0 6px; }
+    .preset { display:flex; align-items:center; gap:8px; padding:6px 8px; text-align:left; }
+    .preset[aria-pressed="true"] { border-color:var(--accent); }
+    .swatch { flex:none; display:inline-block; width:34px; height:18px; border:1px solid #fff3; border-radius:2px; }
+    .pick { display:grid; grid-template-columns:100px 54px 1fr; align-items:center; gap:8px; margin:7px 0; }
+    .pick input[type=color] { width:54px; height:28px; padding:0; border:1px solid var(--line); background:var(--panel); cursor:pointer; }
+    .pick input[type=text] { width:100px; padding:5px 7px; border:1px solid var(--line); background:var(--panel); color:var(--dark); font:12px ui-monospace,Consolas,monospace; text-transform:lowercase; }
+    #theme-msg { min-height:38px; margin-top:8px; padding:8px 10px; border:1px dashed var(--line); color:var(--accent); }
+    .shake { animation:ujm-shake .4s; }
+    @keyframes ujm-shake { 20% { transform:translateX(-6px); } 40% { transform:translateX(6px); } 60% { transform:translateX(-4px); } 80% { transform:translateX(4px); } }
+    .pair-list { margin:8px 0; min-height:44px; }
+    .pair-list label { display:flex; align-items:center; gap:8px; margin:4px 0; padding:7px 9px; border:1px solid var(--line); border-radius:2px; background:var(--panel); cursor:pointer; }
+    .pair-list label:hover { border-color:var(--accent); }
+    #pair-log { min-height:96px; margin:8px 0 0; padding:8px 10px; border:1px solid var(--line); background:var(--panel); color:var(--dark); font:12px/1.5 ui-monospace,Consolas,monospace; white-space:pre-wrap; }
+    .toast { position:fixed; right:16px; bottom:16px; z-index:40; max-width:min(440px,calc(100vw - 32px)); padding:9px 12px; background:var(--panel); border:1px solid var(--accent); box-shadow:2px 3px 12px #000; color:var(--dark); }
+    @media (prefers-reduced-motion:reduce) { .shake { animation:none; } }
+    @media (max-width:620px) { .presets { grid-template-columns:repeat(2,minmax(0,1fr)); } .pick { grid-template-columns:90px 54px 1fr; } }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg"><defs><filter id="key-solid-silhouette" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="1" result="expanded-shape"/><feComposite in="expanded-shape" in2="SourceAlpha" operator="out" result="solid-outline-mask"/><feFlood flood-color="#ffffff" result="solid-outline-color"/><feComposite in="solid-outline-color" in2="solid-outline-mask" operator="in" result="solid-outline"/><feColorMatrix in="SourceGraphic" result="white-glyphs" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 .9760 3.2840 .3314 0 -.3267"/><feComposite in="white-glyphs" in2="SourceAlpha" operator="in" result="visible-glyphs"/><feComposite in="visible-glyphs" in2="solid-outline" operator="over"/></filter></defs></svg>
+  <div class="window">
+  <header><div><h1>UJM — Universal Joystick Manager</h1><p class="subtitle">Game controllers</p></div><button id="header-help" type="button">Help</button></header>
+    <nav class="menubar" id="menubar"><span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span><span class="menu" data-menu="view"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">View</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="theme">Theme…</button></div></span><span class="menu" data-menu="controller"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Controller</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="pair">Pair new controller…</button><button type="button" role="menuitem" data-action="connect">Connect selected</button><button type="button" role="menuitem" data-action="disconnect">Disconnect selected</button><hr><button type="button" role="menuitem" data-action="service-toggle" id="menu-service">Stop service</button></div></span><span>Tools</span><span class="menu" data-menu="help"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Help</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="credits">Credits &amp; Info</button><hr><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager#readme" target="_blank" rel="noopener">User manual (README)</a><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager/issues/new/choose" target="_blank" rel="noopener">Report a bug or test a controller</a><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager/blob/main/DEVLOG.md" target="_blank" rel="noopener">Devlog</a></div></span></nav>
+  <div class="toolbar" id="toolbar" role="toolbar" aria-label="Service and Bluetooth shortcuts">
+    <span class="pill" id="svc-pill" data-state="running" title="State of the UJM service (simulated in this prototype)"><span class="pill-dot" aria-hidden="true"></span><span id="svc-label">UJM service: running</span></span>
+    <button type="button" id="btn-service" data-action="service-toggle">Stop service</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button type="button" id="btn-pair" data-action="pair" title="Scan, pair, trust and connect a Bluetooth controller">Pair new controller…</button>
+    <button type="button" id="btn-connect" data-action="connect" title="Connect the selected controller over Bluetooth">Connect</button>
+    <button type="button" id="btn-disconnect" data-action="disconnect" title="Disconnect the selected controller">Disconnect</button>
+    <span class="grow"></span>
+    <span class="muted">Prototype: service and Bluetooth are simulated</span>
+  </div>
+  <div class="banner" id="svc-banner" role="status" hidden>The UJM service is stopped. Player numbering, LEDs and battery indication are not managed; controllers keep working through the kernel drivers. Actions are disabled until you start the service.</div>
+  <main>
+    <section class="panel"><div class="row"><h2>Controllers</h2><button>Refresh</button></div><p class="muted" style="margin-bottom:8px">Devices found: 3</p><div class="cards">
+      <article class="card selected" data-controller="pro" data-player="1"><div class="card-top"><div class="identity"><div class="player">1</div><div><h3>Pro Controller — Blue</h3><p class="muted">Nintendo · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led on"></i><i class="led"></i><i class="led"></i><i class="led"></i><span class="home">HOME</span></div></article>
+      <article class="card" data-controller="pro" data-player="2"><div class="card-top"><div class="identity"><div class="player">2</div><div><h3>Pro Controller — Red</h3><p class="muted">Nintendo · USB</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led on"></i><i class="led"></i><i class="led"></i><span class="home">HOME</span></div></article>
+      <article class="card" data-controller="dualshock" data-player="3"><div class="card-top"><div class="identity"><div class="player">3</div><div><h3>DualShock 3</h3><p class="muted">Sony · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led"></i><i class="led on"></i><i class="led"></i><span class="home muted">HOME unavailable</span></div></article>
+      <article class="card" data-controller="dualsense" data-player="4"><div class="card-top"><div class="identity"><div class="player">4</div><div><h3>DualSense</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="ds4" data-player="5"><div class="card-top"><div class="identity"><div class="player">5</div><div><h3>DualShock 4</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="xbox360" data-player="6"><div class="card-top"><div class="identity"><div class="player">6</div><div><h3>Xbox 360 Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="xboxone" data-player="7"><div class="card-top"><div class="identity"><div class="player">7</div><div><h3>Xbox One Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="xboxseries" data-player="8"><div class="card-top"><div class="identity"><div class="player">8</div><div><h3>Xbox Series X/S</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="joyconl" data-player="9"><div class="card-top"><div class="identity"><div class="player">9</div><div><h3>Joy-Con L</h3><p class="muted">Nintendo · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="joyconr" data-player="10"><div class="card-top"><div class="identity"><div class="player">10</div><div><h3>Joy-Con R</h3><p class="muted">Nintendo · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <div class="pair-heading">Combinations — preview, not detected as a device</div>
+      <article class="card" data-controller="joyconpair"><div class="card-top"><div><h3>Combined Joy-Cons (L + R)</h3><p class="muted">Nintendo · combined panel</p></div><div class="status muted">Preview</div></div></article>
+      <button style="margin-top:5px">Properties</button>
+    </div></section>
+    <aside class="panel diag" id="diagnostic-panel"><div class="row"><h2>Test controller</h2><span class="status">Connected</span></div><div class="section"><div class="section-title"><b id="selected-name">Player 1 — Pro Controller — Blue</b><span class="transport" id="selected-transport">Bluetooth</span></div><div class="controller-view" id="controller-diagram"><svg class="wireframe" viewBox="0 0 620 300" role="img" aria-label="Pro Controller wireframe diagram"><path class="outline" d="M98 63C65 68 34 105 25 174c-7 53 18 83 57 83 35 0 60-20 81-50 12-18 30-27 51-27h192c21 0 39 9 51 27 21 30 46 50 81 50 39 0 64-30 57-83-9-69-40-106-73-111-24-4-44 8-60 31-9 13-18 18-35 18H193c-17 0-26-5-35-18-16-23-36-35-60-31Z"/><path class="detail" d="M119 67c8-22 27-33 52-27l28 8m274 19c-8-22-27-33-52-27l-28 8M214 105h192v48H214z"/><circle class="button" cx="142" cy="157" r="38"/><circle class="button" cx="478" cy="157" r="38"/><path class="detail" d="M142 130v54M115 157h54M478 130v54M451 157h54"/><circle class="button" cx="142" cy="157" r="14"/><circle class="button" cx="478" cy="157" r="14"/><circle class="button" cx="263" cy="200" r="24"/><circle class="button" cx="357" cy="200" r="24"/><circle class="button" cx="310" cy="116" r="12"/><rect class="button" x="287" y="104" width="18" height="8" rx="3"/><rect class="button" x="315" y="104" width="18" height="8" rx="3"/><circle class="button pressed" cx="504" cy="126" r="11"/><circle class="button" cx="478" cy="101" r="11"/><circle class="button" cx="452" cy="126" r="11"/><circle class="button" cx="478" cy="151" r="11"/><text x="504" y="126">A</text><text x="478" y="101">X</text><text x="452" y="126">Y</text><text x="478" y="151">B</text><text x="142" y="157">D-pad</text><text x="310" y="200">HOME</text><text x="310" y="116">+</text><text x="296" y="108">−</text><text x="324" y="108">+</text></svg></div><p class="diagram-caption" id="diagram-caption">Front wireframe · A pressed · sticks at neutral position</p></div><div class="section"><div class="section-title"><b>Stick values</b><span class="muted">X / Y normalized</span></div><div class="stick-grid"><div><p class="muted">Left</p><div class="stick"><span class="dot"></span></div></div><div><p class="muted">Right</p><div class="stick"><span class="dot" style="left:42%;top:57%"></span></div></div></div></div><div class="section"><div class="section-title"><b>Buttons and triggers</b><span class="muted">A pressed</span></div><div class="keys"><span class="key active">A</span><span class="key">B</span><span class="key">X</span><span class="key">Y</span><span class="key">L</span><span class="key">R</span><span class="key">ZL</span><span class="key">ZR</span><span class="key">+</span><span class="key">−</span></div></div><div class="section"><div class="section-title"><b>Additional readings</b><span class="muted">Normalized values</span></div><div class="axis"><span>Accel X</span><div class="axisbar"><span style="width:45%"></span></div><b>0.45</b></div><div class="axis"><span>Accel Y</span><div class="axisbar"><span style="width:61%"></span></div><b>0.61</b></div><div class="axis"><span>Gyro Z</span><div class="axisbar"><span style="width:28%"></span></div><b>0.28</b></div></div></aside>
+  </main>
+  <div class="footer"><span>Ready</span><span>Inputs: 12 · Refresh: 60 Hz</span></div>
+  <section class="page" id="credits-page" aria-labelledby="credits-title" hidden>
+    <div class="page-head"><h2 id="credits-title">Credits &amp; Info</h2><button type="button" id="credits-back">Back to controllers</button></div>
+    <div class="page-grid">
+      <section class="panel"><h3>About UJM</h3>
+        <dl class="kv">
+          <dt>Product</dt><dd>UJM — Universal Joystick Manager</dd>
+          <dt>Version</dt><dd id="about-version">v0.7.1</dd>
+          <dt>License</dt><dd>MIT</dd>
+          <dt>Status</dt><dd>Pre-release. This interface is a prototype with simulated data; it is not connected to the service yet.</dd>
+          <dt>Source</dt><dd><a href="https://github.com/joaovitor-dv/universal-joystick-manager" target="_blank" rel="noopener">github.com/joaovitor-dv/universal-joystick-manager</a></dd>
+        </dl>
+      </section>
+      <section class="panel"><h3>Maintainers and collaborators</h3>
+        <ul>
+          <li><b>João</b> (<a href="https://github.com/joaovitor-dv" target="_blank" rel="noopener">@joaovitor-dv</a>): project owner, direction and hardware testing.</li>
+          <li><b>Claude</b> (Anthropic): service, tests, documentation and release work.</li>
+          <li><b>Codex</b> (OpenAI): interface prototype.</li>
+        </ul>
+      </section>
+      <section class="panel"><h3>Volunteer testers</h3>
+        <p class="muted">People who send a reproducible report for a controller model, connection or mode are built into these credits, under the name or handle they choose, and only if they say so.</p>
+        <ul id="testers-list"></ul>
+        <p style="margin-top:8px">Own a controller we cannot test? <a href="https://github.com/joaovitor-dv/universal-joystick-manager/issues/new?template=controller-testing.md" target="_blank" rel="noopener">Send a test report</a> and fill in the <i>Credit name</i> field.</p>
+      </section>
+      <section class="panel"><h3>Software UJM builds on</h3>
+        <ul>
+          <li>The Linux kernel input and HID drivers (<code>hid_nintendo</code>, <code>hid_sony</code>, <code>hid_playstation</code>, <code>xpad</code>, …) and their maintainers.</li>
+          <li><a href="https://github.com/DanielOgorchock/joycond" target="_blank" rel="noopener">joycond</a> by Daniel Ogorchock, which combines Joy-Cons and also manages Pro Controllers.</li>
+          <li>BlueZ, systemd and udev.</li>
+        </ul>
+      </section>
+      <section class="panel"><h3>Artwork and trademarks</h3>
+        <p>The controller diagrams in this prototype are derived from assets found in the Steam client (© Valve) and use platform logos. They are shown for layout purposes only.</p>
+        <p style="margin-top:6px">Nintendo Switch, Joy-Con, PlayStation, DualShock, DualSense, Xbox and Steam are trademarks of their owners. UJM is an independent project and is not affiliated with or endorsed by them.</p>
+      </section>
+    </div>
+  </section>
+  <div class="modal" id="theme-modal" hidden>
+    <div class="dialog" id="theme-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-title">
+      <div class="dialog-head"><h2 id="theme-title">Theme</h2><button type="button" id="theme-close">Close</button></div>
+      <p class="muted">Pick your own colors. Dark themes only: this window has no light side.</p>
+      <div class="presets" id="theme-presets"></div>
+      <div class="pick"><label for="c-bg">Background</label><input type="color" id="c-bg" value="#080d09"><input type="text" id="t-bg" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Background color, hex"></div>
+      <div class="pick"><label for="c-accent">Accent</label><input type="color" id="c-accent" value="#9cff88"><input type="text" id="t-accent" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Accent color, hex"></div>
+      <div class="pick"><label for="c-text">Text</label><input type="color" id="c-text" value="#e3f6e5"><input type="text" id="t-text" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Text color, hex"></div>
+      <div id="theme-msg" role="status" aria-live="polite">Your choice is applied instantly and saved in this browser only.</div>
+      <div class="row" style="margin-top:10px"><button type="button" id="theme-reset">Reset to default</button><span class="muted">Semantic colors (A/B/X/Y, LEDs) are never changed.</span></div>
+    </div>
+  </div>
+  <div class="modal" id="pair-modal" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pair-title">
+      <div class="dialog-head"><h2 id="pair-title">Pair a new controller</h2><button type="button" id="pair-close">Close</button></div>
+      <ol style="margin:6px 0 0;padding-left:20px">
+        <li>Put the controller in pairing mode (Joy-Con and Pro Controller: hold the small sync button until the player LEDs sweep; for other controllers see their manual).</li>
+        <li>Press <b>Scan</b> and pick it from the list.</li>
+        <li>UJM pairs, trusts and connects it, and it takes the next free player slot.</li>
+      </ol>
+      <div class="dialog-actions" style="justify-content:flex-start"><button type="button" id="pair-scan">Scan for controllers</button><button type="button" id="pair-go" disabled>Pair and connect</button></div>
+      <div class="pair-list" id="pair-list" role="radiogroup" aria-label="Controllers found"></div>
+      <pre id="pair-log" aria-live="polite">Nothing yet. This is a simulation: the prototype does not talk to BlueZ.</pre>
+      <p class="muted" style="margin-top:6px">With <code>joycond</code> running, press <b>L + R</b> on a Pro Controller to finish its logical pairing.</p>
+    </div>
+  </div>
+  <div class="modal" id="confirm-modal" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <div class="dialog-head"><h2 id="confirm-title">Confirm</h2></div>
+      <p id="confirm-text"></p>
+      <div class="dialog-actions"><button type="button" id="confirm-cancel">Cancel</button><button type="button" id="confirm-ok">OK</button></div>
+    </div>
+  </div>
+  <div class="modal" id="exit-screen" hidden>
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="exit-title">
+      <div class="dialog-head"><h2 id="exit-title">UJM has exited</h2></div>
+      <p>The interface is closed. The UJM service keeps running in the background and keeps numbering your controllers.</p>
+      <p class="muted" style="margin-top:6px">This is a prototype in a browser tab, and browsers do not let a page close itself, so this screen stands in for the closed window.</p>
+      <div class="dialog-actions"><button type="button" id="exit-reopen">Reopen UJM</button></div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+  </div>
+  <script>
+    const names = { pro: ['Pro Controller', 'Bluetooth'], dualshock: ['DualShock 3', 'Bluetooth + USB charging'], dualsense: ['DualSense', 'Bluetooth / USB'], ds4: ['DualShock 4', 'Bluetooth / USB'], xbox360: ['Xbox 360 Controller', 'USB'], xboxone: ['Xbox One Controller', 'Bluetooth / USB'], xboxseries: ['Xbox Series X/S', 'Bluetooth / USB'], joyconl: ['Joy-Con L', 'Bluetooth'], joyconr: ['Joy-Con R', 'Bluetooth'], joyconpair: ['Combined Joy-Cons', 'Bluetooth · L + R'] };
+    const images = {
+      pro: 'assets/controller-references/steam/switch-pro.png',
+      dualshock: 'assets/controller-references/dualshock-3-transparent-white.png',
+      dualsense: 'assets/controller-references/steam/dualsense.png',
+      ds4: 'assets/controller-references/steam/dualshock-4.png',
+      xbox360: 'assets/controller-references/xbox-360-dark-reference-user.png',
+      xbox360Outline: 'assets/controller-references/xbox-360-outline.svg',
+      xbox360Band: 'assets/controller-references/xbox-360-silhouette-band.svg',
+      xboxone: 'assets/controller-references/steam/xbox-one.png',
+      xboxseries: 'assets/controller-references/steam/xbox-one.png',
+      joyconl: 'assets/controller-references/steam/joycon-l.png',
+      joyconr: 'assets/controller-references/steam/joycon-r.png',
+      joyconpair: 'assets/controller-references/steam/joycon-pair.png'
+    };
+    const cards = document.querySelectorAll('.card[data-controller]');
+    const diagram = document.getElementById('controller-diagram');
+    const selectedName = document.getElementById('selected-name');
+    const selectedTransport = document.getElementById('selected-transport');
+    const caption = document.getElementById('diagram-caption');
+    const buttonKeys = document.querySelector('.keys');
+    const icon = file => `assets/controller-icons/${file}.svg`;
+    // Only physical buttons appear here. Stick movement belongs to the axes panel.
+    const psFace = [['△','ps_wire_button_triangle'],['○','ps_wire_button_circle'],['×','ps_wire_button_x'],['□','ps_wire_button_square']];
+    const nintendoFace = [['A',null],['B',null],['X',null],['Y',null]];
+    const xboxFace = [['A','shared_color_button_a'],['B','shared_color_button_b'],['X','shared_color_button_x'],['Y','shared_color_button_y']];
+    const dpadButtons = family => [['↑',`${family}_dpad_up`],['↓',`${family}_dpad_down`],['←',`${family}_dpad_left`],['→',`${family}_dpad_right`]];
+    const nintendoDpad = dpadButtons('switchpro');
+    const playstationDpad = dpadButtons('ps');
+    const xboxDpad = dpadButtons('shared');
+    const psShoulders = [['L1','ps4_l1'],['L2','ps4_l2'],['R1','ps4_r1'],['R2','ps4_r2']];
+    const xboxShoulders = [['LB','xbox_lb'],['LT','xbox_lt'],['RB','xbox_rb'],['RT','xbox_rt']];
+    const iconSets = {
+      pro: [...nintendoFace,...nintendoDpad,['L (pressed)','switchpro_lstick_click'],['R (pressed)','switchpro_rstick_click'],['L','switchpro_l'],['ZL','switchpro_l2'],['R','switchpro_r'],['ZR','switchpro_r2'],['−','switchpro_button_minus'],['+','switchpro_button_plus'],['CAPTURE','switchpro_button_capture'],['HOME','switchpro_button_home']],
+      dualshock: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],...psShoulders,['SELECT',null],['START',null],['PS','ps4_button_logo']],
+      ds4: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],...psShoulders,['TOUCHPAD','ps4_trackpad_click'],['SHARE','ps4_button_share'],['OPTIONS','ps4_button_options'],['PS','ps4_button_logo_inverted']],
+      dualsense: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],['L1','ps5_l1'],['L2','ps5_l2'],['R1','ps5_r1'],['R2','ps5_r2'],['TOUCHPAD','ps5_trackpad_click'],['CREATE','ps5_button_create'],['OPTIONS','ps5_button_options'],['PS','ps4_button_logo'],['MUTE','ps_button_mute']],
+      xbox360: [...xboxFace,...xboxDpad,['LS','xbox_ls_click'],['RS','xbox_rs_click'],...xboxShoulders,['BACK','xbox360_button_select'],['START','xbox360_button_start'],['XBOX','xbox_button_logo']],
+      xboxone: [...xboxFace,...xboxDpad,['LS','xbox_ls_click'],['RS','xbox_rs_click'],...xboxShoulders,['VIEW','xbox_button_select'],['MENU','xbox_button_start'],['XBOX','xbox_button_logo']],
+      xboxseries: [...xboxFace,...xboxDpad,['LS','xbox_ls_click'],['RS','xbox_rs_click'],...xboxShoulders,['VIEW','xbox_button_select'],['MENU','xbox_button_start'],['SHARE','xbox_button_share'],['XBOX','xbox_button_logo']],
+      joyconl: [...nintendoDpad,['L (pressed)','switchpro_lstick_click'],['−','switchpro_button_minus'],['CAPTURE','switchpro_button_capture'],['L','switchpro_l'],['ZL','switchpro_l2'],['SL','joycon_left_sl'],['SR','joycon_left_sr']],
+      joyconr: [...nintendoFace,['R (pressed)','switchpro_rstick_click'],['+','switchpro_button_plus'],['HOME','switchpro_button_home'],['R','switchpro_r'],['ZR','switchpro_r2'],['SL','joycon_right_sl'],['SR','joycon_right_sr']],
+      joyconpair: [...nintendoFace,...nintendoDpad,['L (pressed)','switchpro_lstick_click'],['R (pressed)','switchpro_rstick_click'],['−','switchpro_button_minus'],['+','switchpro_button_plus'],['CAPTURE','switchpro_button_capture'],['HOME','switchpro_button_home'],['L','switchpro_l'],['ZL','switchpro_l2'],['R','switchpro_r'],['ZR','switchpro_r2']]
+    };
+    const faceOverlays = {
+      pro: [['X',76.3,19.5],['Y',68.6,29.9],['A',84.2,29.9],['B',76.3,39.2]],
+      xboxone: [['Y',76.2,18.3],['X',69,27.7],['B',82.9,27.7],['A',76.2,37.4]],
+      xboxseries: [['Y',76.2,18.3],['X',69,27.7],['B',82.9,27.7],['A',76.2,37.4]],
+      joyconr: [['Y',73.5,46.5],['X',80.8,63.3],['B',66.4,63.3],['A',73.5,79.5]],
+      joyconpair: [['X',83.3,19.3],['Y',75.8,26.6],['A',90.5,26.6],['B',83.3,33.7]]
+    };
+    let currentCard = cards[0];
+    let currentMode = 'single';
+    const stickGrid = document.querySelector('.stick-grid');
+    const inputHint = buttonKeys.closest('.section').querySelector('.section-title .muted');
+    const connectionStatus = document.querySelector('#diagnostic-panel > .row .status');
+    const adaptivePanel = document.createElement('section');
+    adaptivePanel.className = 'section adaptive-trigger';
+    adaptivePanel.hidden = true;
+    adaptivePanel.innerHTML = `<div class="section-title"><b>Adaptive trigger input and output</b><span class="muted">Preview only · no live data</span></div>
+      <p class="adaptive-note"><b>Input:</b> L2/R2 travel is an analog axis (0–100%). <b>Output:</b> resistance is an effect sent to the controller, not a value reported back. The resistance zone is not the game's activation threshold.</p>
+      <div class="trigger-pair">${[['left','L2 · left trigger'],['right','R2 · right trigger']].map(([side,label]) => `<div class="trigger-channel" data-trigger="${side}"><h3>${label}</h3>
+        <div class="trigger-source"><span>Analog input</span><span>No live reading</span></div><div class="trigger-track" data-input-track aria-label="${label} analog input unavailable"></div>
+        <label class="trigger-setting"><span>Effect profile</span><select class="trigger-mode" data-trigger-mode aria-label="${label} adaptive effect"><option value="off">Off</option><option value="feedback">Resistance</option><option value="weapon">Weapon</option><option value="bow">Bow</option></select><span></span></label>
+        <label class="trigger-setting" data-trigger-start-row><span>Resistance starts</span><input type="range" min="0" max="100" value="55" data-trigger-start><output>55%</output></label>
+        <label class="trigger-setting" data-trigger-strength-row><span>Resistance strength</span><input type="range" min="0" max="100" value="45" data-trigger-strength><output>45%</output></label>
+        <label class="trigger-setting" data-trigger-end-row hidden><span>Effect ends</span><input type="range" min="0" max="100" value="90" data-trigger-end><output>90%</output></label>
+        <label class="trigger-setting" data-trigger-snapforce-row hidden><span>Bow snap force</span><input type="range" min="0" max="100" value="40" data-trigger-snapforce><output>40%</output></label>
+        <div class="trigger-track" data-effect-track aria-label="Configured adaptive effect zone"></div><div class="trigger-source"><span data-zone-start-label>55%</span><span data-zone-end-label>100%</span></div></div>`).join('')}</div>
+      <p class="adaptive-note" style="margin:8px 0 0">Prototype controls only: changes here are not sent to the controller. Real telemetry and effects require a live HID backend.</p>`;
+    const readingsSection = [...document.querySelectorAll('#diagnostic-panel > .section')].find(section => section.querySelector('.section-title b')?.textContent === 'Additional readings');
+    readingsSection.before(adaptivePanel);
+    const updateTriggerChannel = channel => {
+      const mode = channel.querySelector('[data-trigger-mode]').value;
+      const startControl = channel.querySelector('[data-trigger-start]');
+      const strengthControl = channel.querySelector('[data-trigger-strength]');
+      const endControl = channel.querySelector('[data-trigger-end]');
+      const snapforceControl = channel.querySelector('[data-trigger-snapforce]');
+      const start = Number(startControl.value);
+      const strength = Number(strengthControl.value);
+      if (mode !== 'feedback' && Number(endControl.value) < start) endControl.value = String(start);
+      const end = mode === 'feedback' ? 100 : Number(endControl.value);
+      channel.querySelector('[data-trigger-start-row]').hidden = mode === 'off';
+      channel.querySelector('[data-trigger-strength-row]').hidden = mode === 'off';
+      channel.querySelector('[data-trigger-end-row]').hidden = mode !== 'weapon' && mode !== 'bow';
+      channel.querySelector('[data-trigger-snapforce-row]').hidden = mode !== 'bow';
+      channel.querySelector('[data-trigger-start-row] span').textContent = mode === 'feedback' ? 'Resistance starts' : 'Effect starts';
+      channel.querySelector('[data-trigger-strength-row] span').textContent = mode === 'feedback' ? 'Resistance strength' : 'Effect strength';
+      startControl.nextElementSibling.textContent = `${start}%`;
+      strengthControl.nextElementSibling.textContent = `${strength}%`;
+      endControl.nextElementSibling.textContent = `${end}%`;
+      snapforceControl.nextElementSibling.textContent = `${snapforceControl.value}%`;
+      channel.querySelector('[data-effect-track]').style.setProperty('--zone-start',`${mode === 'off' ? 0 : start}%`);
+      channel.querySelector('[data-effect-track]').style.setProperty('--zone-end',`${mode === 'off' ? 0 : end}%`);
+      channel.querySelector('[data-zone-start-label]').textContent = mode === 'off' ? 'Off' : `${start}% · strength ${strength}%`;
+      channel.querySelector('[data-zone-end-label]').textContent = mode === 'off' ? 'No effect' : `${end}%`;
+    };
+    adaptivePanel.querySelectorAll('.trigger-channel').forEach(channel => {
+      channel.querySelectorAll('input,select').forEach(control => control.addEventListener('input',() => updateTriggerChannel(channel)));
+      channel.querySelector('[data-trigger-mode]').addEventListener('change',() => updateTriggerChannel(channel));
+      updateTriggerChannel(channel);
+    });
+    const faceFamily = type => type.startsWith('xbox') ? 'xbox' : 'nintendo';
+    // Steam supplies the recognisable front geometry; the vector shoulder layers add the
+    // elevated frontal view of the approved Xbox 360 / DualShock 3 references.
+    const perspectiveAssets = {
+      pro: ['assets/controller-references/steam/switch-pro.png',702,'nintendo'],
+      dualsense: ['assets/controller-references/steam/dualsense.png',678,'playstation'],
+      ds4: ['assets/controller-references/steam/dualshock-4.png',620,'playstation'],
+      xboxone: ['assets/controller-references/steam/xbox-one.png',703,'xbox'],
+      xboxseries: ['assets/controller-references/steam/xbox-one.png',703,'xbox']
+    };
+    const playstationFacePositions = {
+      dualsense: [['triangle',817,112],['square',751,181],['circle',885,181],['x',817,248]],
+      ds4: [['triangle',813,112],['square',740,188],['circle',886,188],['x',813,262]]
+    };
+    // Remove the template's exact dark shell fill by alpha while retaining its
+    // own line geometry; lift visible details toward the shared cool-white tone.
+    const smoothContrastFilter = (id, base) => {
+      const [r,g,b] = base;
+      const detailSlope = .018, shellLuma = .2126*13 + .7152*19 + .0722*27;
+      const alpha = [.2126,.7152,.0722].map(weight => (weight*detailSlope*255).toFixed(5));
+      const shellOffset = (-shellLuma*detailSlope).toFixed(5);
+      return `<filter id="${id}" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" result="contrast-lines" type="matrix" values="0 0 0 0 ${(r/255).toFixed(5)} 0 0 0 0 ${(g/255).toFixed(5)} 0 0 0 0 ${(b/255).toFixed(5)} ${alpha[0]} ${alpha[1]} ${alpha[2]} 0 ${shellOffset}"/><feComposite in="contrast-lines" in2="SourceAlpha" operator="in"/></filter>`;
+    };
+    const shoulderShapes = {
+      nintendo: `<path d="M58 131Q72 34 113 15Q153-1 231 29L259 131Z M942 131Q928 34 887 15Q847-1 769 29L741 131Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="149" y="51">ZL</text><text x="851" y="51">ZR</text>`,
+      playstation: `<path d="M54 130L72 31Q83 4 133 6Q182 6 207 32L238 130Z M946 130L928 31Q917 4 867 6Q818 6 793 32L762 130Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="144" y="49">L2</text><text x="856" y="49">R2</text>`,
+      xbox: `<path d="M56 131Q64 40 109 14Q151-4 226 37L250 131Z M944 131Q936 40 891 14Q849-4 774 37L750 131Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="147" y="51">LT</text><text x="853" y="51">RT</text>`
+    };
+    const shoulderButtons = {
+      nintendo: `<path d="M46 128Q83 82 173 88Q240 90 302 128L302 156Q169 122 46 158Z M954 128Q917 82 827 88Q760 90 698 128L698 156Q831 122 954 158Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="167" y="124">L</text><text x="833" y="124">R</text>`,
+      playstation: `<path d="M43 132Q104 83 181 92Q240 97 292 137L292 159Q148 120 43 161Z M957 132Q896 83 819 92Q760 97 708 137L708 159Q852 120 957 161Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="160" y="129">L1</text><text x="840" y="129">R1</text>`,
+      xbox: `<path d="M43 133Q101 85 180 91Q246 98 299 137L299 158Q155 120 43 162Z M957 133Q899 85 820 91Q754 98 701 137L701 158Q845 120 957 162Z" fill="none" stroke="#dce6ef" stroke-width="4"/><text x="164" y="130">LB</text><text x="836" y="130">RB</text>`
+    };
+    function perspectiveDiagram(type) {
+      const [src,height,family] = perspectiveAssets[type];
+      const bodyTop = 150;
+      const colors = family === 'xbox' ? {A:'#53b92c',B:'#d93635',X:'#2879df',Y:'#e8bf1f'} : {A:'#e23441',B:'#edb929',X:'#2879df',Y:'#1dae72'};
+      const face = (faceOverlays[type] || []).map(([label,x,y]) => `<g transform="translate(${x*10} ${bodyTop+y*height/100})"><circle r="33" fill="${colors[label]}" stroke="#e3edf7" stroke-width="4"/><text y="12" font-size="34" fill="#fff" font-weight="700" text-anchor="middle">${label}</text></g>`).join('');
+      const psPositions = playstationFacePositions[type] || [];
+      const psClip = family === 'playstation' ? `<clipPath id="playstation-face-clip"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H1000V${height+bodyTop}H0Z ${psPositions.map(([,x,y]) => `M${x-38} ${bodyTop+y}a38 38 0 1 0 76 0a38 38 0 1 0 -76 0Z`).join(' ')}"/></clipPath>` : '';
+      const psFaces = family === 'playstation' ? psPositions.map(([name,x,y]) => `<image href="${icon(`ps_wire_button_${name}`)}" x="${x-34}" y="${bodyTop+y-34}" width="68" height="68"/>`).join('') : '';
+      const series = type === 'xboxseries' ? `<g transform="translate(500 ${423+bodyTop-105})" fill="none" stroke="#d2dce5" stroke-width="4"><rect x="-17" y="-12" width="34" height="24" rx="4"/><path d="M-9 0h18m-5-6 6 6-6 6"/></g>` : '';
+      const lineFilter = smoothContrastFilter('controller-outline',[13,19,27]);
+      return `<div class="controller-art controller-art--perspective" data-family="${family}"><svg viewBox="0 0 1000 ${height+bodyTop}" role="img" aria-label="${names[type][0]} elevated front diagram, with shoulders and triggers visible" xmlns="http://www.w3.org/2000/svg"><defs>${psClip}${lineFilter}</defs><g font-family="Segoe UI, sans-serif" font-size="25" font-weight="700" fill="#e6edf4" text-anchor="middle">${shoulderShapes[family]}</g><image href="${src}" x="0" y="${bodyTop}" width="1000" height="${height}" ${psClip ? 'clip-path="url(#playstation-face-clip)"' : ''} filter="url(#controller-outline)"/>${series}${face}${psFaces}<g transform="translate(0 -20)" font-family="Segoe UI, sans-serif" font-size="25" font-weight="700" fill="#e6edf4" text-anchor="middle">${shoulderButtons[family]}</g></svg></div>`;
+    }
+    function xbox360Diagram() {
+      // The housing is a traced vector with transparent interior. Keep only the four
+      // source button caps as raster so their original Xbox colors and letterforms stay exact.
+      const openings = [[1196,413],[1082,513],[1318,513],[1196,613]];
+      const holes = openings.map(([x,y]) => `M${x-65} ${y}a65 65 0 1 0 130 0a65 65 0 1 0 -130 0Z`).join(' ');
+      const buttons = openings.map(([cx,cy]) => `<circle cx="${cx}" cy="${cy}" r="60"/>`).join('');
+      const labelCutouts = 'M334 162h48v36h-48Z M1150 162h48v36h-48Z M324 198h62v38h-62Z M1144 198h62v38h-62Z M534 442h70v46h-70Z M909 442h76v46h-76Z';
+      const systemLabels = `<g fill="#fff" stroke="#fff" paint-order="stroke" font-family="Arial,sans-serif" font-weight="700" text-anchor="middle"><text x="355" y="175" font-size="29">LT</text><text x="1174" y="175" font-size="29">RT</text><text x="356" y="211" font-size="22">LB</text><text x="1175" y="211" font-size="22">RB</text><text x="567" y="456" font-size="29" transform="rotate(-22 567 456)">BACK</text><text x="944" y="456" font-size="29" transform="rotate(14 944 456)">START</text></g>`;
+      return `<div class="controller-art controller-art--perspective" data-family="xbox"><svg viewBox="0 0 1529 1029" role="img" aria-label="Xbox 360 transparency diagram with white labels and clean outlines" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="xbox360-outline-cutouts"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H1529V1029H0Z ${holes} ${labelCutouts}"/></clipPath><clipPath id="xbox360-original-buttons">${buttons}</clipPath><mask id="xbox360-detail-mask" mask-type="luminance"><rect width="1529" height="1029" fill="white"/><image href="${images.xbox360Band}" width="1529" height="1029"/></mask><filter id="xbox360-line-repair" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="1.5" result="joined-gaps"/><feMorphology in="joined-gaps" operator="erode" radius="1.5"/></filter><filter id="xbox360-band-light" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="1.2" result="joined-gaps"/><feMorphology in="joined-gaps" operator="erode" radius="1.2" result="closed-band"/><feColorMatrix in="closed-band" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter></defs><image href="${images.xbox360Outline}" width="1529" height="1029" clip-path="url(#xbox360-outline-cutouts)" mask="url(#xbox360-detail-mask)" filter="url(#xbox360-line-repair)"/><image href="${images.xbox360Band}" width="1529" height="1029" clip-path="url(#xbox360-outline-cutouts)" filter="url(#xbox360-band-light)"/><image href="${images.xbox360}" width="1529" height="1029" clip-path="url(#xbox360-original-buttons)"/>${systemLabels}</svg></div>`;
+    }
+    function dualShock3Diagram() {
+      return `<div class="controller-art" data-family="playstation"><svg viewBox="0 0 1510 1041" role="img" aria-label="Transparent DualShock 3 with clear outlines and colored PlayStation buttons" xmlns="http://www.w3.org/2000/svg">
+        <defs><filter id="ps3-white-lines" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  -0.2126 -0.7152 -0.0722 0 1" result="line"/><feComposite in="line" in2="SourceAlpha" operator="in"/></filter><clipPath id="ps3-face-clip"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H1510V1041H0Z M1085 385a67 67 0 1 0 134 0a67 67 0 1 0 -134 0Z M973 490a67 67 0 1 0 134 0a67 67 0 1 0 -134 0Z M1198 490a67 67 0 1 0 134 0a67 67 0 1 0 -134 0Z M1085 600a67 67 0 1 0 134 0a67 67 0 1 0 -134 0Z"/></clipPath></defs>
+        <image href="assets/controller-references/dualshock-3-clean.png" width="1510" height="1041" filter="url(#ps3-white-lines)" clip-path="url(#ps3-face-clip)"/>
+        <image href="${icon('ps_wire_button_triangle')}" x="1096" y="329" width="112" height="112"/>
+        <image href="${icon('ps_wire_button_square')}" x="984" y="434" width="112" height="112"/>
+        <image href="${icon('ps_wire_button_circle')}" x="1209" y="434" width="112" height="112"/>
+        <image href="${icon('ps_wire_button_x')}" x="1096" y="544" width="112" height="112"/>
+      </svg></div>`;
+    }
+    function controllerDiagram(type) {
+      if (type==='dualshock') return dualShock3Diagram();
+      if (type==='xbox360') return xbox360Diagram();
+      if (perspectiveAssets[type]) return perspectiveDiagram(type);
+      // Joy-Con diagrams add a band above the picture for the L/ZL and R/ZR miniatures (their viewBox starts at
+      // -68, or -70 for the pair). Face coordinates are measured on the picture, so rescale them to the taller box.
+      // Keep these numbers in sync with the viewBox and image sizes used in the Joy-Con branch below.
+      const joyconBand = { joyconl: [68, 308], joyconr: [68, 308], joyconpair: [70, 658] }[type];
+      const faceTop = y => joyconBand ? +((y / 100 * joyconBand[1] + joyconBand[0]) / (joyconBand[1] + joyconBand[0]) * 100).toFixed(2) : y;
+      const markers = (faceOverlays[type] || []).map(([label,x,y]) => `<span class="diagram-face diagram-face--${label.toLowerCase()}" style="left:${x}%;top:${faceTop(y)}%" aria-hidden="true">${label}</span>`).join('');
+      if (['joyconl','joyconr','joyconpair'].includes(type)) {
+        const dimensions = type === 'joyconpair' ? '682 658' : '657 308';
+        const [width,height] = dimensions.split(' ');
+        const whiteLines = `<filter id="joycon-transparent-white-lines" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" result="white-lines" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 .897 1.761 .342 0 -.28"/><feComposite in="white-lines" in2="SourceAlpha" operator="in"/></filter>`;
+        const shoulderButtons = type === 'joyconpair'
+          ? [['ZL',100,-34,'trigger'],['L',245,-34,'bumper'],['R',437,-34,'bumper'],['ZR',582,-34,'trigger']]
+          : [[type === 'joyconl' ? 'L' : 'R',258,-35,'bumper'],[type === 'joyconl' ? 'ZL' : 'ZR',399,-35,'trigger']];
+        const shoulders = `<g font-family="Segoe UI,sans-serif" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="central">${shoulderButtons.map(([label,x,y,shape]) => {
+          const w = shape === 'trigger' ? 78 : 88, h = shape === 'trigger' ? 29 : 25, left = x-w/2, top = y-h/2;
+          const silhouette = shape === 'trigger'
+            ? `<path d="M${left+4} ${top}H${left+w-4}Q${left+w} ${top} ${left+w} ${top+5}V${top+h}H${left}V${top+5}Q${left} ${top} ${left+4} ${top}Z"/>`
+            : `<path d="M${left+8} ${top}H${left+w-8}Q${left+w} ${top} ${left+w} ${top+8}V${top+h-5}Q${left+w/2} ${top+h+4} ${left} ${top+h-5}V${top+8}Q${left} ${top} ${left+8} ${top}Z"/>`;
+          return `<g fill="none" stroke="#f2fff3" stroke-width="2.5" stroke-linejoin="round">${silhouette}<text x="${x}" y="${y+1}" fill="#fff" stroke="none" font-size="18">${label}</text></g>`;
+        }).join('')}</g>`;
+        const viewBox = type === 'joyconpair' ? `0 -70 ${width} ${Number(height)+70}` : `0 -68 ${width} ${Number(height)+68}`;
+        return `<div class="controller-art controller-art--joycon${type==='joyconpair' ? ' controller-art--pair' : ''}" data-family="nintendo"><svg viewBox="${viewBox}" role="img" aria-label="${names[type][0]} transparent diagram with external L/ZL or R/ZR button miniatures" xmlns="http://www.w3.org/2000/svg"><defs>${whiteLines}</defs><image href="${images[type]}" width="${width}" height="${height}" filter="url(#joycon-transparent-white-lines)"/>${shoulders}</svg>${markers}</div>`;
+      }
+      return `<div class="controller-art${type==='joyconpair' ? ' controller-art--pair' : ''}" data-family="${faceFamily(type)}"><img src="${images[type]}" alt="Diagrama do ${names[type][0]}">${markers}</div>`;
+    }
+    function pairedDiagram() { return controllerDiagram('joyconpair'); }
+    function renderKey(type,[label,file]) {
+      const psColors = {'△':'triangle','○':'circle','×':'cross','□':'square'};
+      const faceClass = psColors[label] ? `key--ps-${psColors[label]}` : (['pro','joyconr','joyconpair'].includes(type) && /^[ABXY]$/.test(label) ? `key--nintendo-${label.toLowerCase()}` : '');
+      const isFace = /^[ABXY]$/.test(label) || Object.prototype.hasOwnProperty.call(psColors,label);
+      const content = file ? `<img src="${icon(file)}" alt="">` : `<span class="${faceClass ? 'key-symbol' : 'key-text'}">${label}</span>`;
+      const direction = {'↑':'up','↓':'down','←':'left','→':'right'}[label];
+      return `<span class="key ${faceClass}${direction ? ' key--direction' : ''}${isFace ? ' key--face' : ''}${label === 'PS' ? ' key--system-home' : ''}" role="img" aria-label="${direction ? 'D-pad '+direction : label}" title="${direction ? 'D-pad '+direction : label}">${content}</span>`;
+    }
+    function renderController() {
+      const pair = currentMode === 'pair';
+      const type = pair ? 'joyconpair' : currentCard.dataset.controller;
+      const player = currentCard.dataset.player;
+      const [name,transport] = pair ? ['Combined Joy-Cons','Bluetooth · L + R'] : names[type];
+      selectedName.textContent = pair ? name : `Player ${player} — ${name}${type === 'pro' ? (player === '1' ? ' — Blue' : ' — Red') : ''}`;
+      selectedTransport.textContent = transport;
+      diagram.innerHTML = pair ? pairedDiagram() : controllerDiagram(type);
+      buttonKeys.dataset.controller = type;
+      buttonKeys.innerHTML = iconSets[type].map(item => renderKey(type,item)).join('');
+      adaptivePanel.hidden = type !== 'dualsense';
+      inputHint.textContent = 'Preview · no live reading';
+      connectionStatus.textContent = pair ? 'Preview' : currentCard.querySelector('.status').textContent;
+      stickGrid.classList.toggle('is-single',type==='joyconl'||type==='joyconr');
+      stickGrid.children[0].hidden = type==='joyconr';
+      stickGrid.children[1].hidden = type==='joyconl';
+      caption.textContent = pair ? 'Combined Joy-Cons preview · test position' : `${name} diagram · input reading overlaid later`;
+      cards.forEach(item => item.classList.toggle('selected',pair ? item.dataset.controller==='joyconpair' : item===currentCard));
+    }
+    cards.forEach(card => card.addEventListener('click', () => {
+      currentCard = card;
+      currentMode = card.dataset.controller === 'joyconpair' ? 'pair' : 'single';
+      renderController();
+    }));
+    renderController();
+  </script>
+  <script id="ujm-extras-js">
+    // Menus (File, View, Controller, Help), the toolbar (service and Bluetooth shortcuts), import/export of
+    // profiles and settings, the Credits & Info page and the dark-only theme configurator.
+    // Separate from the controller code on purpose: it only touches the menu bar, the toolbar, a few new
+    // sections and a generated <style>. The service and Bluetooth are SIMULATED in this prototype.
+    (function () {
+      'use strict';
+      var UJM_VERSION = 'v0.7.1';
+      var STORE_KEY = 'ujm-theme-v1';
+      var $ = function (s, r) { return (r || document).querySelector(s); };
+      var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+      var esc = function (t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+      var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+
+      /* ---------------- toast ---------------- */
+      var toastEl = $('#toast'), toastTimer = 0;
+      function toast(text) { toastEl.textContent = text; toastEl.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.hidden = true; }, 4500); }
+
+      /* ---------------- menus ---------------- */
+      var menus = $$('.menubar .menu');
+      function closeMenus(except) {
+        menus.forEach(function (m) {
+          if (m === except) return;
+          m.classList.remove('open'); $('.menu-pop', m).hidden = true; $('.menu-label', m).setAttribute('aria-expanded', 'false');
+        });
+      }
+      function toggleMenu(m) {
+        var pop = $('.menu-pop', m), willOpen = pop.hidden;
+        closeMenus(m); pop.hidden = !willOpen; m.classList.toggle('open', willOpen);
+        $('.menu-label', m).setAttribute('aria-expanded', String(willOpen));
+        return willOpen;
+      }
+      menus.forEach(function (m) {
+        var label = $('.menu-label', m), pop = $('.menu-pop', m);
+        label.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(m); });
+        label.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (toggleMenu(m)) { var first = $('button:not(:disabled), a', pop); if (first) first.focus(); }
+          }
+        });
+        pop.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var item = e.target.closest('[data-action]'); closeMenus();
+          if (item && !item.disabled) runAction(item.getAttribute('data-action'));
+        });
+        pop.addEventListener('keydown', function (e) {
+          var items = $$('button:not(:disabled), a', pop), i = items.indexOf(document.activeElement);
+          if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+          if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+        });
+      });
+      document.addEventListener('click', function () { closeMenus(); });
+      var headerHelp = $('#header-help');
+      if (headerHelp) headerHelp.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu($('.menu[data-menu="help"]')); });
+      $('#toolbar').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-action]'); if (b && !b.disabled) runAction(b.getAttribute('data-action'));
+      });
+
+      /* ---------------- generic confirm dialog ---------------- */
+      var confirmModal = $('#confirm-modal'), confirmResolve = null;
+      function confirmDialog(title, text, okLabel) {
+        return new Promise(function (resolve) {
+          $('#confirm-title').textContent = title; $('#confirm-text').textContent = text; $('#confirm-ok').textContent = okLabel || 'OK';
+          confirmResolve = resolve; confirmModal.hidden = false; $('#confirm-ok').focus();
+        });
+      }
+      function closeConfirm(value) { confirmModal.hidden = true; if (confirmResolve) { var r = confirmResolve; confirmResolve = null; r(value); } }
+      $('#confirm-ok').addEventListener('click', function () { closeConfirm(true); });
+      $('#confirm-cancel').addEventListener('click', function () { closeConfirm(false); });
+      confirmModal.addEventListener('click', function (e) { if (e.target === confirmModal) closeConfirm(false); });
+
+      /* ---------------- Credits & Info ---------------- */
+      // Mirror of CREDITS.md in the repository. Add volunteer testers here and there.
+      // Entry format: { name: 'name or handle', what: 'controller model, connection (UJM vX.Y.Z)' }
+      var TESTERS = [];
+      var mainEl = $('main'), footerEl = $('.footer'), credits = $('#credits-page');
+      $('#about-version').textContent = UJM_VERSION;
+      $('#testers-list').innerHTML = TESTERS.length
+        ? TESTERS.map(function (t) { return '<li><b>' + esc(t.name) + '</b> - ' + esc(t.what) + '</li>'; }).join('')
+        : '<li class="muted"><i>No volunteer reports yet. Be the first.</i></li>';
+      function openCredits() { mainEl.hidden = true; footerEl.hidden = true; credits.hidden = false; $('#credits-back').focus(); window.scrollTo(0, 0); }
+      function closeCredits() { credits.hidden = true; mainEl.hidden = false; footerEl.hidden = false; }
+      $('#credits-back').addEventListener('click', closeCredits);
+
+      /* ---------------- color helpers ---------------- */
+      function parseHex(h) {
+        h = String(h).trim().replace(/^#/, '');
+        if (/^[0-9a-f]{3}$/i.test(h)) h = h.replace(/./g, '$&$&');
+        return /^[0-9a-f]{6}$/i.test(h) ? [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }) : null;
+      }
+      function rgbToHsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0;
+        if (mx !== mn) {
+          var d = mx - mn; s = d / (1 - Math.abs(2 * l - 1));
+          h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360;
+        }
+        return { h: h, s: s * 100, l: l * 100 };
+      }
+      function hslToHex(h, s, l) {
+        h = ((h % 360) + 360) % 360; s = clamp(s, 0, 100) / 100; l = clamp(l, 0, 100) / 100;
+        var c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2, r, g, b;
+        if (h < 60) { r = c; g = x; b = 0; } else if (h < 120) { r = x; g = c; b = 0; } else if (h < 180) { r = 0; g = c; b = x; }
+        else if (h < 240) { r = 0; g = x; b = c; } else if (h < 300) { r = x; g = 0; b = c; } else { r = c; g = 0; b = x; }
+        return '#' + [r, g, b].map(function (v) { return ('0' + Math.round((v + m) * 255).toString(16)).slice(-2); }).join('');
+      }
+      function hexToHsl(hex) { var c = parseHex(hex); return c && rgbToHsl(c[0], c[1], c[2]); }
+      function normHex(hex) { var c = parseHex(hex); return c ? '#' + c.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('') : null; }
+
+      /* ---------------- theme engine ---------------- */
+      // The page stylesheet is not edited. The configurator keeps a recolored copy of it in a
+      // later <style>: colors of the "theme family" (the greens: surfaces, highlights, text) are
+      // remapped from the three picked colors; semantic colors (A/B/X/Y, LEDs, warnings) are kept.
+      var mainStyle = document.head.querySelector('style');
+      var originalCss = mainStyle.textContent;
+      var overrideStyle = document.createElement('style'); overrideStyle.id = 'ujm-theme-override'; document.head.appendChild(overrideStyle);
+      function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+      var DEFAULT = { bg: normHex(cssVar('--panel')) || '#080d09', accent: normHex(cssVar('--accent')) || '#9cff88', text: normHex(cssVar('--dark')) || '#e3f6e5' };
+      var base = { bg: hexToHsl(DEFAULT.bg), accent: hexToHsl(DEFAULT.accent), text: hexToHsl(DEFAULT.text) };
+      var LIMITS = { bgMaxL: 30, textMinL: 60, accentMinL: 30 };
+      var PRESETS = [
+        { id: 'default', name: 'Matrix (default)', t: DEFAULT },
+        { id: 'midnight', name: 'Midnight', t: { bg: '#070a12', accent: '#7aa2ff', text: '#e6ecff' } },
+        { id: 'crimson', name: 'Crimson night', t: { bg: '#120708', accent: '#ff6b6b', text: '#ffe9e9' } },
+        { id: 'amber', name: 'Amber CRT', t: { bg: '#100b04', accent: '#ffb347', text: '#fff1d6' } },
+        { id: 'violet', name: 'Violet haze', t: { bg: '#0d0816', accent: '#b794ff', text: '#f0e9ff' } },
+        { id: 'ghost', name: 'Ghost', t: { bg: '#090909', accent: '#c9c9c9', text: '#f2f2f2' } }
+      ];
+      function ratio(a, b) { return b < 1 ? 1 : clamp(a / b, 0, 3); }
+      function remapCss(css, T) {
+        return css.replace(/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g, function (m) {
+          var c = parseHex(m), o = rgbToHsl(c[0], c[1], c[2]);
+          if (o.s <= 5 || o.h < 90 || o.h > 170) return m;            // not in the green theme family
+          var ref, lo, hi;
+          if (o.l < 30)       { ref = 'bg'; lo = 0;  hi = LIMITS.bgMaxL + 4; }   // surfaces
+          else if (o.l >= 85) { ref = 'text'; lo = LIMITS.textMinL + 10; hi = 100; } // text
+          else                { ref = 'accent'; lo = 20; hi = 92; }            // highlights and lines
+          var b = base[ref], t = T[ref];
+          return hslToHex(o.h + (t.h - b.h), o.s * ratio(t.s, b.s), clamp(o.l + (t.l - b.l), lo, hi));
+        });
+      }
+      var current = { bg: DEFAULT.bg, accent: DEFAULT.accent, text: DEFAULT.text };
+      function sameTheme(a, b) { return a.bg === b.bg && a.accent === b.accent && a.text === b.text; }
+      function applyTheme(t) {
+        current = { bg: t.bg, accent: t.accent, text: t.text };
+        overrideStyle.textContent = sameTheme(current, DEFAULT) ? '' : remapCss(originalCss, { bg: hexToHsl(t.bg), accent: hexToHsl(t.accent), text: hexToHsl(t.text) });
+      }
+      function check(kind, hex) {
+        var h = hexToHsl(hex); if (!h) return { ok: false, why: 'format' };
+        if (kind === 'bg' && h.l > LIMITS.bgMaxL) return { ok: false, why: 'light' };
+        if (kind === 'text' && h.l < LIMITS.textMinL) return { ok: false, why: 'dimtext' };
+        if (kind === 'accent' && h.l < LIMITS.accentMinL) return { ok: false, why: 'dimaccent' };
+        return { ok: true };
+      }
+      function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(current)); } catch (e) { /* storage may be blocked */ } }
+      function load() {
+        try {
+          var s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+          if (s && ['bg', 'accent', 'text'].every(function (k) { var n = normHex(s[k]); return n && check(k, n).ok; })) {
+            return { bg: normHex(s.bg), accent: normHex(s.accent), text: normHex(s.text) };
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      }
+
+      /* ---------------- theme dialog ---------------- */
+      var modal = $('#theme-modal'), dialog = $('#theme-dialog'), msg = $('#theme-msg');
+      var kinds = ['bg', 'accent', 'text'];
+      var ctl = {}; kinds.forEach(function (k) { ctl[k] = { color: $('#c-' + k), text: $('#t-' + k) }; });
+      var JOKES = [
+        'Do you hate your sight?',
+        "What's wrong with you? Daywalker.",
+        'Your retinas just filed a complaint.',
+        'Even vampires use dark mode.',
+        'The dark side has controllers. Your side has glare.',
+        'Sunglasses not included. Neither is light mode.',
+        'Bold of you to assume this window has a light side.'
+      ];
+      var TOUCH_GRASS = 'OK, we get it: you love the sun. Go touch some grass, then come back to the dark.';
+      var attempts = 0, jokeIndex = 0, lastJokeAt = 0;
+      function nextJoke() { attempts += 1; return attempts % 5 === 0 ? TOUCH_GRASS : JOKES[jokeIndex++ % JOKES.length]; }
+      function say(text) { msg.textContent = text; }
+      function lightAttempt() {
+        var now = Date.now(); if (now - lastJokeAt < 900) return;   // dragging a picker fires many events
+        lastJokeAt = now; say(nextJoke());
+        dialog.classList.remove('shake'); void dialog.offsetWidth; dialog.classList.add('shake');
+      }
+      function reject(why) {
+        if (why === 'light') lightAttempt();
+        else if (why === 'dimtext') say('Dark text on a dark window? Bold. Denied.');
+        else if (why === 'dimaccent') say('That accent is so dim even your controller cannot find it.');
+        else say('That is not a color I know. Try something like #7aa2ff.');
+      }
+      function syncInputs() {
+        kinds.forEach(function (k) { ctl[k].color.value = current[k]; ctl[k].text.value = current[k]; });
+        $$('.preset', $('#theme-presets')).forEach(function (b) {
+          var p = PRESETS.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
+          b.setAttribute('aria-pressed', String(sameTheme(p.t, current)));
+        });
+      }
+      function tryColor(kind, raw, commit) {
+        var hex = normHex(raw), res = check(kind, hex || raw);
+        if (!res.ok) { if (commit || hex) reject(res.why); if (commit) syncInputs(); return; }
+        var next = { bg: current.bg, accent: current.accent, text: current.text }; next[kind] = hex;
+        applyTheme(next); save(); syncInputs();
+      }
+      kinds.forEach(function (k) {
+        ctl[k].color.addEventListener('input', function () { tryColor(k, this.value, false); });
+        ctl[k].color.addEventListener('change', function () { tryColor(k, this.value, true); });
+        ctl[k].text.addEventListener('input', function () { if (/^#?[0-9a-f]{6}$/i.test(this.value.trim())) tryColor(k, this.value, false); });
+        ctl[k].text.addEventListener('change', function () { tryColor(k, this.value, true); });
+      });
+      $('#theme-presets').innerHTML = PRESETS.map(function (p) {
+        return '<button type="button" class="preset" data-id="' + p.id + '" aria-pressed="false"><span class="swatch" style="background:linear-gradient(90deg,' + p.t.bg + ' 0 45%,' + p.t.accent + ' 45% 75%,' + p.t.text + ' 75%)"></span>' + esc(p.name) + '</button>';
+      }).join('');
+      $('#theme-presets').addEventListener('click', function (e) {
+        var b = e.target.closest('.preset'); if (!b) return;
+        var p = PRESETS.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
+        applyTheme(p.t); save(); syncInputs(); say('Theme: ' + p.name + '. Saved in this browser.');
+      });
+      $('#theme-reset').addEventListener('click', function () { applyTheme(DEFAULT); try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ } syncInputs(); say('Back to the default theme.'); });
+      function openTheme() { syncInputs(); modal.hidden = false; $('#theme-close').focus(); }
+      function closeTheme() { modal.hidden = true; }
+      $('#theme-close').addEventListener('click', closeTheme);
+      modal.addEventListener('click', function (e) { if (e.target === modal) closeTheme(); });
+
+      /* ---------------- controller cards (read and write through the DOM only) ---------------- */
+      function cards() { return $$('.card[data-controller]').filter(function (c) { return c.getAttribute('data-controller') !== 'joyconpair'; }); }
+      function cardId(c) { return c.getAttribute('data-controller') + '-' + c.getAttribute('data-player'); }
+      function nameEl(c) { var h = $('h3', c); if (!h.hasAttribute('data-orig')) h.setAttribute('data-orig', h.textContent); return h; }
+      function cardName(c) { return nameEl(c).getAttribute('data-orig'); }
+      function cardShownName(c) { return nameEl(c).textContent; }
+      function setAlias(c, alias) { nameEl(c).textContent = alias || cardName(c); }
+      function cardDetail(c) { return $('.muted', c).textContent.trim(); }
+      function setDetail(c, transport) { var p = $('.muted', c); p.textContent = p.textContent.split(' · ')[0] + ' · ' + transport; }
+      function isConnected(c) { return $('.status', c).textContent.trim() === 'Connected'; }
+      function setConnected(c, on) { var st = $('.status', c); st.textContent = on ? 'Connected' : 'Not connected'; st.classList.toggle('muted', !on); }
+
+      /* ---------------- export / import ---------------- */
+      function stamp() { return new Date().toISOString().slice(0, 10).replace(/-/g, ''); }
+      function download(name, obj) {
+        var blob = new Blob([JSON.stringify(obj, null, 2) + '\n'], { type: 'application/json' });
+        var url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      }
+      function buildControllerProfiles() {
+        return {
+          format: 'ujm-controller-profiles', version: 1, ujm: UJM_VERSION, exportedAt: new Date().toISOString(), simulated: true,
+          note: 'Exported from the interface prototype: the controllers and their states are simulated. Only "alias" is applied on import; player slots follow connection order.',
+          controllers: cards().map(function (c) {
+            var shown = cardShownName(c);
+            return { id: cardId(c), name: cardName(c), alias: shown !== cardName(c) ? shown : null, player: Number(c.getAttribute('data-player')), detail: cardDetail(c), connected: isConnected(c) };
+          })
+        };
+      }
+      function buildAppSettings() {
+        return { format: 'ujm-app-settings', version: 1, ujm: UJM_VERSION, exportedAt: new Date().toISOString(), theme: { bg: current.bg, accent: current.accent, text: current.text } };
+      }
+      function requireFormat(o, format) {
+        if (!o || typeof o !== 'object' || o.format !== format || o.version !== 1) throw new Error('This is not a "' + format + '" file (version 1).');
+      }
+      function importControllers(o) {
+        requireFormat(o, 'ujm-controller-profiles');
+        if (!Array.isArray(o.controllers) || o.controllers.length > 100) throw new Error('"controllers" must be a list of at most 100 entries.');
+        var byId = {}; cards().forEach(function (c) { byId[cardId(c)] = c; });
+        var applied = 0, unknown = 0, skipped = 0;
+        o.controllers.forEach(function (e) {
+          if (!e || typeof e.id !== 'string' || e.id.length > 40) { skipped++; return; }
+          var c = byId[e.id]; if (!c) { unknown++; return; }
+          if (e.alias === null || e.alias === undefined || e.alias === '') { setAlias(c, null); applied++; return; }
+          if (typeof e.alias !== 'string') { skipped++; return; }
+          var a = e.alias.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 40);
+          if (!a) { skipped++; return; }
+          setAlias(c, a); applied++;
+        });
+        return { applied: applied, unknown: unknown, skipped: skipped };
+      }
+      function refusalText(why) {
+        if (why === 'light') return nextJoke() + ' (Nothing was imported.)';
+        if (why === 'dimtext') return 'That file asks for dark text on a dark window. Bold. Denied. (Nothing was imported.)';
+        if (why === 'dimaccent') return 'That file has an accent so dim even your controller cannot find it. (Nothing was imported.)';
+        return 'The theme colors in that file are not valid hex colors. (Nothing was imported.)';
+      }
+      function importSettings(o) {
+        requireFormat(o, 'ujm-app-settings');
+        if (!o.theme || typeof o.theme !== 'object') throw new Error('The file has no "theme" section.');
+        var t = {};
+        for (var i = 0; i < kinds.length; i++) {
+          var k = kinds[i], hex = normHex(o.theme[k]);
+          if (!hex) return { refused: true, why: 'format' };
+          var r = check(k, hex); if (!r.ok) return { refused: true, why: r.why };
+          t[k] = hex;
+        }
+        applyTheme(t); save(); syncInputs();
+        return { refused: false };
+      }
+      var importKind = null, fileInput = $('#import-file');
+      function pickFile(kind) { importKind = kind; fileInput.value = ''; fileInput.click(); }
+      function handleImport(kind, o) {
+        try {
+          if (kind === 'controllers') {
+            var r = importControllers(o);
+            toast('Controller profiles imported: ' + r.applied + ' applied, ' + r.unknown + ' unknown ignored' + (r.skipped ? ', ' + r.skipped + ' invalid skipped' : '') + '.');
+          } else {
+            var s = importSettings(o);
+            toast(s.refused ? refusalText(s.why) : 'App settings imported: theme applied.');
+          }
+        } catch (err) { toast(err.message); }
+      }
+      fileInput.addEventListener('change', function () {
+        var f = fileInput.files && fileInput.files[0]; if (!f) return;
+        if (f.size > 262144) { toast('That file is too big for a profile (limit 256 KB).'); return; }
+        var reader = new FileReader();
+        reader.onload = function () {
+          var o; try { o = JSON.parse(reader.result); } catch (e) { toast('That file is not valid JSON.'); return; }
+          handleImport(importKind, o);
+        };
+        reader.readAsText(f);
+      });
+
+      /* ---------------- service (simulated) ---------------- */
+      var svcState = 'running';
+      var pill = $('#svc-pill'), svcLabel = $('#svc-label'), svcBtn = $('#btn-service'), svcMenu = $('#menu-service'), banner = $('#svc-banner');
+      var footerLeft = $('.footer span'), footerOriginal = footerLeft ? footerLeft.textContent : 'Ready';
+      var SVC_LABELS = { running: 'UJM service: running', stopped: 'UJM service: stopped', starting: 'UJM service: starting…', stopping: 'UJM service: stopping…' };
+      function renderService() {
+        var busy = svcState === 'starting' || svcState === 'stopping';
+        var action = (svcState === 'running' || svcState === 'stopping') ? 'Stop service' : 'Start service';
+        pill.setAttribute('data-state', svcState); svcLabel.textContent = SVC_LABELS[svcState];
+        svcBtn.textContent = action; svcMenu.textContent = action; svcBtn.disabled = busy; svcMenu.disabled = busy;
+        svcBtn.title = 'Start or stop the UJM service. The real application asks for authorization through the system (polkit); it never calls sudo.';
+        banner.hidden = svcState !== 'stopped';
+        if (footerLeft) footerLeft.textContent = svcState === 'running' ? footerOriginal : SVC_LABELS[svcState];
+        updateActions();
+      }
+      function toggleService() {
+        if (svcState === 'running') {
+          confirmDialog('Stop the UJM service?', 'Player numbering, LEDs and battery indication stop being managed until you start it again. Controllers keep working through the kernel drivers.', 'Stop service').then(function (ok) {
+            if (!ok) return;
+            svcState = 'stopping'; renderService();
+            setTimeout(function () { svcState = 'stopped'; renderService(); toast('UJM service stopped (simulated).'); }, 700);
+          });
+        } else if (svcState === 'stopped') {
+          svcState = 'starting'; renderService();
+          setTimeout(function () { svcState = 'running'; renderService(); toast('UJM service started (simulated).'); }, 800);
+        }
+      }
+
+      /* ---------------- Bluetooth shortcuts (simulated) ---------------- */
+      function updateActions() {
+        var running = svcState === 'running';
+        var sel = $('.card.selected'), real = !!sel && sel.getAttribute('data-controller') !== 'joyconpair';
+        var usb = real && /USB/.test(cardDetail(sel)), conn = real && isConnected(sel);
+        var rules = { pair: running, connect: running && real && !usb && !conn, disconnect: running && real && !usb && conn };
+        var why = {
+          pair: 'Start the service first',
+          connect: !running ? 'Start the service first' : !real ? 'Select a controller first' : usb ? 'USB controllers connect by cable' : 'Already connected',
+          disconnect: !running ? 'Start the service first' : !real ? 'Select a controller first' : usb ? 'USB controllers disconnect by unplugging' : 'Not connected'
+        };
+        $$('[data-action]').forEach(function (el) {
+          var a = el.getAttribute('data-action'); if (!(a in rules)) return;
+          if (!el.hasAttribute('data-t0')) el.setAttribute('data-t0', el.title || '');
+          el.disabled = !rules[a]; el.title = rules[a] ? el.getAttribute('data-t0') : why[a];
+        });
+      }
+      function doConnect(on) {
+        var c = $('.card.selected'); if (!c || c.getAttribute('data-controller') === 'joyconpair') return;
+        toast((on ? 'Connecting ' : 'Disconnecting ') + cardName(c) + '…');
+        setTimeout(function () {
+          setConnected(c, on); setDetail(c, on ? 'Bluetooth' : 'waiting'); c.click(); updateActions();
+          toast(cardName(c) + (on ? ' connected (simulated).' : ' disconnected (simulated).'));
+        }, 600);
+      }
+      var pairModal = $('#pair-modal'), pairList = $('#pair-list'), pairLog = $('#pair-log'), pairGo = $('#pair-go'), pairScan = $('#pair-scan');
+      var pairBusy = false, found = [];
+      var PAIR_IDLE = 'Nothing yet. This is a simulation: the prototype does not talk to BlueZ.';
+      function fakeAddr(i) { return ['E4:17:D8', '98:B6:E9', '50:23:6D', '20:1C:3A'][i % 4] + ':XX:XX:XX'; }
+      function renderFound() {
+        pairList.innerHTML = found.map(function (d, i) {
+          return '<label><input type="radio" name="pair-dev" value="' + i + '"> <b>' + esc(cardName(d.card)) + '</b> <span class="muted">(' + esc(d.addr) + ')</span></label>';
+        }).join('');
+        pairGo.disabled = true;
+      }
+      function openPair() { found = []; pairList.innerHTML = ''; pairLog.textContent = PAIR_IDLE; pairGo.disabled = true; pairScan.disabled = false; pairModal.hidden = false; pairScan.focus(); }
+      function closePair() { if (!pairBusy) pairModal.hidden = true; }
+      pairList.addEventListener('change', function () { pairGo.disabled = !$('input[name="pair-dev"]:checked', pairList); });
+      pairScan.addEventListener('click', function () {
+        if (pairBusy) return; pairBusy = true; pairScan.disabled = true; pairGo.disabled = true;
+        pairLog.textContent = '$ bluetoothctl --timeout 10 scan on\nScanning…';
+        setTimeout(function () {
+          var waiting = cards().filter(function (c) { return !isConnected(c) && !/USB/.test(cardDetail(c)); }).slice(0, 4);
+          found = waiting.map(function (c, i) { return { card: c, addr: fakeAddr(i) }; });
+          renderFound();
+          pairLog.textContent += found.length ? '\nFound ' + found.length + ' controller(s). Pick one and press "Pair and connect".' : '\nNo new controllers found: every known controller is already connected.';
+          pairBusy = false; pairScan.disabled = false;
+        }, 1100);
+      });
+      pairGo.addEventListener('click', function () {
+        var r = $('input[name="pair-dev"]:checked', pairList); if (!r || pairBusy) return;
+        var d = found[Number(r.value)]; pairBusy = true; pairGo.disabled = true; pairScan.disabled = true;
+        var lines = ['$ bluetoothctl pair ' + d.addr, 'Pairing successful', '$ bluetoothctl trust ' + d.addr, 'Changing ' + d.addr + ' trust succeeded', '$ bluetoothctl connect ' + d.addr, 'Connection successful'];
+        pairLog.textContent = '';
+        (function step(i) {
+          if (i < lines.length) { pairLog.textContent += (i ? '\n' : '') + lines[i]; setTimeout(function () { step(i + 1); }, 380); return; }
+          setConnected(d.card, true); setDetail(d.card, 'Bluetooth'); d.card.click(); updateActions();
+          pairLog.textContent += '\n\nDone (simulated). ' + cardName(d.card) + ' takes the next free player slot.';
+          toast(cardName(d.card) + ' paired and connected (simulated).');
+          found = found.filter(function (x) { return x !== d; }); renderFound();
+          pairBusy = false; pairScan.disabled = false;
+        })(0);
+      });
+      $('#pair-close').addEventListener('click', closePair);
+      pairModal.addEventListener('click', function (e) { if (e.target === pairModal) closePair(); });
+
+      /* ---------------- exit ---------------- */
+      function doExit() {
+        confirmDialog('Exit UJM?', 'This closes the interface. The UJM service keeps running in the background and keeps numbering your controllers.', 'Exit').then(function (ok) {
+          if (!ok) return;
+          closeMenus(); $('#exit-screen').hidden = false; $('#exit-reopen').focus();
+          try { window.close(); } catch (e) { /* browsers only close windows a script opened */ }
+        });
+      }
+      $('#exit-reopen').addEventListener('click', function () { location.reload(); });
+
+      /* ---------------- actions and keyboard ---------------- */
+      var ACTIONS = {
+        theme: openTheme, credits: openCredits,
+        'export-controllers': function () { download('ujm-controller-profiles-' + stamp() + '.json', buildControllerProfiles()); toast('Controller profiles exported.'); },
+        'import-controllers': function () { pickFile('controllers'); },
+        'export-settings': function () { download('ujm-app-settings-' + stamp() + '.json', buildAppSettings()); toast('App settings exported.'); },
+        'import-settings': function () { pickFile('settings'); },
+        exit: doExit, pair: openPair,
+        connect: function () { doConnect(true); }, disconnect: function () { doConnect(false); },
+        'service-toggle': toggleService
+      };
+      function runAction(name) { var f = ACTIONS[name]; if (f) f(); }
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        closeMenus();
+        if (!confirmModal.hidden) closeConfirm(false);
+        else if (!pairModal.hidden) closePair();
+        else if (!modal.hidden) closeTheme();
+        else if (!credits.hidden) closeCredits();
+      });
+      $$('.card').forEach(function (c) { c.addEventListener('click', updateActions); });
+
+      var saved = load(); if (saved) applyTheme(saved);
+      syncInputs(); renderService();
+      // handy in the console and for the automated test
+      window.UJMTheme = { current: function () { return current; }, apply: applyTheme, check: check };
+      window.UJMTools = { buildControllerProfiles: buildControllerProfiles, buildAppSettings: buildAppSettings, importControllers: importControllers, importSettings: importSettings, handleImport: handleImport, serviceState: function () { return svcState; } };
+    })();
+  </script>
+</body>
+</html>
