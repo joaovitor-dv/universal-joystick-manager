@@ -8,6 +8,7 @@ import glob
 import os
 import re
 import sys
+import time
 
 PREFIX_RE = re.compile(r"^0005:057E:2009\.[0-9A-Fa-f]+$")
 
@@ -23,7 +24,9 @@ def hidraw_for_prefix(prefix: str) -> str | None:
 
 
 def send_player_lights(device: str, mask: int) -> None:
-    payload = bytes((0x01, 0x00, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01,
+    # The controller uses the low nibble as an output-report sequence.
+    sequence = (time.monotonic_ns() // 1_000_000) & 0x0F
+    payload = bytes((0x01, sequence, 0x00, 0x01, 0x40, 0x40, 0x00, 0x01,
                      0x40, 0x40, 0x30, mask & 0x0F))
     fd = os.open(device, os.O_WRONLY | os.O_NONBLOCK)
     try:
