@@ -26,6 +26,12 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Interface prototype: a full-page audit
+
+- **What changed:** with the interface folder idle, every one of the 11 controller panels was opened in a scripted headless Chromium and checked for missing assets, broken images, layout overflow and JavaScript errors. Two real bugs were fixed: on the three Joy-Con diagrams the colored A/B/X/Y buttons sat 9-36 px above the drawn circles (the diagram had gained a band on top for the L/ZL and R/ZR miniatures, but the button positions were still computed for the old box), and the green status dot of the new service pill was being pulled into the middle of the controller diagram by an unrelated generic `.dot` style.
+- **Evidence:** all 12 literal assets and 53 icon files exist; 11/11 panels render with no broken image, no overflow and 0 JavaScript errors; the Joy-Con button deviation went from 9-36 px to 0 px; the 52 + 28 interface checks still pass.
+- **Open questions:** on the DualShock 4 and Xbox Series diagrams the body lines are still very dim on the dark background, and the Series *Share* overlay looks lower than on the real controller. Both are visual-design calls, reported rather than changed.
+
 ### Credits, testers and the `joycond` note
 
 - **What changed:** the README now says that `joycond` is not only for Joy-Cons: it also manages **Pro Controllers**, which then wait for a logical pairing (L + R) before their player LEDs settle. The first line of the README now says UJM numbers controllers *consistently every time*. New [`CREDITS.md`](CREDITS.md) lists maintainers, volunteer testers, the software UJM builds on and an artwork and trademarks notice; the volunteer guide, the test-report template (*Credit name* field) and the README explain that testers are built into the credits, only with their consent.
