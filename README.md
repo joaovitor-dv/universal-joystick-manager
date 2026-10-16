@@ -13,6 +13,7 @@ Serviço Linux para gerenciamento unificado de controles de jogos no Arch Linux/
 - LEDs de jogador, indicação de bateria quando o driver expuser o recurso e desligamento automático apenas para Bluetooth.
 - Bluetooth mantido quando o mesmo controle também for conectado por USB para carregamento, quando o firmware permitir.
 - Integração sem duplicação com Steam Input.
+- Compatibilidade planejada entre distribuições por meio de uma matriz explícita de dependências.
 
 ## Estado atual
 
@@ -32,6 +33,8 @@ Xbox, DualShock 4, DualSense e controles Switch 2 ficam documentados como altera
 ## Instalação prevista
 
 A instalação será documentada depois da validação do suporte a cada família. Não instale os serviços individuais e o serviço unificado simultaneamente.
+
+As dependências por distribuição estão em [`docs/dependencies.md`](docs/dependencies.md). A primeira versão do serviço tem como alvo distribuições com systemd, udev, D-Bus e BlueZ; `joycond`, `upower` e ferramentas de teste são opcionais conforme o uso.
 
 ## Licença
 
