@@ -6,11 +6,13 @@ arch=('any')
 license=('MIT')
 depends=('bash' 'systemd' 'bluez' 'bluez-utils')
 optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration' 'evtest: diagnostics')
-source=('../../joystickmanager.sh' '../../joystickmanager.service' '../../README.md' '../../LICENSE')
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+source=('../../joystickmanager.sh' '../../joystickmanager-doctor' '../../controllers.tsv' '../../joystickmanager.service' '../../README.md' '../../LICENSE')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
     install -Dm755 "$srcdir/joystickmanager.sh" "$pkgdir/usr/bin/joystickmanager.sh"
+    install -Dm755 "$srcdir/joystickmanager-doctor" "$pkgdir/usr/bin/joystickmanager-doctor"
+    install -Dm644 "$srcdir/controllers.tsv" "$pkgdir/usr/share/joystickmanager/controllers.tsv"
     install -Dm644 "$srcdir/joystickmanager.service" "$pkgdir/usr/lib/systemd/system/joystickmanager.service"
     install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
     install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

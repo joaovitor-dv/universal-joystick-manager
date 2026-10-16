@@ -30,15 +30,35 @@ Distribuições sem systemd poderão usar o script diretamente, mas não são al
 
 ## Drivers do kernel
 
-Para o hardware atualmente testável:
+A fonte única de quais controles o serviço reconhece e de qual driver se espera é
+[`controllers.tsv`](../controllers.tsv). Para conferir o que o seu sistema tem, rode:
 
-| Hardware | Driver esperado |
-|---|---|
-| DualShock 3 | `hid-sony` |
-| Switch Pro e Joy-Con | `hid-nintendo` |
-| Controle virtual | `uinput` |
+```text
+joystickmanager-doctor
+```
 
-Os drivers Xbox, DualShock 4, DualSense e Switch 2 ficam documentados para fases futuras e ainda não são uma garantia de compatibilidade.
+Ele só lê o sistema: mostra, por família, se cada módulo do kernel está carregado,
+disponível ou ausente, e quais controles conectados casaram com um perfil.
+
+| Família | Estado | Módulo esperado |
+|---|---|---|
+| DualShock 3 | validado | `hid_sony` |
+| Switch Pro e Joy-Con | validado | `hid_nintendo` |
+| Controle virtual (`joycond`) | validado | `uinput` |
+| Xbox 360, One, Series (com fio) | experimental | `xpad` |
+| Xbox por Bluetooth | experimental | `hid_microsoft`; `xpadneo` (externo, opcional) |
+| Receptor sem fio Xbox | experimental | `xone` (externo, opcional) |
+| DualShock 4 e DualSense | experimental | `hid_playstation` |
+| 8BitDo, GameSir, Logitech, Razer, Redragon, clones XInput | experimental | `xpad`, `hid_generic` etc., conforme modelo e modo |
+| Switch 2 | planejado | sem driver estável |
+
+Só as famílias **validadas** ficam ativas por padrão. As demais exigem
+`JOYMANAGER_EXPERIMENTAL=1` no ambiente do serviço. Os módulos acima são o esperado
+pelo conhecimento do Linux e **não foram validados em hardware**, exceto os validados.
+
+Drivers externos (`xone`, `xpadneo`) não são instalados pelo `install.sh` nem
+incluídos nos pacotes: são código de terceiros, compilado via DKMS, e devem ser
+instalados por você a partir do pacote da sua distribuição ou do projeto upstream.
 
 ## Arch Linux/CachyOS
 

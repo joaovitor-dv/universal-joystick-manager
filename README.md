@@ -46,7 +46,7 @@ O serviço unificado inicial está em `joystickmanager.sh` e `joystickmanager.se
 
 Xbox, DualShock 4, DualSense e controles Switch 2 ficam documentados como alterações futuras e não serão declarados compatíveis sem hardware para validação.
 
-8BitDo e GameSir entram neste branch experimental como famílias de suporte não validado. A compatibilidade dependerá do modelo, modo de conexão e driver apresentado ao Linux; não será assumida apenas pela marca.
+8BitDo, GameSir, Logitech, Razer, Redragon e clones XInput entram neste branch experimental como famílias de suporte não validado, descritas em [`controllers.tsv`](controllers.tsv). Elas só ficam ativas com `JOYMANAGER_EXPERIMENTAL=1`; `joystickmanager-doctor` mostra os drivers do kernel e o que cada controle conectado casou. A compatibilidade dependerá do modelo, modo de conexão e driver apresentado ao Linux; não será assumida apenas pela marca.
 
 ## Instalação prevista
 

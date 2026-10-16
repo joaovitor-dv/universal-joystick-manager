@@ -27,6 +27,8 @@ drivers Linux / Bluetooth / USB
 7. Interfaces USB que pertençam ao mesmo controle Bluetooth serão tratadas como carregamento quando a identidade puder ser confirmada.
 8. No Switch Pro Controller, um cabo USB de dados pode fazer o firmware trocar do Bluetooth para USB. Para manter Bluetooth durante a carga, o cabo deve ser somente de carga ou estar ligado a uma fonte que não exponha dados ao computador.
 9. O Steam Input não deve criar um segundo dispositivo para os Joy-Cons combinados.
+10. Os controles reconhecidos vêm de `controllers.tsv` (nome do input, fabricante, driver esperado, estado). Só o estado `validated` é ativo por padrão; sem a tabela, o serviço usa uma lista fixa dos controles validados.
+11. O adaptador Bluetooth precisa estar `connectable` para controles como o Pro Controller reconectarem por HOME; o serviço reafirma o modo periodicamente porque o `bluetoothd` pode desligá-lo ao reiniciar.
 
 ## Limites
 

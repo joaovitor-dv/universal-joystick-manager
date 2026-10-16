@@ -155,16 +155,20 @@ t_sem_tabela_usa_lista_fixa() {
     is_supported_controller event2 "DualSense Wireless Controller"; check "sem tabela, DualSense fora" 1 $?
 }
 
+t_doctor_lista_controles() {
+    fake_input event1 "PLAYSTATION(R)3 Controller" 054c 0268
+    fake_input event2 "DualSense Wireless Controller" 054c 0ce6
+    local out; out=$(JOYMANAGER_SYS_INPUT="$sys_input" "$here/joystickmanager-doctor" 2>&1)
+    check "doctor mostra o PS3 como ativo" 1 "$(grep -c 'perfil=ps3 .*-> ativo' <<<"$out")"
+    check "doctor mostra o DualSense como ignorado" 1 "$(grep -c 'perfil=dualsense .*ignorado' <<<"$out")"
+}
+
 for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
          t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot \
-         t_pro_controller_usb_e_registrado \
-         t_connectable_e_reafirmado \
-         t_perfis_validados_sempre_ativos \
-         t_perfis_experimentais_so_com_flag \
-         t_regra_por_fabricante_exige_js \
-         t_nos_extras_de_dualshock4_ignorados \
-         t_controle_nao_hid_recebe_slot \
-         t_sem_tabela_usa_lista_fixa; do
+         t_pro_controller_usb_e_registrado t_connectable_e_reafirmado \
+         t_perfis_validados_sempre_ativos t_perfis_experimentais_so_com_flag \
+         t_regra_por_fabricante_exige_js t_nos_extras_de_dualshock4_ignorados \
+         t_controle_nao_hid_recebe_slot t_sem_tabela_usa_lista_fixa t_doctor_lista_controles; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s falha(s)\n' "$fails"

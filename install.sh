@@ -25,6 +25,8 @@ else
 fi
 
 install -Dm755 joystickmanager.sh /usr/local/bin/joystickmanager.sh
+install -Dm755 joystickmanager-doctor /usr/local/bin/joystickmanager-doctor
+install -Dm644 controllers.tsv /usr/local/share/joystickmanager/controllers.tsv
 install -Dm755 switchpro-leds.py /usr/local/libexec/joystickmanager-switchpro-leds
 install -Dm644 joystickmanager.service /etc/systemd/system/joystickmanager.service
 systemctl daemon-reload
@@ -35,3 +37,4 @@ if [ "$optional" -eq 1 ]; then
     printf '%s\n' 'joycond é opcional e deve ser instalado pelo gerenciador nativo/AUR conforme a distribuição.'
 fi
 printf '%s\n' 'Dependências e arquivos do joystickmanager instalados.'
+printf '%s\n' 'Rode joystickmanager-doctor para ver os drivers do kernel. Drivers externos (xone, xpadneo) não são instalados.'
