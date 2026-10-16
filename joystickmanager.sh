@@ -91,26 +91,23 @@ collapse_physical_joycons() {
 }
 
 set_battery_led() {
-    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 blue max v led
-    blue="/sys/class/leds/$prefix:blue:player-5/brightness"
-    if [ -e "$blue" ]; then
-        max=$(read_file "${blue%/brightness}/max_brightness"); [ -n "$max" ] || max=1
-        if [ "$charging" -eq 1 ]; then
-            v=$(( phase * max / 4 + max / 4 ))
-        elif [ "$state" = low ] || [ "$state" = critical ]; then
-            v=$(( phase == 0 ? max : 0 ))
-        else
-            # LED azul também confirma que o controle está conectado.
-            v=$max
-        fi
-        write_led "$blue" "$v"
-    elif [ "$charging" -eq 1 ]; then
-        for led in "/sys/class/leds/$prefix:green:player-$slot/brightness" "/sys/class/leds/$prefix::sony$slot/brightness"; do write_led "$led" "$((phase % 2))"; done
+    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 v led
+
+    # O hid-nintendo atual expõe o LED HOME azul como player-5, mas o
+    # brightness pode mudar sem produzir uma alteração física. Não usamos
+    # esse estado como indicação falsa: a indicação de bateria permanece no
+    # LED do jogador, que é efetivamente controlável.
+    if [ "$charging" -eq 1 ]; then
+        v=$((phase % 2))
     elif [ "$state" = low ] || [ "$state" = critical ]; then
-        write_led "/sys/class/leds/$prefix:green:player-$slot/brightness" "$(( phase == 0 ? 1 : 0 ))"
-        write_led "/sys/class/leds/$prefix::sony$slot/brightness" "$(( phase == 0 ? 1 : 0 ))"
-    else set_player_leds "$prefix" "$slot"
+        v=$(( phase == 0 ? 1 : 0 ))
+    else
+        v=1
     fi
+
+    for led in "/sys/class/leds/$prefix:green:player-$slot/brightness" "/sys/class/leds/$prefix::sony$slot/brightness"; do
+        write_led "$led" "$v"
+    done
 }
 
 battery_state() {
