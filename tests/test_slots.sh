@@ -71,8 +71,26 @@ t_mesmo_controle_ainda_presente_mantem_slot() {
     check "não cria linha duplicada para B" 1 "$(grep -c "^$B" "$slots_file")"
 }
 
+t_pro_controller_usb_e_registrado() {
+    # Via USB o kernel nomeia o dispositivo com o prefixo do fabricante e há um nó IMU.
+    local d="$T/dev/0003:057E:2009.0016"
+    mkdir -p "$d" "$sys_input/event7" "$sys_input/event8"
+    printf '%s\n' $A >"$d/uniq"
+    printf 'Nintendo Co., Ltd. Pro Controller\n' >"$d/name"
+    ln -sfn "$d" "$sys_input/event7/device"
+    printf 'Nintendo Co., Ltd. Pro Controller (IMU)\n' >"$d/name_imu"
+    mkdir -p "$T/dev/imu"; printf '%s\n' $A >"$T/dev/imu/uniq"
+    printf 'Nintendo Co., Ltd. Pro Controller (IMU)\n' >"$T/dev/imu/name"
+    mv "$T/dev/imu" "$T/dev/0003:057E:2009.0016-imu"
+    ln -sfn "$T/dev/0003:057E:2009.0016-imu" "$sys_input/event8/device"
+    register_event event7; register_event event8
+    check "Pro Controller USB recebe slot 1" 1 "$(slot_of $A)"
+    check "IMU não cria linha extra" 1 "$(wc -l <"$slots_file")"
+}
+
 for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
-         t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot; do
+         t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot \
+         t_pro_controller_usb_e_registrado; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s falha(s)\n' "$fails"

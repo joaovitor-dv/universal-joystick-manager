@@ -152,7 +152,8 @@ battery_state() {
 register_event() {
     local event=$1 name path id prefix slot tmp reverse
     name=$(read_file "$sys_input/$event/device/name")
-    case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons');;*) return;;esac
+    # Via USB o hid-nintendo prefixa o nome com o fabricante ("Nintendo Co., Ltd. Pro Controller").
+    case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Nintendo Co., Ltd. Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons');;*) return;;esac
     path="$sys_input/$event/device"
     if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
         collapse_physical_joycons
