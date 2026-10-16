@@ -32,6 +32,7 @@ controller_id() {
 }
 
 row_for_id() { awk -F '\t' -v i="$1" '$1==i{print;exit}' "$slots_file"; }
+row_for_prefix() { awk -F '\t' -v p="$1" '$3==p{print;exit}' "$slots_file"; }
 slot_in_use() { awk -F '\t' -v s="$1" '$2==s{x=1}END{exit !x}' "$slots_file"; }
 
 assign_slot() {
@@ -195,9 +196,13 @@ update_batteries() {
             prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
             id=$(controller_id "$b/device" || true); [ -n "$prefix" ] && [ -n "$id" ] || continue
             row=$(row_for_id "$id")
+            [ -n "$row" ] || row=$(row_for_prefix "$prefix")
             if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
             [ -n "$row" ] || continue
             slot=$(printf '%s\n' "$row" | cut -f2); cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
+            # Reaplica a identificação do jogador antes do estado da bateria.
+            # Isso também restaura os LEDs após o firmware do controle atualizá-los.
+            set_player_leds "$prefix" "$slot"
             set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase"
             case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac
         done
