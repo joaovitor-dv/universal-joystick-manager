@@ -1,7 +1,7 @@
 Name:           universal-joystick-manager
 Version:        0.1.0
 Release:        1%{?dist}
-Summary:        Universal Linux joystick manager
+Summary:        UJM - Universal Joystick Manager for Linux
 License:        MIT
 BuildArch:      noarch
 Requires:       bash, systemd, bluez

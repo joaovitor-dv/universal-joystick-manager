@@ -1,6 +1,8 @@
-# joystickmanager
+# UJM — Universal Joystick Manager
 
-A Linux service for unified game controller management on Arch Linux/CachyOS.
+UJM is a Linux service for unified game controller management on Arch Linux/CachyOS.
+
+> **Naming:** UJM is the product name. The technical identifiers (`joystickmanager.sh`, `joystickmanager.service`, `joystickmanager-doctor`, `JOYMANAGER_*`, `/run/joystickmanager`) keep their current names for now.
 
 ## Approved scope
 

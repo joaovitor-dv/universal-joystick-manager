@@ -1,4 +1,4 @@
-# Controller profiles for the Universal Joystick Manager
+# Controller profiles for UJM (Universal Joystick Manager)
 # Columns (TAB-separated, no empty fields: use '-'):
 #   family  rule  state  bus  kernel_module  external_driver  notes
 # rule: name:GLOB (input device name) | vid:HEX4 | vidpid:HEX4:HEX4. vid:* only matches a node with a js* (joystick) child.

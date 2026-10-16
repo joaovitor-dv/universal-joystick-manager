@@ -1,7 +1,7 @@
 pkgname=universal-joystick-manager
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Universal Linux joystick manager'
+pkgdesc='UJM - Universal Joystick Manager for Linux'
 arch=('any')
 license=('MIT')
 depends=('bash' 'systemd' 'bluez' 'bluez-utils')

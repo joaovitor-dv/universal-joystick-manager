@@ -9,5 +9,5 @@ Architecture: all
 Depends: bash, systemd, bluez
 Recommends: upower, evtest
 Suggests: joycond
-Description: Universal Linux joystick manager
+Description: UJM - Universal Joystick Manager for Linux
  Unified player numbering, battery indicators and Joy-Con pairing integration.
