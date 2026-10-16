@@ -30,8 +30,8 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 - **What changed:** the README is now a user manual (install, use, configuration, troubleshooting, roadmap, patch notes). This devlog, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, a bug-report form, a PR template and a CI workflow were added. Screenshots of the interface prototype live in `docs/images/`.
 - **Why:** the old README mixed scope, rationale and instructions in one long list. New visitors could not tell what works today.
-- **Evidence:** screenshots are of the **static UI prototype with simulated data**; the interface is not connected to the daemon yet. The CI workflow is new and has not run on GitHub at the time of writing.
-- **Open questions:** whether to rename the technical identifiers (`joystickmanager.service`, `JOYMANAGER_*`) to `ujm` in a later breaking release.
+- **Evidence:** screenshots are of the **static UI prototype with simulated data**; the interface is not connected to the daemon yet. The first CI run on GitHub passed all steps of the `Tests` job (unit tests, syntax checks, udev rule validation, profile table check) on the Ubuntu runner, which uses `mawk`. The informational ShellCheck job reports warnings, mostly false positives (variables defined in a sourced file, and an intentional glob in a `case`); cleaning them up is a follow-up. All 22 tags were published as GitHub pre-releases, the repository description and topics were set, and private vulnerability reporting was enabled.
+- **Open questions:** whether to rename the technical identifiers (`joystickmanager.service`, `JOYMANAGER_*`) to `ujm` in a later breaking release; the social preview image must be uploaded by hand (`docs/images/social-preview.png`); the screenshots contain controller artwork derived from Steam client assets and platform logos, whose publication rights are the maintainer's call.
 
 ---
 
