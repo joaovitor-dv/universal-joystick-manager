@@ -1,70 +1,70 @@
 # joystickmanager
 
-Serviço Linux para gerenciamento unificado de controles de jogos no Arch Linux/CachyOS.
+A Linux service for unified game controller management on Arch Linux/CachyOS.
 
-## Escopo aprovado
+## Approved scope
 
-- Numeração global por ordem de conexão, até oito jogadores.
-- Implementação inicial/testável: DS3 original, Switch Pro original e Joy-Con original/third-party.
-- Suporte planejado para Xbox 360, Xbox One, Xbox Series X/S, DualShock 4 e DualSense.
-- Suporte futuro planejado para Nintendo Switch 2 Pro Controller e Joy-Con 2.
-- Suporte experimental planejado para controles 8BitDo e GameSir.
-- Controles USB e Bluetooth, com Joy-Con exclusivamente via Bluetooth.
-- `joycond` como componente opcional para combinar um par de Joy-Cons em um único dispositivo virtual.
-- LEDs de jogador, indicação de bateria quando o driver expuser o recurso e desligamento automático apenas para Bluetooth.
-- O desligamento automático fica configurado inicialmente para 30 minutos (`JOYMANAGER_IDLE_TIMEOUT=1800`) durante a fase de testes.
-- Os LEDs são reaplicados a cada 10 s (`JOYMANAGER_LED_REFRESH=10`; `0` reaplica a cada ciclo de 2 s). Cada escrita de LED é um subcomando HID, e reescrever tudo a cada 2 s sobrecarregava o Pro Controller (erros `exceeded max attempts` e quedas por `timeout waiting for input report`). Mudanças reais, como começar a carregar, são escritas na hora.
-- Bluetooth mantido quando o mesmo controle também for conectado por USB para carregamento, quando o firmware permitir.
+- Global numbering by connection order, up to eight players.
+- Initial/testable implementation: original DS3, original Switch Pro and original/third-party Joy-Con.
+- Planned support for Xbox 360, Xbox One, Xbox Series X/S, DualShock 4 and DualSense.
+- Planned future support for the Nintendo Switch 2 Pro Controller and Joy-Con 2.
+- Planned experimental support for 8BitDo and GameSir controllers.
+- USB and Bluetooth controllers, with Joy-Con over Bluetooth only.
+- `joycond` as an optional component to combine a pair of Joy-Cons into a single virtual device.
+- Player LEDs, battery indication when the driver exposes it, and automatic power-off for Bluetooth only.
+- Automatic power-off is initially set to 30 minutes (`JOYMANAGER_IDLE_TIMEOUT=1800`) during the testing phase.
+- LEDs are re-applied every 10 s (`JOYMANAGER_LED_REFRESH=10`; `0` re-applies on every 2 s cycle). Each LED write is an HID subcommand, and rewriting everything every 2 s overloaded the Pro Controller (`exceeded max attempts` errors and drops caused by `timeout waiting for input report`). Real changes, such as starting to charge, are written immediately.
+- Bluetooth is kept when the same controller is also connected over USB for charging, when the firmware allows it.
+- Integration with Steam Input without duplicate devices.
+- Planned cross-distribution compatibility through an explicit dependency matrix.
 
-### Pro Controller: USB e Bluetooth
+### Pro Controller: USB and Bluetooth
 
-O Switch Pro Controller pode trocar do Bluetooth para USB quando um cabo de
-dados é conectado ao computador. Nesse caso, o firmware pode desconectar o
-Bluetooth — o `joystickmanager` não consegue impedir essa troca. Para carregar
-sem substituir o transporte Bluetooth, use um cabo somente para carga, um
-adaptador sem linhas de dados ou um carregador/hub que não exponha USB ao
-computador.
+The Switch Pro Controller may switch from Bluetooth to USB when a data cable is
+connected to the computer. In that case the firmware may drop the Bluetooth
+connection, and `joystickmanager` on its own cannot prevent that switch (see the
+next section for a workaround). To charge without replacing the Bluetooth
+transport, use a charge-only cable, an adapter without data lines, or a
+charger/hub that does not expose USB to the computer.
 
-Quando o `joycond` estiver ativo, os LEDs de jogador podem piscar enquanto o
-controle aguarda o pareamento lógico. Pressione **L + R** simultaneamente em
-cada Pro Controller para concluir esse pareamento; para um dispositivo virtual
-de Joy-Cons combinados, use **+ e -**.
-- Integração sem duplicação com Steam Input.
-- Compatibilidade planejada entre distribuições por meio de uma matriz explícita de dependências.
+When `joycond` is active, the player LEDs may blink while the controller waits
+for logical pairing. Press **L + R** simultaneously on each Pro Controller to
+complete that pairing; for a virtual device made of combined Joy-Cons, use
+**+ and -**.
 
-## Carregar o Pro Controller sem perder o Bluetooth
+## Charging the Pro Controller without losing Bluetooth
 
-Ligar o Pro Controller por um cabo **de dados** faz o firmware abandonar o Bluetooth. O serviço sozinho não impede isso. O que funcionou à mão no hardware foi desautorizar o dispositivo USB (`echo 0 | sudo tee /sys/bus/usb/devices/<porta>/authorized`): o controle voltou ao Bluetooth e continuou carregando. A regra opcional [`udev/99-joystickmanager-procontroller-charge-only.rules`](udev/99-joystickmanager-procontroller-charge-only.rules) faz isso automaticamente, com `sudo ./install.sh --pro-charge-only`.
+Plugging the Pro Controller in with a **data** cable makes the firmware abandon Bluetooth. The service alone does not prevent this. What worked by hand on hardware was deauthorizing the USB device (`echo 0 | sudo tee /sys/bus/usb/devices/<port>/authorized`): the controller returned to Bluetooth and kept charging. The optional rule [`udev/99-joystickmanager-procontroller-charge-only.rules`](udev/99-joystickmanager-procontroller-charge-only.rules) does this automatically, with `sudo ./install.sh --pro-charge-only`.
 
-Limitações: com a regra o controle **não funciona com fio**; o kernel já enumerou o dispositivo quando o udev roda, então o controle pode sair do Bluetooth por instantes ao plugar o cabo; a regra em si ainda não foi testada no hardware. Um cabo somente de carga continua sendo a solução sem ressalvas.
+Limitations: with the rule the controller **does not work wired**; the kernel has already enumerated the device by the time udev runs, so the controller may leave Bluetooth for a moment when the cable is plugged in; the rule itself has not been tested on hardware yet. A charge-only cable remains the solution without caveats.
 
-## Estado atual
+## Current state
 
-O serviço unificado inicial está em `joystickmanager.sh` e `joystickmanager.service`. Os demais scripts são a implementação histórica por modelo e permanecem até que a versão unificada seja validada com hardware real.
+The initial unified service is in `joystickmanager.sh` and `joystickmanager.service`. The other scripts are the historical per-model implementation and remain until the unified version is validated on real hardware.
 
-## Matriz de teste disponível
+## Available test matrix
 
-| Hardware | Quantidade | Conexões disponíveis |
+| Hardware | Quantity | Available connections |
 |---|---:|---|
-| DualShock 3 original | 1 | Bluetooth e USB |
-| Switch Pro original | 2 | Bluetooth e USB |
-| Joy-Con original | 1 par | Bluetooth |
-| Joy-Con third-party | 1 par | Bluetooth |
+| Original DualShock 3 | 1 | Bluetooth and USB |
+| Original Switch Pro | 2 | Bluetooth and USB |
+| Original Joy-Con | 1 pair | Bluetooth |
+| Third-party Joy-Con | 1 pair | Bluetooth |
 
-Xbox, DualShock 4, DualSense e controles Switch 2 ficam documentados como alterações futuras e não serão declarados compatíveis sem hardware para validação.
+Xbox, DualShock 4, DualSense and Switch 2 controllers are documented as future changes and will not be declared compatible without hardware to validate them.
 
-8BitDo, GameSir, Logitech, Razer, Redragon e clones XInput entram neste branch experimental como famílias de suporte não validado, descritas em [`controllers.tsv`](controllers.tsv). Elas só ficam ativas com `JOYMANAGER_EXPERIMENTAL=1`; `joystickmanager-doctor` mostra os drivers do kernel e o que cada controle conectado casou. A compatibilidade dependerá do modelo, modo de conexão e driver apresentado ao Linux; não será assumida apenas pela marca.
+8BitDo, GameSir, Logitech, Razer, Redragon and XInput clones enter this experimental branch as unvalidated support families, described in [`controllers.tsv`](controllers.tsv). They are only active with `JOYMANAGER_EXPERIMENTAL=1`; `joystickmanager-doctor` shows the kernel drivers and which profile each connected controller matched. Compatibility will depend on the model, connection mode and the driver Linux presents; it will not be assumed from the brand alone.
 
-## Instalação prevista
+## Planned installation
 
-A instalação será documentada depois da validação do suporte a cada família. Não instale os serviços individuais e o serviço unificado simultaneamente.
+Installation will be documented after support for each family is validated. Do not install the individual services and the unified service at the same time.
 
-As dependências por distribuição estão em [`docs/dependencies.md`](docs/dependencies.md). A primeira versão do serviço tem como alvo distribuições com systemd, udev, D-Bus e BlueZ; `joycond`, `upower` e ferramentas de teste são opcionais conforme o uso.
+Per-distribution dependencies are in [`docs/dependencies.md`](docs/dependencies.md). The first version of the service targets distributions with systemd, udev, D-Bus and BlueZ; `joycond`, `upower` and test tools are optional depending on use.
 
-Há também um instalador comum em `install.sh` e metadados iniciais em `packaging/arch`, `packaging/debian` e `packaging/fedora`. O instalador não instala drivers externos ou `joycond` automaticamente.
+There is also a common installer in `install.sh` and initial metadata in `packaging/arch`, `packaging/debian` and `packaging/fedora`. The installer does not install external drivers or `joycond` automatically.
 
-Para participar dos testes de controles ainda não disponíveis, consulte [`docs/volunteer-testing.md`](docs/volunteer-testing.md).
+To take part in testing controllers that are not yet available, see [`docs/volunteer-testing.md`](docs/volunteer-testing.md).
 
-## Licença
+## License
 
-MIT. Consulte `LICENSE`.
+MIT. See `LICENSE`.
