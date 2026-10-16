@@ -63,6 +63,15 @@ set_player_leds() {
     done
 }
 
+set_home_led() {
+    local prefix=$1 home max
+    home="/sys/class/leds/$prefix:blue:player-5/brightness"
+    [ -e "$home" ] || return 0
+    max=$(read_file "${home%/brightness}/max_brightness")
+    [ -n "$max" ] || max=1
+    write_led "$home" "$max"
+}
+
 sync_combined_joycon_leds() {
     local slot=$1 p name prefix
     for p in /sys/class/input/event*; do
@@ -136,7 +145,7 @@ register_event() {
     tmp="$slots_file.tmp"
     awk -F '\t' -v i="$id" -v p="$prefix" -v e="$event" 'BEGIN{OFS="\t"}$1==i{$3=p;$4=e}{print}' "$slots_file" >"$tmp"
     mv "$tmp" "$slots_file"
-    [ "$prefix" != - ] && set_player_leds "$prefix" "$slot" || sync_combined_joycon_leds "$slot"
+    [ "$prefix" != - ] && { set_player_leds "$prefix" "$slot"; set_home_led "$prefix"; } || sync_combined_joycon_leds "$slot"
 }
 
 cleanup_missing() {
@@ -200,6 +209,7 @@ update_batteries() {
             # Reaplica a identificação do jogador antes do estado da bateria.
             # Isso também restaura os LEDs após o firmware do controle atualizá-los.
             set_player_leds "$prefix" "$slot"
+            set_home_led "$prefix"
             set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase"
             case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac
         done
