@@ -24,5 +24,5 @@ Format of an entry: `name or handle - controller model, connection (UJM version)
 
 ## Artwork and trademarks
 
-- The controller diagrams in the **interface prototype** are derived from assets found in the Steam client (© Valve) and use platform logos. They are shown for layout purposes only.
+- The controller diagrams in the **interface prototype** are derived from assets found in the Steam client (© Valve) and use platform logos. They are shown for layout purposes only and are **not covered by the MIT license**; the origin of every file is listed in [`ui/assets/ASSETS-NOTICE.md`](ui/assets/ASSETS-NOTICE.md).
 - Nintendo Switch, Joy-Con, PlayStation, DualShock, DualSense, Xbox, Steam and the other product names are trademarks of their owners. UJM is an independent project and is not affiliated with or endorsed by them.

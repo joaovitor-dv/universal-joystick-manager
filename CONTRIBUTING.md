@@ -30,6 +30,7 @@ Useful while developing:
 
 - `udevadm verify udev/99-joystickmanager-procontroller-charge-only.rules` checks the udev rule.
 - `shellcheck joystickmanager.sh joystickmanager-doctor install.sh` is run (informationally) by CI.
+- `ui/tests/run.sh` runs the interface tests in headless Chromium (Node.js 22+; set `CHROME` if the browser is not called `chromium`).
 - The service reads `/sys` through variables (`JOYMANAGER_SYS_INPUT`, `JOYMANAGER_SYS_LEDS`, `JOYMANAGER_SYS_POWER`), which is how the tests fake hardware.
 
 ## Commit messages

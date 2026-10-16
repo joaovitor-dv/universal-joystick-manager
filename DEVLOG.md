@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### The interface moves into the repository
+
+- **What changed:** the interface prototype now lives in [`ui/`](ui/README.md), versioned like the rest of the code, so two people (or agents) can no longer silently overwrite each other's edits. Only the 77 assets it actually uses came along (4.2 MB instead of 14 MB); experiments and backups stayed out. Its browser tests moved too (`ui/tests/`, 101 checks over 3 files, runnable with `ui/tests/run.sh`), and CI got an informational interface job.
+- **Third-party artwork:** the controller pictures and icons are derived from Steam client assets (© Valve), and two reference images have no recorded origin. They are included with [`ui/assets/ASSETS-NOTICE.md`](ui/assets/ASSETS-NOTICE.md), which states that they are **not covered by the MIT license** and how rights holders can ask for removal. The long-term goal is artwork made for the project.
+- **Evidence:** the list of assets was taken from what the browser actually requests across all 11 panels, after a first list built from the code missed 12 D-pad icons whose names are put together at run time; the panel test caught it. A negative check confirmed the panel test fails (exit 1) on the copy from before the Joy-Con fix.
+- **Open questions:** whether to make the interface CI job blocking once it has proven stable on the runners.
+
 ### Interface prototype: a full-page audit
 
 - **What changed:** with the interface folder idle, every one of the 11 controller panels was opened in a scripted headless Chromium and checked for missing assets, broken images, layout overflow and JavaScript errors. Two real bugs were fixed: on the three Joy-Con diagrams the colored A/B/X/Y buttons sat 9-36 px above the drawn circles (the diagram had gained a band on top for the L/ZL and R/ZR miniatures, but the button positions were still computed for the old box), and the green status dot of the new service pill was being pulled into the middle of the controller diagram by an unrelated generic `.dot` style.

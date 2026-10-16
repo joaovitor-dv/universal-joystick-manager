@@ -174,7 +174,7 @@ then `sudo systemctl restart joystickmanager`.
 
 ## The interface prototype
 
-A graphical interface is being designed. Today it is a static HTML **prototype with simulated data**, used to settle the layout before the service exposes an API. It lives in the maintainers' working folder and is not part of this repository yet; it is not connected to the daemon.
+A graphical interface is being designed. Today it is a static HTML **prototype with simulated data**, used to settle the layout before the service exposes an API. It is in [`ui/`](ui/README.md) and is not connected to the daemon yet. Open `ui/index.html` in a browser (or serve the folder with `python3 -m http.server --directory ui 8000`). The controller artwork in `ui/assets/` is third-party and **not covered by the MIT license**: see [`ui/assets/ASSETS-NOTICE.md`](ui/assets/ASSETS-NOTICE.md).
 
 | | |
 |---|---|
@@ -248,4 +248,4 @@ Newest first. Each version links to its release page; the reasoning and hardware
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT for the code. See [LICENSE](LICENSE). The controller artwork in `ui/assets/` is third-party and is not covered by the MIT license; see [`ui/assets/ASSETS-NOTICE.md`](ui/assets/ASSETS-NOTICE.md).
