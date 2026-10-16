@@ -14,13 +14,22 @@ PREFIX_RE = re.compile(r"^0005:057E:2009\.[0-9A-Fa-f]+$")
 
 
 def hidraw_for_prefix(prefix: str) -> str | None:
+    fallback = None
     for hidraw in glob.glob("/sys/class/hidraw/hidraw*"):
         path = os.path.realpath(os.path.join(hidraw, "device"))
         while path != "/":
             if os.path.basename(path) == prefix:
-                return "/dev/" + os.path.basename(hidraw)
+                device = "/dev/" + os.path.basename(hidraw)
+                name_path = os.path.join(hidraw, "device", "name")
+                try:
+                    name = open(name_path, encoding="utf-8").read().strip()
+                except OSError:
+                    name = ""
+                if name == "Pro Controller":
+                    return device
+                fallback = fallback or device
             path = os.path.dirname(path)
-    return None
+    return fallback
 
 
 def send_player_lights(device: str, mask: int) -> None:
