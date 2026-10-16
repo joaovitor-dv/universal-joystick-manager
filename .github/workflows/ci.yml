@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests (fake sysfs, no hardware)
+        run: bash tests/test_slots.sh
+
+      - name: Syntax checks
+        run: |
+          bash -n joystickmanager.sh
+          bash -n joystickmanager-doctor
+          bash -n install.sh
+          bash -n tests/test_slots.sh
+          python3 -m py_compile switchpro-leds.py
+
+      - name: Validate the udev rule
+        run: udevadm verify udev/99-joystickmanager-procontroller-charge-only.rules
+
+      - name: Profile table is well formed
+        run: |
+          awk -F'\t' '!/^#/ && NF != 7 { printf "line %d has %d fields, expected 7\n", NR, NF; bad=1 } END { exit bad }' controllers.tsv
+
+  shellcheck:
+    name: ShellCheck (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck -S warning joystickmanager.sh joystickmanager-doctor install.sh tests/test_slots.sh
