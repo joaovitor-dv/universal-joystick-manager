@@ -34,6 +34,10 @@ bluetoothctl devices Connected
 
 To test input, use `evtest` only on the `/dev/input/eventN` that corresponds to the controller. Do not send the contents of other devices.
 
+## Credit
+
+Volunteer testers are built into the project [credits](../CREDITS.md) and into the app's **Credits & Info** page (Help menu). A report that is reproducible and documented earns an entry in the format `name or handle - controller model, connection (UJM version)`. You choose the name or handle, and nothing is listed unless you say so in the *Credit name* field of the report.
+
 ## Expected result
 
 The volunteer should report:

@@ -13,6 +13,7 @@ labels: [testing, help wanted]
 - Kernel:
 - Connection tested: USB / Bluetooth / receiver
 - Mode: XInput / DInput / Switch / other
+- Credit name (optional): the name or handle to list in the project credits, or leave empty to stay unlisted
 
 ## Features
 
