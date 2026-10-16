@@ -163,12 +163,59 @@ t_doctor_lista_controles() {
     check "doctor mostra o DualSense como ignorado" 1 "$(grep -c 'perfil=dualsense .*ignorado' <<<"$out")"
 }
 
+# leds_setup: Pro Controller registrado, LEDs e bateria falsos, write_led contador.
+leds_setup() {
+    local pre="0005:057E:2009.$A" b n
+    sys_leds="$T/leds"; sys_power="$T/power"; b="$T/power/nintendo_switch_controller_battery_x"
+    mkdir -p "$b"
+    for n in 1 2 3 4; do mkdir -p "$sys_leds/$pre:green:player-$n"; : >"$sys_leds/$pre:green:player-$n/brightness"; done
+    writes=0
+    write_led() { [ -e "$1" ] && writes=$((writes+1)); return 0; }
+    start_idle_workers() { :; }
+    now_s() { printf '%s\n' "$NOW"; }
+    connect event1 $A
+    ln -sfn "$T/dev/$pre" "$b/device"
+    printf 'Discharging\n' >"$b/status"; printf '80\n' >"$b/capacity"
+    BATT="$b"
+}
+
+t_leds_nao_sao_reescritos_dentro_da_janela() {
+    NOW=1000; led_refresh=10; leds_setup; writes=0
+    update_batteries_once; first=$writes
+    [ "$first" -gt 0 ]; check "primeiro ciclo aplica os LEDs" 0 $?
+    for NOW in 1002 1004 1006 1008; do update_batteries_once; done
+    check "4 ciclos dentro de 10 s não escrevem nada" "$first" "$writes"
+    NOW=1010; update_batteries_once
+    check "passados 10 s reaplica tudo" $((first * 2)) "$writes"
+}
+
+t_refresh_zero_mantem_comportamento_antigo() {
+    NOW=1000; led_refresh=0; leds_setup; writes=0
+    update_batteries_once; first=$writes
+    for NOW in 1002 1004; do update_batteries_once; done
+    check "refresh=0 reescreve a cada ciclo" $((first * 3)) "$writes"
+}
+
+t_mudanca_de_bateria_escreve_na_hora() {
+    NOW=1000; led_refresh=10; leds_setup; writes=0
+    update_batteries_once
+    printf 'Charging\n' >"$BATT/status"; NOW=1002; before=$writes
+    update_batteries_once
+    check "começar a carregar escreve só o LED de bateria" $((before + 1)) "$writes"
+    NOW=1006; before=$writes; update_batteries_once   # mesma fase de pisca (1006%4 == 1002%4)
+    check "mesmo valor de pisca no ciclo seguinte não escreve" "$before" "$writes"
+    NOW=1007; before=$writes; update_batteries_once   # fase oposta: o LED pisca
+    check "fase oposta do pisca escreve 1 vez" $((before + 1)) "$writes"
+}
+
 for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
          t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot \
          t_pro_controller_usb_e_registrado t_connectable_e_reafirmado \
          t_perfis_validados_sempre_ativos t_perfis_experimentais_so_com_flag \
          t_regra_por_fabricante_exige_js t_nos_extras_de_dualshock4_ignorados \
-         t_controle_nao_hid_recebe_slot t_sem_tabela_usa_lista_fixa t_doctor_lista_controles; do
+         t_controle_nao_hid_recebe_slot t_sem_tabela_usa_lista_fixa t_doctor_lista_controles \
+         t_leds_nao_sao_reescritos_dentro_da_janela t_refresh_zero_mantem_comportamento_antigo \
+         t_mudanca_de_bateria_escreve_na_hora; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s falha(s)\n' "$fails"

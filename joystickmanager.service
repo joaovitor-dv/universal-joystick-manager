@@ -10,6 +10,7 @@ Restart=always
 RestartSec=3
 Environment=JOYCON_MANAGER_MAX_PLAYERS=8
 Environment=JOYMANAGER_IDLE_TIMEOUT=1800
+Environment=JOYMANAGER_LED_REFRESH=10
 
 [Install]
 WantedBy=default.target

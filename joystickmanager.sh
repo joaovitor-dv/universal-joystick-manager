@@ -3,6 +3,13 @@ set -u
 
 runtime_dir=${JOYMANAGER_RUNTIME_DIR:-/run/joystickmanager}
 sys_input=${JOYMANAGER_SYS_INPUT:-/sys/class/input}
+sys_leds=${JOYMANAGER_SYS_LEDS:-/sys/class/leds}
+sys_power=${JOYMANAGER_SYS_POWER:-/sys/class/power_supply}
+# Cada escrita de LED em um Pro Controller/Joy-Con é um subcomando HID. Reescrever
+# tudo a cada ciclo de 2 s sobrecarrega o controle (erros "exceeded max attempts" e
+# quedas por timeout). Os LEDs só são reaplicados a cada JOYMANAGER_LED_REFRESH
+# segundos (0 = a cada ciclo, comportamento antigo); mudanças reais são escritas na hora.
+led_refresh=${JOYMANAGER_LED_REFRESH:-10}
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
@@ -120,10 +127,10 @@ set_player_leds() {
     for n in 1 2 3 4; do
         v=0
         (( mask & (1 << (n - 1)) )) && v=1
-        write_led "/sys/class/leds/$prefix:green:player-$n/brightness" "$v"
-        write_led "/sys/class/leds/$prefix::sony$n/brightness" "$v"
+        write_led "$sys_leds/$prefix:green:player-$n/brightness" "$v"
+        write_led "$sys_leds/$prefix::sony$n/brightness" "$v"
     done
-    if [ -x "$switchpro_helper" ] && [ -e "/sys/class/leds/$prefix:blue:player-5/brightness" ]; then
+    if [ -x "$switchpro_helper" ] && [ -e "$sys_leds/$prefix:blue:player-5/brightness" ]; then
         if [ -n "$controller_id" ]; then
             "$switchpro_helper" --prefix "$prefix" --id "$controller_id" --mask "$mask" >/dev/null 2>&1 || true
         else
@@ -134,7 +141,7 @@ set_player_leds() {
 
 set_home_led() {
     local prefix=$1 home max
-    home="/sys/class/leds/$prefix:blue:player-5/brightness"
+    home="$sys_leds/$prefix:blue:player-5/brightness"
     [ -e "$home" ] || return 0
     max=$(read_file "${home%/brightness}/max_brightness")
     [ -n "$max" ] || max=1
@@ -168,8 +175,21 @@ collapse_physical_joycons() {
     mv "$slots_file.tmp" "$slots_file"
 }
 
+now_s() { date +%s; }
+
+# led_refresh_due PREFIXO -> sucesso se já passou led_refresh s desde a última reaplicação.
+declare -gA led_last_refresh=() led_last_battery=()
+led_refresh_due() {
+    local k=$1 now last
+    now=$(now_s); last=${led_last_refresh[$k]:--1}
+    if [ "$led_refresh" -le 0 ] 2>/dev/null || [ "$last" -lt 0 ] || [ $((now - last)) -ge "$led_refresh" ]; then
+        led_last_refresh[$k]=$now; return 0
+    fi
+    return 1
+}
+
 set_battery_led() {
-    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 v led
+    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led
 
     # O hid-nintendo atual expõe o LED HOME azul como player-5, mas o
     # brightness pode mudar sem produzir uma alteração física. Não usamos
@@ -183,7 +203,11 @@ set_battery_led() {
         v=1
     fi
 
-    for led in "/sys/class/leds/$prefix:green:player-$slot/brightness" "/sys/class/leds/$prefix::sony$slot/brightness"; do
+    # Sem mudança de valor e sem reaplicação forçada, não há o que escrever.
+    if [ "$force" -ne 1 ] && [ "${led_last_battery[$prefix:$slot]:-}" = "$v" ]; then return 0; fi
+    led_last_battery[$prefix:$slot]=$v
+
+    for led in "$sys_leds/$prefix:green:player-$slot/brightness" "$sys_leds/$prefix::sony$slot/brightness"; do
         write_led "$led" "$v"
     done
 }
@@ -198,7 +222,7 @@ battery_state() {
 }
 
 register_event() {
-    local event=$1 name path id prefix slot tmp reverse
+    local event=$1 name path id prefix slot tmp reverse known prev
     name=$(read_file "$sys_input/$event/device/name")
     is_supported_controller "$event" "$name" || return
     path="$sys_input/$event/device"
@@ -215,10 +239,15 @@ register_event() {
             prefix=-
         fi
     fi
+    # Controle já registrado neste mesmo evento (varredura periódica): não reaplica LEDs;
+    # isso fica por conta do refresh controlado em update_batteries_once.
+    known=0; prev=$(row_for_id "$id")
+    [ -n "$prev" ] && [ "$(printf '%s\n' "$prev" | cut -f4)" = "$event" ] && known=1
     slot=$(assign_slot "$id"); [ "$slot" -gt 0 ] || return
     tmp="$slots_file.tmp"
     awk -F '\t' -v i="$id" -v p="$prefix" -v e="$event" 'BEGIN{OFS="\t"}$1==i{$3=p;$4=e}{print}' "$slots_file" >"$tmp"
     mv "$tmp" "$slots_file"
+    [ "$known" -eq 1 ] && return
     if [ "$prefix" != - ]; then
         reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
@@ -285,29 +314,38 @@ ensure_connectable() {
     btmgmt connectable on >/dev/null 2>&1 || true
 }
 
-update_batteries() {
-    local b prefix id row slot event name reverse cap level status state phase tick=0
-    while :; do
-        (( tick++ % 10 == 0 )) && ensure_connectable
-        phase=$(( $(date +%s) % 4 )); cleanup_missing; scan_existing; start_idle_workers
-        for b in /sys/class/power_supply/*controller_battery_*; do
-            [ -e "$b" ] || continue
-            prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
-            id=$(controller_id "$b/device" || true); [ -n "$prefix" ] && [ -n "$id" ] || continue
-            row=$(row_for_id "$id")
-            [ -n "$row" ] || row=$(row_for_prefix "$prefix")
-            if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
-            [ -n "$row" ] || continue
-            slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
-            [ "$name" = 'Joy-Con (R)' ] && reverse=1
-            cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
-            # Reaplica a identificação do jogador antes do estado da bateria.
-            # Isso também restaura os LEDs após o firmware do controle atualizá-los.
+update_batteries_once() {
+    local b prefix id row slot event name reverse cap level status state phase refresh
+    phase=$(( $(now_s) % 4 )); cleanup_missing; scan_existing; start_idle_workers
+    for b in "$sys_power"/*controller_battery_*; do
+        [ -e "$b" ] || continue
+        prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
+        id=$(controller_id "$b/device" || true); [ -n "$prefix" ] && [ -n "$id" ] || continue
+        row=$(row_for_id "$id")
+        [ -n "$row" ] || row=$(row_for_prefix "$prefix")
+        if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
+        [ -n "$row" ] || continue
+        slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
+        [ "$name" = 'Joy-Con (R)' ] && reverse=1
+        cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
+        # A cada led_refresh s reaplica a identificação do jogador antes do estado da
+        # bateria; isso restaura os LEDs caso o firmware do controle os tenha atualizado.
+        refresh=0
+        if led_refresh_due "$prefix"; then
+            refresh=1
             set_player_leds "$prefix" "$slot" "$id" "$reverse"
             set_home_led "$prefix"
-            set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase"
-            case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac
-        done
+        fi
+        set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
+        if [ "$refresh" -eq 1 ]; then case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac; fi
+    done
+}
+
+update_batteries() {
+    local tick=0
+    while :; do
+        (( tick++ % 10 == 0 )) && ensure_connectable
+        update_batteries_once
         sleep 2
     done
 }
