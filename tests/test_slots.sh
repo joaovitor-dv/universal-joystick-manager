@@ -88,9 +88,18 @@ t_pro_controller_usb_e_registrado() {
     check "IMU não cria linha extra" 1 "$(wc -l <"$slots_file")"
 }
 
+t_connectable_e_reafirmado() {
+    # btmgmt falso no PATH: ensure_connectable deve chamá-lo com "connectable on".
+    mkdir -p "$T/bin"
+    printf '#!/bin/sh\necho "$@" >>"%s/btmgmt.log"\n' "$T" >"$T/bin/btmgmt"; chmod +x "$T/bin/btmgmt"
+    PATH="$T/bin:$PATH" ensure_connectable; PATH="$T/bin:$PATH" ensure_connectable
+    check "btmgmt connectable on chamado a cada reafirmação" "connectable on connectable on" "$(tr '\n' ' ' <"$T/btmgmt.log" | sed 's/ $//')"
+}
+
 for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
          t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot \
-         t_pro_controller_usb_e_registrado; do
+         t_pro_controller_usb_e_registrado \
+         t_connectable_e_reafirmado; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s falha(s)\n' "$fails"

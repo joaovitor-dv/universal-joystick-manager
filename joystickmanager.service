@@ -1,6 +1,7 @@
 [Unit]
 Description=Unified joystick player and battery manager
 After=bluetooth.service
+PartOf=bluetooth.service
 Wants=joycond.service
 
 [Service]

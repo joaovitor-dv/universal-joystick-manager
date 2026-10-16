@@ -225,9 +225,18 @@ monitor_udev() {
     done < <(udevadm monitor --udev --subsystem-match=input --property 2>/dev/null)
 }
 
+# Sem "connectable" o adaptador não atende a reconexão por HOME de controles
+# como o Pro Controller. O bluetoothd pode desligar o modo ao (re)iniciar, então
+# ele é reafirmado periodicamente em vez de uma única vez.
+ensure_connectable() {
+    command -v btmgmt >/dev/null 2>&1 || return 0
+    btmgmt connectable on >/dev/null 2>&1 || true
+}
+
 update_batteries() {
-    local b prefix id row slot event name reverse cap level status state phase
+    local b prefix id row slot event name reverse cap level status state phase tick=0
     while :; do
+        (( tick++ % 10 == 0 )) && ensure_connectable
         phase=$(( $(date +%s) % 4 )); cleanup_missing; scan_existing; start_idle_workers
         for b in /sys/class/power_supply/*controller_battery_*; do
             [ -e "$b" ] || continue
