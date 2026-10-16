@@ -5,16 +5,16 @@ runtime_dir=${JOYMANAGER_RUNTIME_DIR:-/run/joystickmanager}
 sys_input=${JOYMANAGER_SYS_INPUT:-/sys/class/input}
 sys_leds=${JOYMANAGER_SYS_LEDS:-/sys/class/leds}
 sys_power=${JOYMANAGER_SYS_POWER:-/sys/class/power_supply}
-# Cada escrita de LED em um Pro Controller/Joy-Con é um subcomando HID. Reescrever
-# tudo a cada ciclo de 2 s sobrecarrega o controle (erros "exceeded max attempts" e
-# quedas por timeout). Os LEDs só são reaplicados a cada JOYMANAGER_LED_REFRESH
-# segundos (0 = a cada ciclo, comportamento antigo); mudanças reais são escritas na hora.
+# Each LED write on a Pro Controller/Joy-Con is an HID subcommand. Rewriting
+# everything every 2 s cycle overloads the controller ("exceeded max attempts" errors and
+# timeout drops). LEDs are only re-applied every JOYMANAGER_LED_REFRESH
+# seconds (0 = every cycle, the old behavior); real changes are written immediately.
 led_refresh=${JOYMANAGER_LED_REFRESH:-10}
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
 switchpro_helper=/usr/local/libexec/joystickmanager-switchpro-leds
-# Controles "experimental" e "planned" de controllers.tsv só entram com JOYMANAGER_EXPERIMENTAL=1.
+# "experimental" and "planned" controllers in controllers.tsv are only used with JOYMANAGER_EXPERIMENTAL=1.
 experimental=${JOYMANAGER_EXPERIMENTAL:-0}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
 mkdir -p "$runtime_dir"
@@ -23,8 +23,8 @@ touch "$slots_file"
 write_led() { local p=$1 v=$2; [ -e "$p" ] && printf '%s\n' "$v" >"$p" 2>/dev/null || true; }
 read_file() { [ -r "$1" ] && cat "$1" || true; }
 
-# Caminho da tabela de perfis. JOYMANAGER_PROFILES, se definido, é o único
-# candidato; sem tabela, register_event usa a lista fixa de nomes (legado).
+# Path to the profile table. If JOYMANAGER_PROFILES is set it is the only
+# candidate; without a table, register_event uses the fixed name list (legacy).
 profiles_path() {
     local f
     if [ -n "${JOYMANAGER_PROFILES:-}" ]; then
@@ -39,8 +39,8 @@ profiles_path() {
 
 has_js() { compgen -G "$sys_input/$1/device/js*" >/dev/null; }
 
-# profile_for_event EVENTO -> imprime "familia<TAB>estado" da primeira regra que casa.
-# Falha se nada casa ou se a regra casada ainda não está habilitada.
+# profile_for_event EVENT -> prints "family<TAB>state" for the first matching rule.
+# Fails if nothing matches or if the matching rule is not enabled yet.
 profile_for_event() {
     local ev=$1 table name vid pid fam match status rest
     table=$(profiles_path) || return 1
@@ -93,10 +93,10 @@ row_for_id() { awk -F '\t' -v i="$1" '$1==i{print;exit}' "$slots_file"; }
 row_for_prefix() { awk -F '\t' -v p="$1" '$3==p{print;exit}' "$slots_file"; }
 slot_in_use() { awk -F '\t' -v s="$1" '$2==s{x=1}END{exit !x}' "$slots_file"; }
 
-# A identidade de jogador segue a ordem de conexão: linhas cujo evento já
-# desapareceu são removidas antes de qualquer atribuição, para que um controle
-# que reconecta não herde o slot antigo por ter o mesmo MAC. Um controle ainda
-# presente (ex.: troca Bluetooth -> USB) mantém o slot.
+# Player identity follows connection order: rows whose event has already
+# disappeared are removed before any assignment, so a controller that
+# reconnects does not inherit its old slot just because it has the same MAC.
+# A controller that is still present (e.g. a Bluetooth -> USB switch) keeps its slot.
 assign_slot() {
     local id=$1 row s
     cleanup_missing
@@ -177,7 +177,7 @@ collapse_physical_joycons() {
 
 now_s() { date +%s; }
 
-# led_refresh_due PREFIXO -> sucesso se já passou led_refresh s desde a última reaplicação.
+# led_refresh_due PREFIX -> success if led_refresh seconds have passed since the last re-apply.
 declare -gA led_last_refresh=() led_last_battery=()
 led_refresh_due() {
     local k=$1 now last
@@ -191,10 +191,10 @@ led_refresh_due() {
 set_battery_led() {
     local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led
 
-    # O hid-nintendo atual expõe o LED HOME azul como player-5, mas o
-    # brightness pode mudar sem produzir uma alteração física. Não usamos
-    # esse estado como indicação falsa: a indicação de bateria permanece no
-    # LED do jogador, que é efetivamente controlável.
+    # The current hid-nintendo exposes the blue HOME LED as player-5, but its
+    # brightness can change without any physical change. We do not use that
+    # state as a false indication: the battery indication stays on the
+    # player LED, which is actually controllable.
     if [ "$charging" -eq 1 ]; then
         v=$((phase % 2))
     elif [ "$state" = low ] || [ "$state" = critical ]; then
@@ -203,7 +203,7 @@ set_battery_led() {
         v=1
     fi
 
-    # Sem mudança de valor e sem reaplicação forçada, não há o que escrever.
+    # With no value change and no forced re-apply, there is nothing to write.
     if [ "$force" -ne 1 ] && [ "${led_last_battery[$prefix:$slot]:-}" = "$v" ]; then return 0; fi
     led_last_battery[$prefix:$slot]=$v
 
@@ -233,14 +233,14 @@ register_event() {
     else
         id=$(controller_id "$path" || true); prefix=$(controller_parent "$path" || true)
         if [ -z "$id" ] || [ -z "$prefix" ]; then
-            # Drivers fora de HID (ex.: xpad) não têm uniq nem pai 0003/0005: só numeração, sem LEDs.
+            # Non-HID drivers (e.g. xpad) have no uniq and no 0003/0005 parent: numbering only, no LEDs.
             id="phys:$(read_file "$path/phys")"
             [ "$id" != phys: ] || id="path:$(basename "$(readlink -f "$path" 2>/dev/null)")"
             prefix=-
         fi
     fi
-    # Controle já registrado neste mesmo evento (varredura periódica): não reaplica LEDs;
-    # isso fica por conta do refresh controlado em update_batteries_once.
+    # Controller already registered on this same event (periodic scan): do not re-apply LEDs;
+    # that is handled by the throttled refresh in update_batteries_once.
     known=0; prev=$(row_for_id "$id")
     [ -n "$prev" ] && [ "$(printf '%s\n' "$prev" | cut -f4)" = "$event" ] && known=1
     slot=$(assign_slot "$id"); [ "$slot" -gt 0 ] || return
@@ -276,9 +276,9 @@ idle_worker() {
         timeout "$idle_timeout" stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:' || true
         [ -e "$sys_input/$event" ] || break
         bluetoothctl disconnect "$id" >/dev/null 2>&1 || true
-        # O hid-nintendo pode restaurar o padrão de pareamento dos LEDs
-        # após um relatório de entrada; reaplicamos a indicação com baixa
-        # latência para mantê-la estável fisicamente.
+        # hid-nintendo may restore the pairing LED pattern after an input
+        # report; we re-apply the indication with low latency to keep it
+        # physically stable.
         sleep 0.25
     done
 }
@@ -306,9 +306,9 @@ monitor_udev() {
     done < <(udevadm monitor --udev --subsystem-match=input --property 2>/dev/null)
 }
 
-# Sem "connectable" o adaptador não atende a reconexão por HOME de controles
-# como o Pro Controller. O bluetoothd pode desligar o modo ao (re)iniciar, então
-# ele é reafirmado periodicamente em vez de uma única vez.
+# Without "connectable" the adapter does not answer HOME reconnection from controllers
+# such as the Pro Controller. bluetoothd may clear the mode on (re)start, so it is
+# re-asserted periodically instead of once.
 ensure_connectable() {
     command -v btmgmt >/dev/null 2>&1 || return 0
     btmgmt connectable on >/dev/null 2>&1 || true
@@ -328,8 +328,8 @@ update_batteries_once() {
         slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
         cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
-        # A cada led_refresh s reaplica a identificação do jogador antes do estado da
-        # bateria; isso restaura os LEDs caso o firmware do controle os tenha atualizado.
+        # Every led_refresh s, re-apply the player identification before the battery
+        # state; this also restores the LEDs if the controller firmware has updated them.
         refresh=0
         if led_refresh_due "$prefix"; then
             refresh=1
