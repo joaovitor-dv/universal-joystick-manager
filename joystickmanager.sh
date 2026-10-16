@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -u
 
-runtime_dir=/run/joystickmanager
+runtime_dir=${JOYMANAGER_RUNTIME_DIR:-/run/joystickmanager}
+sys_input=${JOYMANAGER_SYS_INPUT:-/sys/class/input}
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
@@ -37,8 +38,13 @@ row_for_id() { awk -F '\t' -v i="$1" '$1==i{print;exit}' "$slots_file"; }
 row_for_prefix() { awk -F '\t' -v p="$1" '$3==p{print;exit}' "$slots_file"; }
 slot_in_use() { awk -F '\t' -v s="$1" '$2==s{x=1}END{exit !x}' "$slots_file"; }
 
+# A identidade de jogador segue a ordem de conexão: linhas cujo evento já
+# desapareceu são removidas antes de qualquer atribuição, para que um controle
+# que reconecta não herde o slot antigo por ter o mesmo MAC. Um controle ainda
+# presente (ex.: troca Bluetooth -> USB) mantém o slot.
 assign_slot() {
     local id=$1 row s
+    cleanup_missing
     row=$(row_for_id "$id")
     if [ -n "$row" ]; then printf '%s\n' "$row" | cut -f2; return; fi
     for ((s=1; s<=max_players; s++)); do
@@ -89,7 +95,7 @@ set_home_led() {
 
 sync_combined_joycon_leds() {
     local slot=$1 p name prefix
-    for p in /sys/class/input/event*; do
+    for p in "$sys_input"/event*; do
         [ -e "$p" ] || continue
         name=$(read_file "$p/device/name")
         case "$name" in
@@ -105,7 +111,7 @@ collapse_physical_joycons() {
     local id slot prefix event name
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
-        name=$(read_file "/sys/class/input/$event/device/name")
+        name=$(read_file "$sys_input/$event/device/name")
         case "$name" in
             'Joy-Con (L)'|'Joy-Con (R)') continue;;
         esac
@@ -145,9 +151,9 @@ battery_state() {
 
 register_event() {
     local event=$1 name path id prefix slot tmp reverse
-    name=$(read_file "/sys/class/input/$event/device/name")
+    name=$(read_file "$sys_input/$event/device/name")
     case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons');;*) return;;esac
-    path="/sys/class/input/$event/device"
+    path="$sys_input/$event/device"
     if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
         collapse_physical_joycons
         id="joycond:$event"
@@ -174,7 +180,7 @@ cleanup_missing() {
     local id slot prefix event pid
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
-        if [ "$event" != - ] && [ ! -e "/sys/class/input/$event" ]; then
+        if [ "$event" != - ] && [ ! -e "$sys_input/$event" ]; then
             pid="$runtime_dir/idle.$slot.pid"; [ -r "$pid" ] && kill "$(cat "$pid")" 2>/dev/null || true; rm -f "$pid"
         else printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"; fi
     done <"$slots_file" >"$slots_file.tmp"
@@ -184,9 +190,9 @@ cleanup_missing() {
 idle_worker() {
     local id=$1 event=$2
     case "$id" in [0-9A-Fa-f][0-9A-Fa-f]:*) ;; *) return;; esac
-    while [ -e "/sys/class/input/$event" ]; do
+    while [ -e "$sys_input/$event" ]; do
         timeout "$idle_timeout" stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:' || true
-        [ -e "/sys/class/input/$event" ] || break
+        [ -e "$sys_input/$event" ] || break
         bluetoothctl disconnect "$id" >/dev/null 2>&1 || true
         # O hid-nintendo pode restaurar o padrão de pareamento dos LEDs
         # após um relatório de entrada; reaplicamos a indicação com baixa
@@ -204,7 +210,7 @@ start_idle_workers() {
     done <"$slots_file"
 }
 
-scan_existing() { local p e; for p in /sys/class/input/event*; do [ -e "$p" ] || continue; e=$(basename "$p"); register_event "$e"; done; }
+scan_existing() { local p e; for p in "$sys_input"/event*; do [ -e "$p" ] || continue; e=$(basename "$p"); register_event "$e"; done; }
 
 monitor_udev() {
     local action='' event='' line
@@ -230,7 +236,7 @@ update_batteries() {
             [ -n "$row" ] || row=$(row_for_prefix "$prefix")
             if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
             [ -n "$row" ] || continue
-            slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "/sys/class/input/$event/device/name"); reverse=0
+            slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
             [ "$name" = 'Joy-Con (R)' ] && reverse=1
             cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
             # Reaplica a identificação do jogador antes do estado da bateria.
@@ -244,7 +250,9 @@ update_batteries() {
     done
 }
 
-trap 'for p in "$runtime_dir"/idle.*.pid; do [ -r "$p" ] && kill "$(cat "$p")" 2>/dev/null || true; done; exit 0' INT TERM EXIT
-scan_existing
-monitor_udev &
-update_batteries
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    trap 'for p in "$runtime_dir"/idle.*.pid; do [ -r "$p" ] && kill "$(cat "$p")" 2>/dev/null || true; done; exit 0' INT TERM EXIT
+    scan_existing
+    monitor_udev &
+    update_batteries
+fi
