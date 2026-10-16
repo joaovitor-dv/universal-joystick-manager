@@ -19,13 +19,23 @@ drivers Linux / Bluetooth / USB
 ## Decisões
 
 1. A identidade de jogador é atribuída pela ordem de conexão e não pelo MAC.
-2. O estado de jogadores é efêmero e deve ser limpo quando o dispositivo desaparece.
-3. O `joycond` cria o par virtual; o gerenciador coordena a numeração e sincroniza a apresentação dos dois Joy-Cons.
-4. A bateria só será exibida quando o kernel ou o driver fornecer uma fonte confiável.
-5. O Xbox 360 participa da numeração, mas não terá medição de bateria.
-6. Interfaces USB que pertençam ao mesmo controle Bluetooth serão tratadas como carregamento quando a identidade puder ser confirmada.
-7. O Steam Input não deve criar um segundo dispositivo para os Joy-Cons combinados.
+2. O limite lógico inicial é de oito jogadores; os LEDs de quatro posições usam máscaras para os jogadores 5–8.
+3. O estado de jogadores é efêmero e deve ser limpo quando o dispositivo desaparece.
+4. O `joycond` cria o par virtual; o gerenciador coordena a numeração e sincroniza a apresentação dos dois Joy-Cons.
+5. A bateria só será exibida quando o kernel ou o driver fornecer uma fonte confiável.
+6. O Xbox 360 participa da numeração, mas não terá medição de bateria.
+7. Interfaces USB que pertençam ao mesmo controle Bluetooth serão tratadas como carregamento quando a identidade puder ser confirmada.
+8. O Steam Input não deve criar um segundo dispositivo para os Joy-Cons combinados.
 
 ## Limites
 
 O serviço não pode forçar um firmware a manter Bluetooth quando a inserção do cabo muda fisicamente o modo do controle. Também não pode garantir que um clone de Joy-Con implemente o protocolo esperado pelo `joycond`.
+
+## Extensões futuras não testadas
+
+- Xbox 360, Xbox One e Xbox Series X/S.
+- DualShock 4 e DualSense.
+- Nintendo Switch 2 Pro Controller.
+- Nintendo Switch 2 Joy-Con.
+
+Esses modelos só serão marcados como suportados após testes com hardware real e confirmação dos caminhos de bateria, LEDs, entrada e conexão.

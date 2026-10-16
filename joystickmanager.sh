@@ -3,6 +3,7 @@ set -u
 
 runtime_dir=/run/joystickmanager
 slots_file="$runtime_dir/slots.tsv"
+max_players=8
 mkdir -p "$runtime_dir"
 touch "$slots_file"
 
@@ -37,7 +38,7 @@ assign_slot() {
     local id=$1 row s
     row=$(row_for_id "$id")
     if [ -n "$row" ]; then printf '%s\n' "$row" | cut -f2; return; fi
-    for s in 1 2 3 4; do
+    for ((s=1; s<=max_players; s++)); do
         if ! slot_in_use "$s"; then
             printf '%s\t%s\t-\t-\n' "$id" "$s" >>"$slots_file"
             printf '%s\n' "$s"; return
@@ -47,9 +48,15 @@ assign_slot() {
 }
 
 set_player_leds() {
-    local prefix=$1 slot=$2 n v
+    local prefix=$1 slot=$2 n v mask
+    case "$slot" in
+        1) mask=1;; 2) mask=2;; 3) mask=4;; 4) mask=8;;
+        5) mask=9;; 6) mask=10;; 7) mask=12;; 8) mask=13;;
+        *) mask=0;;
+    esac
     for n in 1 2 3 4; do
-        v=0; [ "$n" -eq "$slot" ] && v=1
+        v=0
+        (( mask & (1 << (n - 1)) )) && v=1
         write_led "/sys/class/leds/$prefix:green:player-$n/brightness" "$v"
         write_led "/sys/class/leds/$prefix::sony$n/brightness" "$v"
     done
@@ -86,7 +93,7 @@ battery_state() {
 register_event() {
     local event=$1 name path id prefix slot tmp
     name=$(read_file "/sys/class/input/$event/device/name")
-    case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)');;*) return;;esac
+    case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons');;*) return;;esac
     path="/sys/class/input/$event/device"
     id=$(controller_id "$path" || true); prefix=$(controller_parent "$path" || true)
     [ -n "$id" ] && [ -n "$prefix" ] || return
