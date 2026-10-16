@@ -25,11 +25,12 @@ drivers Linux / Bluetooth / USB
 5. A bateria só será exibida quando o kernel ou o driver fornecer uma fonte confiável.
 6. O Xbox 360 participa da numeração, mas não terá medição de bateria.
 7. Interfaces USB que pertençam ao mesmo controle Bluetooth serão tratadas como carregamento quando a identidade puder ser confirmada.
-8. O Steam Input não deve criar um segundo dispositivo para os Joy-Cons combinados.
+8. No Switch Pro Controller, um cabo USB de dados pode fazer o firmware trocar do Bluetooth para USB. Para manter Bluetooth durante a carga, o cabo deve ser somente de carga ou estar ligado a uma fonte que não exponha dados ao computador.
+9. O Steam Input não deve criar um segundo dispositivo para os Joy-Cons combinados.
 
 ## Limites
 
-O serviço não pode forçar um firmware a manter Bluetooth quando a inserção do cabo muda fisicamente o modo do controle. Também não pode garantir que um clone de Joy-Con implemente o protocolo esperado pelo `joycond`.
+O serviço não pode forçar um firmware a manter Bluetooth quando a inserção do cabo muda fisicamente o modo do controle. Também não pode garantir que um clone de Joy-Con implemente o protocolo esperado pelo `joycond`. Com `joycond`, LEDs piscando podem indicar pareamento lógico pendente; Pro Controllers devem receber **L + R**, e um par virtual combinado de Joy-Cons deve receber **+ e -**.
 
 ## Extensões futuras não testadas
 

@@ -13,6 +13,20 @@ Serviço Linux para gerenciamento unificado de controles de jogos no Arch Linux/
 - `joycond` como componente opcional para combinar um par de Joy-Cons em um único dispositivo virtual.
 - LEDs de jogador, indicação de bateria quando o driver expuser o recurso e desligamento automático apenas para Bluetooth.
 - Bluetooth mantido quando o mesmo controle também for conectado por USB para carregamento, quando o firmware permitir.
+
+### Pro Controller: USB e Bluetooth
+
+O Switch Pro Controller pode trocar do Bluetooth para USB quando um cabo de
+dados é conectado ao computador. Nesse caso, o firmware pode desconectar o
+Bluetooth — o `joystickmanager` não consegue impedir essa troca. Para carregar
+sem substituir o transporte Bluetooth, use um cabo somente para carga, um
+adaptador sem linhas de dados ou um carregador/hub que não exponha USB ao
+computador.
+
+Quando o `joycond` estiver ativo, os LEDs de jogador podem piscar enquanto o
+controle aguarda o pareamento lógico. Pressione **L + R** simultaneamente em
+cada Pro Controller para concluir esse pareamento; para um dispositivo virtual
+de Joy-Cons combinados, use **+ e -**.
 - Integração sem duplicação com Steam Input.
 - Compatibilidade planejada entre distribuições por meio de uma matriz explícita de dependências.
 
