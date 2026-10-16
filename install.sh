@@ -2,10 +2,12 @@
 set -u
 
 optional=0
+charge_only=0
 for arg in "$@"; do
     case "$arg" in
         --install-optional) optional=1;;
-        -h|--help) printf '%s\n' 'Uso: sudo ./install.sh [--install-optional]'; exit 0;;
+        --pro-charge-only) charge_only=1;;
+        -h|--help) printf '%s\n' 'Uso: sudo ./install.sh [--install-optional] [--pro-charge-only]'; exit 0;;
         *) printf 'Opção desconhecida: %s\n' "$arg" >&2; exit 2;;
     esac
 done
@@ -30,6 +32,11 @@ install -Dm644 controllers.tsv /usr/local/share/joystickmanager/controllers.tsv
 install -Dm755 switchpro-leds.py /usr/local/libexec/joystickmanager-switchpro-leds
 install -Dm644 joystickmanager.service /etc/systemd/system/joystickmanager.service
 systemctl daemon-reload
+if [ "$charge_only" -eq 1 ]; then
+    # Opcional: o Pro Controller passa a só carregar por USB (sem dados). Ver o cabeçalho da regra.
+    install -Dm644 udev/99-joystickmanager-procontroller-charge-only.rules /etc/udev/rules.d/99-joystickmanager-procontroller-charge-only.rules
+    udevadm control --reload
+fi
 systemctl enable bluetooth.service 2>/dev/null || true
 systemctl enable joystickmanager.service
 

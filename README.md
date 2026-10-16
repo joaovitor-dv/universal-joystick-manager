@@ -32,6 +32,12 @@ de Joy-Cons combinados, use **+ e -**.
 - Integração sem duplicação com Steam Input.
 - Compatibilidade planejada entre distribuições por meio de uma matriz explícita de dependências.
 
+## Carregar o Pro Controller sem perder o Bluetooth
+
+Ligar o Pro Controller por um cabo **de dados** faz o firmware abandonar o Bluetooth. O serviço sozinho não impede isso. O que funcionou à mão no hardware foi desautorizar o dispositivo USB (`echo 0 | sudo tee /sys/bus/usb/devices/<porta>/authorized`): o controle voltou ao Bluetooth e continuou carregando. A regra opcional [`udev/99-joystickmanager-procontroller-charge-only.rules`](udev/99-joystickmanager-procontroller-charge-only.rules) faz isso automaticamente, com `sudo ./install.sh --pro-charge-only`.
+
+Limitações: com a regra o controle **não funciona com fio**; o kernel já enumerou o dispositivo quando o udev roda, então o controle pode sair do Bluetooth por instantes ao plugar o cabo; a regra em si ainda não foi testada no hardware. Um cabo somente de carga continua sendo a solução sem ressalvas.
+
 ## Estado atual
 
 O serviço unificado inicial está em `joystickmanager.sh` e `joystickmanager.service`. Os demais scripts são a implementação histórica por modelo e permanecem até que a versão unificada seja validada com hardware real.

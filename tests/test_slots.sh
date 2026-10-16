@@ -208,6 +208,16 @@ t_mudanca_de_bateria_escreve_na_hora() {
     check "fase oposta do pisca escreve 1 vez" $((before + 1)) "$writes"
 }
 
+t_regra_udev_do_pro_controller() {
+    local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
+    [ -r "$rule" ]; check "regra udev existe" 0 $?
+    check "regra mira só o Pro Controller 057e:2009" 1 "$(grep -c 'idVendor}=="057e", ATTR{idProduct}=="2009"' "$rule")"
+    check "regra só desautoriza no add" 1 "$(grep -c '^ACTION=="add".*ATTR{authorized}="0"' "$rule")"
+    if command -v udevadm >/dev/null 2>&1 && udevadm verify --help >/dev/null 2>&1; then
+        udevadm verify "$rule" >/dev/null 2>&1; check "udevadm verify aceita a regra" 0 $?
+    fi
+}
+
 for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
          t_reconexao_com_linha_antiga_nao_limpa t_mesmo_controle_ainda_presente_mantem_slot \
          t_pro_controller_usb_e_registrado t_connectable_e_reafirmado \
@@ -215,7 +225,7 @@ for t in t_ordem_de_chegada t_slot_liberado_vai_para_quem_chega \
          t_regra_por_fabricante_exige_js t_nos_extras_de_dualshock4_ignorados \
          t_controle_nao_hid_recebe_slot t_sem_tabela_usa_lista_fixa t_doctor_lista_controles \
          t_leds_nao_sao_reescritos_dentro_da_janela t_refresh_zero_mantem_comportamento_antigo \
-         t_mudanca_de_bateria_escreve_na_hora; do
+         t_mudanca_de_bateria_escreve_na_hora t_regra_udev_do_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s falha(s)\n' "$fails"
