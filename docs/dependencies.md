@@ -99,3 +99,12 @@ O instalador futuro deverá verificar e relatar:
 7. ferramentas de diagnóstico opcionais.
 
 O instalador não deve instalar drivers externos automaticamente sem confirmação explícita.
+
+## Artefatos de instalação
+
+- `install.sh`: instala dependências base e a unidade systemd em Arch, Debian/Ubuntu ou Fedora.
+- `packaging/arch/PKGBUILD`: pacote nativo para Arch e derivados.
+- `packaging/debian/`: esqueleto de pacote `.deb`.
+- `packaging/fedora/`: especificação RPM.
+
+Esses artefatos são a primeira camada de portabilidade e ainda precisam ser construídos em cada distribuição antes de uma versão formal do pacote.

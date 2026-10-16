@@ -1,0 +1,4 @@
+joystickmanager.sh usr/bin
+joystickmanager.service lib/systemd/system
+README.md usr/share/doc/universal-joystick-manager
+LICENSE usr/share/doc/universal-joystick-manager

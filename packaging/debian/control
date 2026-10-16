@@ -1,0 +1,13 @@
+Source: universal-joystick-manager
+Section: utils
+Priority: optional
+Maintainer: João <joao@localhost>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Package: universal-joystick-manager
+Architecture: all
+Depends: bash, systemd, bluez
+Recommends: upower, evtest
+Suggests: joycond
+Description: Universal Linux joystick manager
+ Unified player numbering, battery indicators and Joy-Con pairing integration.

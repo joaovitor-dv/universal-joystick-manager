@@ -36,6 +36,8 @@ A instalação será documentada depois da validação do suporte a cada famíli
 
 As dependências por distribuição estão em [`docs/dependencies.md`](docs/dependencies.md). A primeira versão do serviço tem como alvo distribuições com systemd, udev, D-Bus e BlueZ; `joycond`, `upower` e ferramentas de teste são opcionais conforme o uso.
 
+Há também um instalador comum em `install.sh` e metadados iniciais em `packaging/arch`, `packaging/debian` e `packaging/fedora`. O instalador não instala drivers externos ou `joycond` automaticamente.
+
 ## Licença
 
 MIT. Consulte `LICENSE`.

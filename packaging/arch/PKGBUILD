@@ -1,0 +1,17 @@
+pkgname=universal-joystick-manager
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Universal Linux joystick manager'
+arch=('any')
+license=('MIT')
+depends=('bash' 'systemd' 'bluez' 'bluez-utils')
+optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration' 'evtest: diagnostics')
+source=('../../joystickmanager.sh' '../../joystickmanager.service' '../../README.md' '../../LICENSE')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "$srcdir/joystickmanager.sh" "$pkgdir/usr/bin/joystickmanager.sh"
+    install -Dm644 "$srcdir/joystickmanager.service" "$pkgdir/usr/lib/systemd/system/joystickmanager.service"
+    install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

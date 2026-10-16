@@ -1,0 +1,5 @@
+universal-joystick-manager (0.1.0-1) unstable; urgency=medium
+
+  * Initial packaging for the unified joystick manager.
+
+ -- João <joao@localhost>  Thu, 15 Oct 2026 21:30:00 -0300

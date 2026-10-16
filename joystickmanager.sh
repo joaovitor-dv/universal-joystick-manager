@@ -62,6 +62,33 @@ set_player_leds() {
     done
 }
 
+sync_combined_joycon_leds() {
+    local slot=$1 p name prefix
+    for p in /sys/class/input/event*; do
+        [ -e "$p" ] || continue
+        name=$(read_file "$p/device/name")
+        case "$name" in
+            'Joy-Con (L)'|'Joy-Con (R)')
+                prefix=$(controller_parent "$p/device" || true)
+                [ -n "$prefix" ] && set_player_leds "$prefix" "$slot"
+                ;;
+        esac
+    done
+}
+
+collapse_physical_joycons() {
+    local id slot prefix event name
+    while IFS=$'\t' read -r id slot prefix event; do
+        [ -n "$id" ] || continue
+        name=$(read_file "/sys/class/input/$event/device/name")
+        case "$name" in
+            'Joy-Con (L)'|'Joy-Con (R)') continue;;
+        esac
+        printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"
+    done <"$slots_file" >"$slots_file.tmp"
+    mv "$slots_file.tmp" "$slots_file"
+}
+
 set_battery_led() {
     local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 blue max v led
     blue="/sys/class/leds/$prefix:blue:player-5/brightness"
@@ -95,13 +122,19 @@ register_event() {
     name=$(read_file "/sys/class/input/$event/device/name")
     case "$name" in 'PLAYSTATION(R)3 Controller'|'Pro Controller'|'Joy-Con (L)'|'Joy-Con (R)'|'Nintendo Switch Combined Joy-Cons');;*) return;;esac
     path="/sys/class/input/$event/device"
-    id=$(controller_id "$path" || true); prefix=$(controller_parent "$path" || true)
-    [ -n "$id" ] && [ -n "$prefix" ] || return
+    if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
+        collapse_physical_joycons
+        id="joycond:$event"
+        prefix=-
+    else
+        id=$(controller_id "$path" || true); prefix=$(controller_parent "$path" || true)
+        [ -n "$id" ] && [ -n "$prefix" ] || return
+    fi
     slot=$(assign_slot "$id"); [ "$slot" -gt 0 ] || return
     tmp="$slots_file.tmp"
     awk -F '\t' -v i="$id" -v p="$prefix" -v e="$event" 'BEGIN{OFS="\t"}$1==i{$3=p;$4=e}{print}' "$slots_file" >"$tmp"
     mv "$tmp" "$slots_file"
-    set_player_leds "$prefix" "$slot"
+    [ "$prefix" != - ] && set_player_leds "$prefix" "$slot" || sync_combined_joycon_leds "$slot"
 }
 
 cleanup_missing() {
@@ -157,9 +190,12 @@ update_batteries() {
             [ -e "$b" ] || continue
             prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
             id=$(controller_id "$b/device" || true); [ -n "$prefix" ] && [ -n "$id" ] || continue
-            row=$(row_for_id "$id"); [ -n "$row" ] || continue
+            row=$(row_for_id "$id")
+            if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
+            [ -n "$row" ] || continue
             slot=$(printf '%s\n' "$row" | cut -f2); cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
             set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase"
+            case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac
         done
         sleep 2
     done
