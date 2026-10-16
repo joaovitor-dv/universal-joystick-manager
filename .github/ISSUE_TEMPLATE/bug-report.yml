@@ -1,0 +1,48 @@
+name: Bug report
+description: Something does not work as the README says
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: UJM version
+      description: A release tag such as v0.7.1, or a commit.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Distribution and kernel
+      placeholder: "Arch Linux / CachyOS, Linux 7.2.x"
+    validations:
+      required: true
+  - type: input
+    id: controller
+    attributes:
+      label: Controller and connection
+      placeholder: "Switch Pro Controller, Bluetooth"
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `joystickmanager-doctor`
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`journalctl -u joystickmanager` and `journalctl -k | grep -i nintendo`. Remove full MAC addresses, serial numbers and personal paths (use XX)."
+      render: text

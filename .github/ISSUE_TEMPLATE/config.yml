@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Test a controller you own
+    url: https://github.com/joaovitor-dv/universal-joystick-manager/blob/main/docs/volunteer-testing.md
+    about: How to collect a safe, useful report for a controller family that is not validated yet.
+  - name: Report a security problem
+    url: https://github.com/joaovitor-dv/universal-joystick-manager/security/advisories/new
+    about: Please use private reporting, not a public issue.
