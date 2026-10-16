@@ -32,6 +32,18 @@ def hidraw_for_prefix(prefix: str) -> str | None:
     return fallback
 
 
+def hidraw_for_id(controller_id: str) -> str | None:
+    wanted = controller_id.strip().upper()
+    for hidraw in glob.glob("/sys/class/hidraw/hidraw*"):
+        for uniq_path in glob.glob(os.path.join(hidraw, "device", "input", "*", "uniq")):
+            try:
+                if open(uniq_path, encoding="utf-8").read().strip().upper() == wanted:
+                    return "/dev/" + os.path.basename(hidraw)
+            except OSError:
+                continue
+    return None
+
+
 def send_player_lights(device: str, mask: int) -> None:
     # The controller uses the low nibble as an output-report sequence.
     sequence = (time.monotonic_ns() // 1_000_000) & 0x0F
@@ -49,11 +61,13 @@ def send_player_lights(device: str, mask: int) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prefix", required=True)
+    parser.add_argument("--id")
     parser.add_argument("--mask", required=True, type=lambda value: int(value, 0))
     args = parser.parse_args()
     if not PREFIX_RE.fullmatch(args.prefix) or not 0 <= args.mask <= 0x0F:
         return 2
-    device = hidraw_for_prefix(args.prefix)
+    device = hidraw_for_id(args.id) if args.id else None
+    device = device or hidraw_for_prefix(args.prefix)
     if device is None:
         return 0
     try:

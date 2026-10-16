@@ -50,7 +50,7 @@ assign_slot() {
 }
 
 set_player_leds() {
-    local prefix=$1 slot=$2 n v mask
+    local prefix=$1 slot=$2 controller_id=${3:-} n v mask
     case "$slot" in
         1) mask=1;; 2) mask=2;; 3) mask=4;; 4) mask=8;;
         5) mask=9;; 6) mask=10;; 7) mask=12;; 8) mask=13;;
@@ -63,7 +63,11 @@ set_player_leds() {
         write_led "/sys/class/leds/$prefix::sony$n/brightness" "$v"
     done
     if [ -x "$switchpro_helper" ] && [ -e "/sys/class/leds/$prefix:blue:player-5/brightness" ]; then
-        "$switchpro_helper" --prefix "$prefix" --mask "$mask" >/dev/null 2>&1 || true
+        if [ -n "$controller_id" ]; then
+            "$switchpro_helper" --prefix "$prefix" --id "$controller_id" --mask "$mask" >/dev/null 2>&1 || true
+        else
+            "$switchpro_helper" --prefix "$prefix" --mask "$mask" >/dev/null 2>&1 || true
+        fi
     fi
 }
 
@@ -149,7 +153,7 @@ register_event() {
     tmp="$slots_file.tmp"
     awk -F '\t' -v i="$id" -v p="$prefix" -v e="$event" 'BEGIN{OFS="\t"}$1==i{$3=p;$4=e}{print}' "$slots_file" >"$tmp"
     mv "$tmp" "$slots_file"
-    [ "$prefix" != - ] && { set_player_leds "$prefix" "$slot"; set_home_led "$prefix"; } || sync_combined_joycon_leds "$slot"
+    [ "$prefix" != - ] && { set_player_leds "$prefix" "$slot" "$id"; set_home_led "$prefix"; } || sync_combined_joycon_leds "$slot"
 }
 
 cleanup_missing() {
@@ -215,7 +219,7 @@ update_batteries() {
             slot=$(printf '%s\n' "$row" | cut -f2); cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
             # Reaplica a identificação do jogador antes do estado da bateria.
             # Isso também restaura os LEDs após o firmware do controle atualizá-los.
-            set_player_leds "$prefix" "$slot"
+            set_player_leds "$prefix" "$slot" "$id"
             set_home_led "$prefix"
             set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase"
             case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac
