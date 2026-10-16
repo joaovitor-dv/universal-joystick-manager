@@ -25,6 +25,7 @@ else
 fi
 
 install -Dm755 joystickmanager.sh /usr/local/bin/joystickmanager.sh
+install -Dm755 switchpro-leds.py /usr/local/libexec/joystickmanager-switchpro-leds
 install -Dm644 joystickmanager.service /etc/systemd/system/joystickmanager.service
 systemctl daemon-reload
 systemctl enable bluetooth.service 2>/dev/null || true

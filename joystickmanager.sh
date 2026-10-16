@@ -4,6 +4,7 @@ set -u
 runtime_dir=/run/joystickmanager
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
+switchpro_helper=/usr/local/libexec/joystickmanager-switchpro-leds
 mkdir -p "$runtime_dir"
 touch "$slots_file"
 
@@ -61,6 +62,9 @@ set_player_leds() {
         write_led "/sys/class/leds/$prefix:green:player-$n/brightness" "$v"
         write_led "/sys/class/leds/$prefix::sony$n/brightness" "$v"
     done
+    if [ -x "$switchpro_helper" ] && [ -e "/sys/class/leds/$prefix:blue:player-5/brightness" ]; then
+        "$switchpro_helper" --prefix "$prefix" --mask "$mask" >/dev/null 2>&1 || true
+    fi
 }
 
 set_home_led() {
