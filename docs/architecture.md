@@ -37,5 +37,9 @@ O serviço não pode forçar um firmware a manter Bluetooth quando a inserção 
 - DualShock 4 e DualSense.
 - Nintendo Switch 2 Pro Controller.
 - Nintendo Switch 2 Joy-Con.
+- Controles 8BitDo.
+- Controles GameSir.
 
 Esses modelos só serão marcados como suportados após testes com hardware real e confirmação dos caminhos de bateria, LEDs, entrada e conexão.
+
+O mesmo critério vale para cada modelo específico dentro das marcas 8BitDo e GameSir. Modos XInput, DInput, Switch, Bluetooth, USB e receptores proprietários devem ser validados separadamente.
