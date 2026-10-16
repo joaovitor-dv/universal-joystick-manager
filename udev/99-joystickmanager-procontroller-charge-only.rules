@@ -1,21 +1,24 @@
-# OPCIONAL — Pro Controller só carrega por USB; os dados USB ficam desligados.
+# OPTIONAL - Pro Controller charges over USB only; the USB data is turned off.
 #
-# Ao ligar o cabo de dados, o hid-nintendo faz o handshake USB e o firmware do Pro
-# Controller abandona o Bluetooth. Desautorizando o dispositivo USB, o controle
-# continua carregando (a energia do cabo não depende dos dados) e volta ao Bluetooth.
-# Validado à mão no hardware: `echo 0 | tee /sys/bus/usb/devices/<porta>/authorized`
-# manteve o Pro em Bluetooth com bateria "Charging". Esta REGRA em si ainda não foi testada.
+# When a data cable is plugged in, hid-nintendo performs the USB handshake and the
+# Pro Controller firmware abandons Bluetooth. By deauthorizing the USB device the
+# controller keeps charging (cable power does not depend on the data lines) and
+# returns to Bluetooth.
+# Validated by hand on hardware: `echo 0 | tee /sys/bus/usb/devices/<port>/authorized`
+# kept the Pro on Bluetooth with the battery reporting "Charging". This RULE itself
+# has not been tested yet.
 #
-# Limitações conhecidas:
-# - O controle deixa de funcionar com fio (USB) enquanto a regra estiver instalada.
-# - Corrida: o kernel já enumerou o dispositivo quando o udev roda, então o controle
-#   pode sair do Bluetooth por instantes ao plugar o cabo. Não verificado se volta
-#   sozinho ou se precisa apertar HOME (nos testes manuais o HOME foi apertado).
-# - O atributo "authorized" é do dispositivo: a cada replugada o kernel cria um novo
-#   dispositivo autorizado, por isso a regra roda em todo "add".
+# Known limitations:
+# - The controller stops working wired (USB) while the rule is installed.
+# - Race: the kernel has already enumerated the device by the time udev runs, so the
+#   controller may leave Bluetooth for a moment when the cable is plugged in. It is
+#   not verified whether it comes back on its own or needs HOME to be pressed (HOME
+#   was pressed in the manual tests).
+# - The "authorized" attribute belongs to the device: every replug makes the kernel
+#   create a new, authorized device, which is why the rule runs on every "add".
 #
-# Instalar:  sudo install -Dm644 udev/99-joystickmanager-procontroller-charge-only.rules /etc/udev/rules.d/
+# Install:   sudo install -Dm644 udev/99-joystickmanager-procontroller-charge-only.rules /etc/udev/rules.d/
 #            sudo udevadm control --reload
-# Remover:   sudo rm /etc/udev/rules.d/99-joystickmanager-procontroller-charge-only.rules
-#            sudo udevadm control --reload   (e replugue o cabo)
+# Remove:    sudo rm /etc/udev/rules.d/99-joystickmanager-procontroller-charge-only.rules
+#            sudo udevadm control --reload   (and replug the cable)
 ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="057e", ATTR{idProduct}=="2009", ATTR{authorized}="0"

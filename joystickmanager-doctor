@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Diagnóstico de drivers: compara controllers.tsv com os módulos do kernel e
-# com os controles conectados agora. Só lê o sistema; não instala nada.
-# Uso: joystickmanager-doctor
+# Driver diagnostics: compares controllers.tsv with the kernel modules and with
+# the controllers connected right now. Read-only; it installs nothing.
+# Usage: joystickmanager-doctor
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -9,7 +9,7 @@ main=
 for f in "$here/joystickmanager.sh" /usr/local/bin/joystickmanager.sh /usr/bin/joystickmanager.sh; do
     [ -r "$f" ] && { main=$f; break; }
 done
-[ -n "$main" ] || { printf '%s\n' 'joystickmanager.sh não encontrado.' >&2; exit 1; }
+[ -n "$main" ] || { printf '%s\n' 'joystickmanager.sh not found.' >&2; exit 1; }
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export JOYMANAGER_RUNTIME_DIR="$tmp"
@@ -17,16 +17,16 @@ user_experimental=${JOYMANAGER_EXPERIMENTAL:-0}
 # shellcheck source=joystickmanager.sh
 source "$main"
 
-table=$(profiles_path) || { printf '%s\n' 'controllers.tsv não encontrado; o serviço usa a lista fixa de controles validados.' >&2; exit 1; }
+table=$(profiles_path) || { printf '%s\n' 'controllers.tsv not found; the service uses the fixed list of validated controllers.' >&2; exit 1; }
 
-module_state() { # imprime loaded | available | absent
+module_state() { # prints loaded | available | absent
     local m=${1//-/_}
     if [ -d "/sys/module/$m" ]; then printf 'loaded'
     elif modinfo -n "$m" >/dev/null 2>&1; then printf 'available'
     else printf 'absent'; fi
 }
 
-bound_driver() { # primeiro ancestral com link "driver"
+bound_driver() { # first ancestor with a "driver" link
     local p
     p=$(readlink -f "$1/device" 2>/dev/null || true)
     while [ -n "$p" ] && [ "$p" != / ]; do
@@ -36,10 +36,10 @@ bound_driver() { # primeiro ancestral com link "driver"
     printf -- '-'
 }
 
-printf 'Tabela: %s\n' "$table"
-printf 'Experimentais: %s\n\n' "$([ "$user_experimental" = 1 ] && printf ligados || printf 'desligados (JOYMANAGER_EXPERIMENTAL=1 para ligar)')"
+printf 'Table: %s\n' "$table"
+printf 'Experimental: %s\n\n' "$([ "$user_experimental" = 1 ] && printf enabled || printf 'disabled (set JOYMANAGER_EXPERIMENTAL=1 to enable)')"
 
-printf '%-18s %-13s %s\n' FAMILIA ESTADO 'MÓDULOS DO KERNEL / DRIVER EXTERNO'
+printf '%-18s %-13s %s\n' FAMILY STATE 'KERNEL MODULES / EXTERNAL DRIVER'
 seen=
 while IFS=$'\t' read -r fam match status bus mods ext notes; do
     case "$fam" in ''|'#'*) continue;; esac
@@ -50,22 +50,22 @@ while IFS=$'\t' read -r fam match status bus mods ext notes; do
         IFS=, read -ra arr <<<"$mods"
         for m in "${arr[@]}"; do line="$line $m=$(module_state "$m")"; done
     fi
-    [ "$ext" = - ] || line="$line | externo opcional: $ext"
+    [ "$ext" = - ] || line="$line | optional external: $ext"
     printf '%-18s %-13s%s\n' "$fam" "$status" "${line:- -}"
 done <"$table"
 
-printf '\nControles conectados:\n'
+printf '\nConnected controllers:\n'
 found=0
-experimental=1   # para listar também os que o serviço ainda ignora
+experimental=1   # so controllers the service still ignores are listed too
 for p in "$sys_input"/event*; do
     [ -e "$p" ] || continue
     ev=$(basename "$p")
     row=$(profile_for_event "$ev") || continue
     fam=${row%%$'\t'*}; st=${row##*$'\t'}
-    if [ "$st" = validated ] || [ "$user_experimental" = 1 ]; then act='ativo'; else act='ignorado (experimental desligado)'; fi
-    printf '  %-8s %-34s perfil=%-16s estado=%-12s driver=%s  -> %s\n' "$ev" "$(read_file "$p/device/name")" "$fam" "$st" "$(bound_driver "$p")" "$act"
+    if [ "$st" = validated ] || [ "$user_experimental" = 1 ]; then act='active'; else act='ignored (experimental disabled)'; fi
+    printf '  %-8s %-34s profile=%-16s state=%-12s driver=%s  -> %s\n' "$ev" "$(read_file "$p/device/name")" "$fam" "$st" "$(bound_driver "$p")" "$act"
     found=1
 done
-[ "$found" = 1 ] || printf '  nenhum controle com perfil conhecido\n'
+[ "$found" = 1 ] || printf '  no controller with a known profile\n'
 
-printf '\nObservação: módulos e drivers acima são o esperado, não uma garantia de compatibilidade.\n'
+printf '\nNote: the modules and drivers above are what is expected, not a compatibility guarantee.\n'
