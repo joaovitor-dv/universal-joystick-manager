@@ -133,6 +133,10 @@ class ControllerModel(QAbstractListModel):
     def count(self):
         return len(self._rows)
 
+    @Slot(str, result=bool)
+    def contains(self, controller_id):
+        return any(row["id"] == controller_id for row in self._rows)
+
     def set_controllers(self, rows):
         rows = sorted(rows, key=lambda c: (c["player"] or 99, c["id"]))
         if [c["id"] for c in rows] == [c["id"] for c in self._rows]:

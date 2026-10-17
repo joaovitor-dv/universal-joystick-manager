@@ -32,6 +32,7 @@ ApplicationWindow {
     }
 
     property string selectedId: ""
+    property bool initialSelectionDone: false
 
     header: Rectangle {
         height: 52
@@ -57,7 +58,10 @@ ApplicationWindow {
 
     Connections {
         target: controllerModel
-        function onModelReset() { win.selectedId = "" }
+        function onModelReset() {
+            if (win.selectedId !== "" && !controllerModel.contains(win.selectedId))
+                win.selectedId = ""
+        }
     }
 
     Row {
@@ -109,7 +113,12 @@ ApplicationWindow {
                         width: list.width - (list.ScrollBar.vertical.visible ? 12 : 0)
                         selected: win.selectedId === controllerId
                         onClicked: win.selectedId = controllerId
-                        Component.onCompleted: if (index === 0 && win.selectedId === "") win.selectedId = controllerId
+                        Component.onCompleted: {
+                            if (!win.initialSelectionDone && index === 0 && win.selectedId === "") {
+                                win.selectedId = controllerId
+                                win.initialSelectionDone = true
+                            }
+                        }
                     }
                     Text {
                         objectName: "emptyText"

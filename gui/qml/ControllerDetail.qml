@@ -159,6 +159,7 @@ Rectangle {
                             }
                         }
                         Image {
+                            objectName: "faceOverlayIcon"
                             anchors.fill: parent
                             visible: face.modelData.icon.length > 0
                             source: visible ? Qt.resolvedUrl("../../ui/assets/controller-icons/" + face.modelData.icon + ".svg") : ""

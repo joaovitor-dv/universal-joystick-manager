@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Fix PlayStation face-overlay mapping and preserve controller selection
+
+- **What changed:** map the PlayStation Cross overlay to the actual `ps_wire_button_x.svg` asset; keep the selected controller across roster resets when it remains connected, and clear selection when it disconnects without auto-selecting a different controller.
+- **Why:** adversarial review reproduced a missing Cross overlay on DualSense/DualShock 4 and unexpected selection jumps on connection changes.
+- **Evidence:** added QML tests for both PlayStation families' four rendered face overlays and for connect/disconnect selection transitions. The two focused tests pass offscreen; CI is pending for this follow-up. No hardware behavior changed.
+- **Open questions:** the separate asset provenance/size review finding remains open pending the project owner's decision; do not merge the PR until that is resolved.
+
 ### Player-light slot references and Update entry (visual preview)
 
 - **What changed:** the HTML roster and native QML show a four-color DUALSHOCK 4 light-bar reference for slots 1–4, the DualSense white five-LED player-indicator reference, and the Xbox 360 four-quadrant ring reference. Undefined slots stay unknown; these are clearly marked as not live. The File menu offers Update UJM, which takes users to official releases instead of running a package manager or claiming to install software.

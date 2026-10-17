@@ -3,6 +3,7 @@
 // Visual-only metadata shared by the native details panel. Input state still
 // belongs to the service; these lists never imply that a button was pressed.
 var base = "../../ui/assets/";
+var psFaceIcons = { Triangle: "triangle", Circle: "circle", Cross: "x", Square: "square" };
 
 function kind(family, name) {
     var n = (name || "").toLowerCase();
@@ -76,7 +77,7 @@ function faceOverlays(type) {
     return (positions[type] || []).map(function (p) {
         var playstation = type === "ds4" || type === "dualsense";
         return {label:p[0], x:p[1], y:p[2], color:(type.indexOf("xbox") === 0 ? x : n)[p[0]] || "",
-                icon:playstation ? "ps_wire_button_" + p[0].toLowerCase() : ""};
+                icon:playstation ? "ps_wire_button_" + psFaceIcons[p[0]] : ""};
     });
 }
 

@@ -106,6 +106,25 @@ class FileSourceTests(Base):
         self.assertEqual((get(4, "transportText"), get(4, "vendor")), ("Wired", "Microsoft"))
         self.assertEqual(get(0, "address"), "20:1C:3A:AA:00:01")
 
+    def test_selection_survives_other_controller_connecting_and_clears_on_disconnect(self):
+        self.start(state_file=self.file)
+        selected = "30:2C:3A:AA:00:03"
+        self.win.setProperty("selectedId", selected)
+        self.assertTrue(pump(lambda: self.win.property("selectedId") == selected))
+
+        rewrite(self.file, lambda state: state["controllers"].append({
+            "id": "test:new", "name": "New controller", "family": "unknown", "player": 6,
+            "transport": "usb", "battery": None
+        }))
+        self.assertTrue(pump(lambda: self.model.count == 6))
+        self.assertEqual(self.win.property("selectedId"), selected)
+
+        rewrite(self.file, lambda state: state["controllers"].__setitem__(
+            slice(None), [c for c in state["controllers"] if c["id"] != selected]))
+        self.assertTrue(pump(lambda: self.model.count == 5))
+        self.assertTrue(pump(lambda: self.win.property("selectedId") == ""),
+                        f"selection {self.win.property('selectedId')} remains; model.contains={self.model.contains(selected)}")
+
     def test_player_leds_are_drawn_from_the_mask(self):
         self.start(state_file=self.file)
         leds = lambda: sorted(o.objectName() for o in self.visual_items()
@@ -162,6 +181,24 @@ class FileSourceTests(Base):
                 return next((o for o in self.visual_items() if o.objectName() == "controllerArtwork" and o.isVisible()), None)
             self.assertTrue(pump(lambda: artwork() is not None and artwork().property("paintedWidth") > 0),
                             f"diagram did not load for {controller_id}")
+
+    def test_all_playstation_face_overlays_resolve_to_existing_visible_icons(self):
+        def add_playstation(state):
+            for controller_id, family, name in [
+                ("test:ds4", "dualshock4", "DualShock 4"),
+                ("test:dualsense", "dualsense", "DualSense"),
+            ]:
+                state["controllers"].append({"id": controller_id, "player": 6, "name": name,
+                    "family": family, "transport": "bluetooth", "player_led_mask": 0, "battery": None})
+        rewrite(self.file, add_playstation)
+        self.start(state_file=self.file)
+        for controller_id in ("test:ds4", "test:dualsense"):
+            self.win.setProperty("selectedId", controller_id)
+            def face_icons():
+                return [o for o in self.visual_items() if o.objectName() == "faceOverlayIcon" and o.isVisible()]
+            self.assertTrue(pump(lambda: len(face_icons()) == 4 and all(
+                icon.property("paintedWidth") > 0 for icon in face_icons())),
+                f"a PlayStation face overlay icon did not load for {controller_id}")
 
     def test_series_share_and_ds4_system_icons_are_model_specific(self):
         def add_series(state):
