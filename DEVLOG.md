@@ -26,6 +26,14 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Third-party Joy-Cons are recorded as not supported
+
+- **What changed:** the README no longer lists third-party Joy-Cons as validated; a Troubleshooting entry explains the symptoms and what to do.
+- **Why:** a gray third-party pair was tried on real hardware in four situations (with Steam running, with it closed, with the radio full and with only the white pair connected). It failed in each: the driver could not initialise it (`failed reading SPI flash`, `Failed to enable the IMU`, `probe with driver nintendo failed`), it dropped gyroscope reports continuously (about 200 in 14 minutes against 33 for a Pro Controller), and twice it left `bluetoothd` and the kernel's LED queue in uninterruptible sleep until it was switched off, which stops every Bluetooth controller. It shows only LED 1 and never lights its HOME LED.
+- **What we found out about it:** everything it reports is an original's (name, class, `057E:2006`, a Nintendo-style serial `XBW…`, the gray colour values `#828282`/`#0F0F0F` read from its memory); its Bluetooth LE advertisement (`BLE_Joy_L`) carries the manufacturer id `0x6C42`, which the Bluetooth SIG has not assigned, at -80 dBm. Nothing names the maker, so there is no update tool to look for, and Nintendo's firmware is not what it runs. The same SPI reads worked in 5 s when only a user-space script talked to it, so the failures come from the driver's short timeouts, not from an unreadable controller.
+- **Evidence:** logs and counts from the hardware session of 2026-10-17; no code changed. UJM cannot tell a clone from an original (identical ids), so there is no detection.
+- **Open questions:** whether another clone brand behaves the same; whether a closer adapter placement would make this pair usable.
+
 ### Only the Joy-Cons that `joycond` merged lose their slot
 
 - **What changed:** when a "Nintendo Switch Combined Joy-Cons" device appears, only the physical Joy-Cons that `joycond` merged into it are dropped from the slot table; a Joy-Con that is free keeps its own slot. The service tells them apart by the permission of the input node (mode 0600, root only, while `joycond` holds it). Before, **every** physical Joy-Con was dropped when a combined device registered and came back at the next scan, so a merged pair was counted twice (the combined device plus its two Joy-Cons) and, with a second pair, the free Joy-Cons were wrongly folded in.
