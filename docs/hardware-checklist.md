@@ -6,6 +6,15 @@ The same list is what a volunteer needs to validate a controller family (see [CO
 
 Needed: the controllers you want to test, `sudo`, and about an hour (step 2 alone takes 30 minutes).
 
+## The idle timeout in effect
+
+A timeout saved at run time (`SetIdleTimeout`, kept in `/var/lib/joystickmanager/settings`) **wins over** `Environment=JOYMANAGER_IDLE_TIMEOUT` in the unit, so `systemctl show` can show a value the service is not using. Before any step that depends on the timeout, read the one in effect, and note it down to restore it at the end:
+
+```bash
+python3 -c 'import json; print(json.load(open("/run/joystickmanager/state.json"))["service"]["idle_timeout"])'
+cat /var/lib/joystickmanager/settings 2>/dev/null || echo "no saved value"
+```
+
 ## 0. Start from the code you mean to test
 
 ```bash
@@ -30,7 +39,7 @@ Expect a few percent of one core at most. With no controllers the service uses a
 
 ## 2. Soak: 30 minutes, Pro Controller and Joy-Con R
 
-With the idle timeout at its default of 300 s (`systemctl show joystickmanager -p Environment`), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.
+With the idle timeout at its default of 300 s (**read the one in effect from `state.json`, see above**: a saved value would win over the unit), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.
 
 ```bash
 journalctl -u joystickmanager -n 200 --no-pager | grep -iE "error|exceeded|fail" || echo "no errors"
@@ -82,22 +91,18 @@ Expect one entry per connected controller with `player`, `transport`, `battery` 
 
 ## 6. Idle power-off
 
+Use a short timeout through the bridge (it works whether or not a value was saved earlier, unlike a unit drop-in):
+
 ```bash
-sudo systemctl edit joystickmanager      # use a short timeout for the test
-```
-```ini
-[Service]
-Environment=JOYMANAGER_IDLE_TIMEOUT=120
-```
-```bash
-sudo systemctl restart joystickmanager
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetIdleTimeout u 120
+python3 -c 'import json; print(json.load(open("/run/joystickmanager/state.json"))["service"]["idle_timeout"])'   # must print 120
 ```
 
 1. Pro Controller on Bluetooth, untouched for 2 minutes: it must disconnect (and reconnect with HOME).
 2. Same, but press a button every minute: it must stay connected.
 3. Pro Controller on USB, untouched for 3 minutes: it must **not** be disconnected.
 
-Remove the drop-in afterwards (`sudo systemctl revert joystickmanager`) and restart.
+**Restore the value you noted** (`SetIdleTimeout u <value>`; 300 is the default). The service keeps whatever was set last, also across restarts; to go back to "no saved value" so that the unit's `Environment=` applies again, delete the file: `sudo rm /var/lib/joystickmanager/settings`.
 
 These three scenarios are about the idle power-off. They are **not** the "original tests 3, 4 and 6" that gate returning the default timeout to 300 s: those are step 8.
 
@@ -128,6 +133,8 @@ busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetHomeLed sb "<
 busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetIdleTimeout u 120
 journalctl -u joystickmanager -n 20 --no-pager | grep "command "
 ```
+
+`SetIdleTimeout` is saved: **put back the value you noted** (`SetIdleTimeout u <value>`) and, to remove the saved value altogether, `sudo rm /var/lib/joystickmanager/settings`. Clear a test alias with `SetControllerAlias ss "<id>" ""`.
 
 Expect: each call answers at once; the LEDs follow, and the manual pattern **stays** while the controller charges or its battery is low (no blinking, no periodic rewrite) until you send `255`; `state.json` shows `player_led_manual` and `home_led` accordingly and `service.idle_timeout` 120; after `sudo systemctl restart joystickmanager` the timeout is still 120 (it is kept in `/var/lib/joystickmanager/settings`; delete that file to go back to the unit's value). These are the first calls of the command channel on a real service and a real system bus: keep the exact error text of anything odd (`ServiceUnavailable` means the running service is an older version; reinstall it, step 0).
 
@@ -160,4 +167,4 @@ Send the final report **and** the baseline from step 0, plus your notes below. B
 | 5 `state.json` | | |
 | 6 Idle power-off | | |
 | 8 Original tests 3, 4, 6 | done | Passed, reported by the maintainer on 2026-10-17 (no report file attached, so no numbers). The default idle timeout became 300 s. |
-| 7 Bridge on the system bus | | |
+| 7 Bridge on the system bus | done | Run on 2026-10-17 with a DualShock 3 (Bluetooth) and a Pro Controller (USB): `SetPlayerLeds`, `SetHomeLed`, `SetIdleTimeout`, alias and the refusals all behaved as described, with the real polkit and the unit's sandbox; 8 `command ... ok` lines in the journal. Not done: Connect/Disconnect/Scan/Pair (would have dropped the controller in use). |
