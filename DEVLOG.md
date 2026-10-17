@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Ten-player LED references and explicit releases confirmation
+
+- **What changed:** the HTML preview now uses the documented slot masks (standard players 9/10: 3 and 5; solo right Joy-Con: players 8/9/10 use 11/12/10). Both previews suppress player-number dots for DualShock 4, DualSense, and Xbox One/Series, while retaining the Xbox 360 row. The QML cards show the expected pattern for slots 8–10. The File menu label matches between HTML and QML; native QML now confirms that opening releases does not download or install anything.
+- **Why:** make the two-column ten-player preview agree with the service table and avoid implying LED numbering on controllers that expose a different kind of light.
+- **Evidence:** `UJM_UI_PORT=18768 timeout 180s tools/check.sh --gui --ui` passed: 0 failures, 0 warnings, 1 skip (ShellCheck is not installed); QML 19/19 and browser suites 70/70 + 27/27. `bridge/tests/test_bridge.py` separately passed 32 tests for commit `482f4fa`, including case changes and migration of older lower-case alias keys. No hardware, merge, or push was involved.
+- **Open questions:** `player_leds` is not yet a QML model role in this PR head, so QML hides known unsupported families using the family-to-capability table matching `docs/state.md`; the backend remains untouched.
+
 ### Native QML roster uses the ten-slot grid
 
 - **What changed:** the connected-controller roster now uses two columns and up to five rows, with names allowed to wrap in compact cards. The File action is labeled "Open UJM releases page" to match its actual behavior.

@@ -186,7 +186,7 @@
   <div class="window">
   <header><div><h1>UJM — Universal Joystick Manager</h1><p class="subtitle">Game controllers</p></div><button id="header-help" type="button">Help</button></header>
     <nav class="menubar" id="menubar">
-      <span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="update">Update UJM…</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span>
+      <span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="update">Open UJM releases page</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span>
       <span class="menu" data-menu="view"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">View</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="theme">Theme…</button></div></span>
       <span class="menu" data-menu="controller"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Controller</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="pair">Pair new controller…</button><button type="button" role="menuitem" data-action="connect">Connect known…</button><button type="button" role="menuitem" data-action="disconnect">Disconnect selected</button><hr><button type="button" role="menuitem" data-action="service-toggle" id="menu-service">Stop service</button></div></span>
       <span class="menu" data-menu="tools"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Tools</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="create-alias">Create controller alias…</button><button type="button" role="menuitem" data-action="diagram-preview">Preview controller diagram…</button><button type="button" role="menuitem" data-action="preview-ten" id="preview-ten-action">Preview 10-player layout</button></div></span>
@@ -204,7 +204,7 @@
   </div>
   <div class="banner" id="svc-banner" role="status" hidden>The UJM service is stopped. Player numbering, LEDs and battery indication are not managed; controllers keep working through the kernel drivers. Actions are disabled until you start the service.</div>
   <main>
-    <section class="panel"><div class="row"><h2>Controllers</h2><button type="button" id="refresh-controllers">Refresh</button></div><p class="muted" id="device-count" style="margin-bottom:8px">Connected: 3 / 10</p><p class="roster-preview" id="roster-preview-note" hidden>Layout preview: ten simulated connections, not detected hardware. Use Tools to return to the connected roster.</p><div class="cards" id="controller-cards">
+    <section class="panel"><div class="row"><h2>Controllers</h2><button type="button" id="refresh-controllers">Refresh</button></div><p class="muted" id="device-count" style="margin-bottom:8px">Connected: 3 / 10</p><p class="roster-preview" id="roster-preview-note" hidden>Layout preview: ten simulated connections, not detected hardware. Standard slots 9/10 use LEDs 1+2 / 1+3; a solo right Joy-Con mirrors them (slots 8/9/10: 1+2+4 / 3+4 / 2+4). Use Tools to return to the connected roster.</p><div class="cards" id="controller-cards">
       <article class="card selected" data-controller="pro" data-player="1"><div class="card-top"><div class="identity"><div class="player">1</div><div><h3>Nintendo Switch Pro Controller</h3><p class="muted">Nintendo · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led on"></i><i class="led"></i><i class="led"></i><i class="led"></i></div></article>
       <article class="card" data-controller="pro" data-player="2"><div class="card-top"><div class="identity"><div class="player">2</div><div><h3>Nintendo Switch Pro Controller</h3><p class="muted">Nintendo · USB</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led on"></i><i class="led"></i><i class="led"></i></div></article>
       <article class="card" data-controller="dualshock" data-player="3"><div class="card-top"><div class="identity"><div class="player">3</div><div><h3>DUALSHOCK 3 Wireless Controller</h3><p class="muted">Sony · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led"></i><i class="led on"></i><i class="led"></i></div></article>
@@ -825,7 +825,22 @@
       function cardDetail(c) { return $('.muted', c).textContent.trim(); }
       function setDetail(c, transport) { var p = $('.muted', c); p.textContent = p.textContent.split(' · ')[0] + ' · ' + transport; }
       function isConnected(c) { return $('.status', c).textContent.trim() === 'Connected'; }
-      var SLOT_LED_MASKS = [0,1,2,4,8,9,10,12,13,14,15];
+      var STANDARD_SLOT_LED_MASKS = [0,1,2,4,8,9,10,12,13,3,5];
+      var RIGHT_JOYCON_SLOT_LED_MASKS = [0,8,4,2,1,9,5,3,11,12,10];
+      var PLAYER_LED_CAPABILITIES = { pro:true, dualshock:true, xbox360:true, joyconl:true, joyconr:true,
+        ds4:false, dualsense:false, xboxone:false, xboxseries:false };
+      function hasPlayerLedCapability(type) {
+        return Object.prototype.hasOwnProperty.call(PLAYER_LED_CAPABILITIES, type) ? PLAYER_LED_CAPABILITIES[type] : true;
+      }
+      function playerLedMask(type, player) {
+        var masks = type === 'joyconr' ? RIGHT_JOYCON_SLOT_LED_MASKS : STANDARD_SLOT_LED_MASKS;
+        return masks[Number(player)] || 0;
+      }
+      function playerLedPattern(mask) {
+        var lit = [];
+        for (var i = 0; i < 4; i++) if (mask & (1 << i)) lit.push(i + 1);
+        return lit.length ? lit.join(' + ') : 'none';
+      }
       var DS4_COLORS = [null, ['Blue','#286de8'], ['Red','#e54848'], ['Green','#36ba6c'], ['Pink','#ed8fca']];
       var DUALSENSE_INDICATORS = [0,4,10,21,27,31];
       function playerLightPreview(type, player) {
@@ -850,7 +865,7 @@
         cards().forEach(function (c) {
           c.hidden = !isConnected(c);
           var type = c.getAttribute('data-controller');
-          var supportsNumberLeds = ['pro','dualshock','joyconl','joyconr'].includes(type);
+          var supportsNumberLeds = hasPlayerLedCapability(type);
           var leds = $('.leds', c);
           if (supportsNumberLeds && !leds) {
             leds = document.createElement('div'); leds.className = 'leds';
@@ -859,8 +874,12 @@
           }
           if (leds) {
             leds.hidden = !supportsNumberLeds || c.hidden;
-            var mask = SLOT_LED_MASKS[Number(c.getAttribute('data-player'))] || 0;
+            var player = Number(c.getAttribute('data-player'));
+            var mask = playerLedMask(type, player);
             $$('.led', leds).forEach(function (led, i) { led.classList.toggle('on', !!(mask & (1 << i))); });
+            leds.setAttribute('aria-label', 'Player ' + player + ' slot reference: LEDs ' + playerLedPattern(mask)
+              + (type === 'joyconr' ? ' (mirrored right Joy-Con pattern)' : ''));
+            leds.title = leds.getAttribute('aria-label');
           }
           var preview = $('.player-light', c), lightHtml = playerLightPreview(type, Number(c.getAttribute('data-player')));
           if (lightHtml && !preview) { preview = document.createElement('div'); preview.className = 'player-light'; c.appendChild(preview); }

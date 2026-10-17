@@ -21,12 +21,31 @@ ApplicationWindow {
     palette.highlight: Theme.selected
     palette.highlightedText: Theme.text
 
+    Dialog {
+        id: updateConfirmation
+        objectName: "updateConfirmDialog"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        title: "Open UJM releases page?"
+        standardButtons: Dialog.Open | Dialog.Cancel
+        contentItem: Label {
+            objectName: "updateConfirmText"
+            width: 380
+            wrapMode: Text.WordWrap
+            color: Theme.text
+            text: "UJM will not download or install an update. This only opens the official releases page; it does not change the service."
+        }
+        onAccepted: Qt.openUrlExternally("https://github.com/joaovitor-dv/universal-joystick-manager/releases")
+    }
+
     menuBar: MenuBar {
         Menu {
             title: "File"
             MenuItem {
+                objectName: "updateMenuItem"
                 text: "Open UJM releases page"
-                onTriggered: Qt.openUrlExternally("https://github.com/joaovitor-dv/universal-joystick-manager/releases")
+                onTriggered: updateConfirmation.open()
             }
         }
     }

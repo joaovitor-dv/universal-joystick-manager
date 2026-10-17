@@ -134,6 +134,61 @@ class FileSourceTests(Base):
         expected = ["led0on", "led0on", "led1on", "led3on"]
         self.assertTrue(pump(lambda: leds() == expected), leds())
 
+    def test_player_led_rows_follow_known_family_capabilities(self):
+        def add_families(state):
+            for controller_id, player, family, name in [
+                ("test:dualsense", 6, "dualsense", "DualSense"),
+                ("test:xbox-one", 7, "xbox-one-series", "Xbox One Controller"),
+                ("test:xbox-series", 8, "xbox-one-series", "Xbox Series X/S Controller"),
+            ]:
+                state["controllers"].append({"id": controller_id, "player": player, "name": name,
+                    "family": family, "transport": "bluetooth", "player_led_mask": 0, "battery": None})
+        rewrite(self.file, add_families)
+        self.start(state_file=self.file)
+        row = lambda player: next(o for o in self.visual_items()
+                                  if o.objectName() == f"playerLedIndicators-{player}")
+        for player in (3, 6, 7, 8):
+            self.assertFalse(row(player).isVisible(), f"player {player} has no player-number LEDs")
+        for player in (1, 2, 4, 5):
+            self.assertTrue(row(player).isVisible(), f"player {player} has player-number LEDs")
+        xbox_leds = row(5)
+        xbox_ring = next(o for o in self.visual_items() if o.objectName() == "playerLightIndicators-5")
+        self.assertTrue(xbox_ring.isVisible(), "Xbox 360 keeps its quadrant preview")
+        self.assertGreaterEqual(xbox_leds.y(), xbox_ring.y() + xbox_ring.height(),
+                                "the four-dot mask and Xbox ring preview must not overlap")
+
+    def test_player_nine_and_ten_slot_previews_match_standard_and_mirrored_masks(self):
+        def add_slots(state):
+            for controller_id, player, family, name, mask in [
+                ("test:right-eight", 8, "joycon", "Joy-Con (R)", 11),
+                ("test:standard-nine", 9, "switch-pro", "Pro Controller", 3),
+                ("test:standard-ten", 10, "switch-pro", "Pro Controller", 5),
+            ]:
+                state["controllers"].append({"id": controller_id, "player": player, "name": name,
+                    "family": family, "transport": "bluetooth", "player_led_mask": mask, "battery": None})
+        rewrite(self.file, add_slots)
+        self.start(state_file=self.file)
+        label = lambda player: next(o for o in self.visual_items()
+                                    if o.objectName() == f"playerLedPreview-{player}").property("text")
+        self.assertEqual(label(8), "slot 1 + 2 + 4")
+        self.assertEqual(label(9), "slot 1 + 2")
+        self.assertEqual(label(10), "slot 1 + 3")
+
+        def mirror_right_joycons(state):
+            by_id = {c["id"]: c for c in state["controllers"]}
+            by_id["test:standard-nine"].update(family="joycon", name="Joy-Con (R)", player_led_mask=12)
+            by_id["test:standard-ten"].update(family="joycon", name="Joy-Con (R)", player_led_mask=10)
+        rewrite(self.file, mirror_right_joycons)
+        self.assertTrue(pump(lambda: label(9) == "slot 3 + 4" and label(10) == "slot 2 + 4"),
+                        (label(9), label(10)))
+
+    def test_update_menu_confirms_that_no_software_is_installed(self):
+        self.start(state_file=self.file)
+        self.assertEqual(self.item("updateMenuItem").property("text"), "Open UJM releases page")
+        message = self.item("updateConfirmText")
+        self.assertIn("will not download or install an update", message.property("text"))
+        self.assertIn("does not change the service", message.property("text"))
+
     def test_player_light_references_are_not_reported_as_live(self):
         self.start(state_file=self.file)
         visible = lambda name: next((o for o in self.visual_items() if o.objectName() == name and o.isVisible()), None)

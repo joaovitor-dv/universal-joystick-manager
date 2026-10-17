@@ -18,6 +18,8 @@ await ev(`(() => { window.__dl = []; window.__blobs = []; const co = URL.createO
 // --- File menu and controller profiles
 const actions = await ev(`[...document.querySelectorAll('.menu[data-menu=file] [data-action]')].map(b => b.dataset.action).join(',')`);
 t.ok('File has profiles, settings, Update, and Exit', actions === 'export-controllers,import-controllers,export-settings,import-settings,update,exit', actions);
+t.ok('Update menu label describes that it only opens the releases page',
+  (await text('[data-action=update]')) === 'Open UJM releases page');
 await menu('file', 'update');
 t.ok('Update explains that this prototype cannot install software', !(await hidden('#confirm-modal')) && (await text('#confirm-text')).includes('cannot install updates'));
 await click('#confirm-cancel');

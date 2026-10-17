@@ -31,6 +31,7 @@ Rectangle {
     readonly property string subtitle: [vendor, transportText].filter(function (s) { return s.length > 0 }).join(" · ")
     readonly property string visualType: Visuals.kind(family, name)
     readonly property var lightPreview: Visuals.playerLights(visualType, player)
+    readonly property int slotLedMask: Visuals.playerLedSlotMask(visualType, player)
     readonly property color batteryColor: batteryStatus === "Charging" ? Theme.ok
         : (batteryLevel === "critical" ? Theme.danger : (batteryLevel === "low" ? Theme.warn : Theme.text))
 
@@ -70,9 +71,10 @@ Rectangle {
         font.pixelSize: 11; elide: Text.ElideRight
     }
     Row {
+        objectName: "playerLedIndicators-" + card.player
         anchors { right: parent.right; rightMargin: 10; bottom: parent.bottom; bottomMargin: 12 }
         spacing: 5
-        visible: ["pro", "dualshock", "joyconl", "joyconr", "joyconpair"].indexOf(card.visualType) !== -1
+        visible: Visuals.hasPlayerLeds(card.visualType)
         Repeater {
             model: 4
             Rectangle {
@@ -84,9 +86,22 @@ Rectangle {
                 objectName: "led" + index + (on ? "on" : "off")
             }
         }
+        Text {
+            objectName: "playerLedPreview-" + card.player
+            visible: card.player >= 8
+            text: "slot " + Visuals.playerLedPattern(card.slotLedMask)
+            color: Theme.muted
+            font.pixelSize: 10
+        }
     }
     Row {
-        anchors { right: parent.right; rightMargin: 10; bottom: parent.bottom; bottomMargin: 11 }
+        objectName: "playerLightIndicators-" + card.player
+        anchors {
+            right: parent.right
+            rightMargin: 10
+            bottom: parent.bottom
+            bottomMargin: card.visualType === "xbox360" ? 30 : 11
+        }
         spacing: 4
         visible: card.lightPreview.kind !== "none"
         Rectangle {

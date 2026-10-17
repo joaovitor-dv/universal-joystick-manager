@@ -38,6 +38,33 @@ const lights = await ev(`(() => {
 t.ok('DualSense shows a white slot-indicator preview, not an invented RGB color', lights.dualsense.includes('RGB color unknown') && lights.dualsenseBars === 4, JSON.stringify(lights));
 t.ok('DualShock 4 does not invent a fifth standard PS4 color', lights.ds4.includes('color unknown') && lights.ds4Color === '', JSON.stringify(lights));
 t.ok('Xbox 360 has a ring preview without inventing a quadrant for slot six', lights.xbox360.includes('ring pattern unknown') && lights.xbox360Quadrants === 0 && !lights.xboxone, JSON.stringify(lights));
+
+await click('.menu[data-menu=tools] .menu-label');
+await click('#preview-ten-action');
+const playerLedPreview = await ev(`(() => {
+  const card = (type, player) => document.querySelector('.card[data-controller="' + type + '"][data-player="' + player + '"]');
+  const lit = (type, player) => [...(card(type, player)?.querySelectorAll('.led') || [])]
+    .flatMap((led, i) => led.classList.contains('on') ? [i + 1] : []);
+  const hasDots = type => { const row = document.querySelector('.card[data-controller="' + type + '"] .leds'); return !!row && !row.hidden; };
+  return {
+    slot9:lit('joyconl', 9), slot10:lit('joyconr', 10),
+    slot9Title:card('joyconl', 9).querySelector('.leds').title,
+    slot10Title:card('joyconr', 10).querySelector('.leds').title,
+    standardSlotNote:document.querySelector('#roster-preview-note').textContent,
+    noNumbering:['xboxone','xboxseries','ds4','dualsense'].every(type => !hasDots(type)),
+    xbox360HasNumbering:hasDots('xbox360')
+  };
+})()`);
+t.ok('players 9 and 10 show the standard and mirrored right Joy-Con LED patterns',
+  JSON.stringify(playerLedPreview.slot9) === JSON.stringify([1,2]) &&
+  JSON.stringify(playerLedPreview.slot10) === JSON.stringify([2,4]) &&
+  playerLedPreview.slot9Title.includes('1 + 2') && playerLedPreview.slot10Title.includes('2 + 4') &&
+  playerLedPreview.standardSlotNote.includes('1+2 / 1+3'), JSON.stringify(playerLedPreview));
+t.ok('numbering dots follow player-LED capability, while Xbox 360 keeps its player LEDs',
+  playerLedPreview.noNumbering && playerLedPreview.xbox360HasNumbering, JSON.stringify(playerLedPreview));
+await click('.menu[data-menu=tools] .menu-label');
+await click('#preview-ten-action');
+
 for (const [ctrl, player] of cards) {
   const sel = player ? `.card[data-controller="${ctrl}"][data-player="${player}"]` : `.card[data-controller="${ctrl}"]`;
   const before = page.errors.length;
@@ -207,10 +234,10 @@ const previewResult = await ev(`({selected:document.querySelector('#selected-nam
 t.ok('Tools diagram gallery keeps disconnected models out of the live roster', previewOptions.open && previewOptions.models.includes('joyconpair') && previewResult.selected.includes('diagram preview') && previewResult.active === 0 && previewResult.status === 'Preview only', JSON.stringify({previewOptions,previewResult}));
 await page.menu('tools', 'preview-ten');
 const highSlots = await ev(`(() => [9,10].map(player => { const c=document.querySelector('.card[data-player="'+player+'"]'); return {player,visible:!c.hidden,mask:[...c.querySelectorAll('.led')].map(l=>l.classList.contains('on'))}; }))()`);
-t.ok('ten-player preview shows the four-LED patterns 2+3+4 and 1+2+3+4',
+t.ok('ten-player preview shows standard player 9 and mirrored right Joy-Con player 10 patterns',
   highSlots[0].visible && highSlots[1].visible &&
-  JSON.stringify(highSlots[0].mask) === JSON.stringify([false,true,true,true]) &&
-  JSON.stringify(highSlots[1].mask) === JSON.stringify([true,true,true,true]), JSON.stringify(highSlots));
+  JSON.stringify(highSlots[0].mask) === JSON.stringify([true,true,false,false]) &&
+  JSON.stringify(highSlots[1].mask) === JSON.stringify([false,true,false,true]), JSON.stringify(highSlots));
 const tenGrid = await ev(`({count:document.querySelector('#device-count').textContent, rows:getComputedStyle(document.querySelector('.cards')).gridTemplateRows.split(' ').length, preview:!document.querySelector('#roster-preview-note').hidden})`);
 t.ok('the explicit layout preview uses two columns and five rows for ten simulated controllers', tenGrid.count === 'Connected: 10 / 10' && tenGrid.rows === 5 && tenGrid.preview, JSON.stringify(tenGrid));
 await page.menu('tools', 'preview-ten');

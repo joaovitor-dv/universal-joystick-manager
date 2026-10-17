@@ -23,6 +23,30 @@ function kind(family, name) {
     return "unknown";
 }
 
+// `player_leds` is not yet a QML model role on this branch. Keep the known
+// family capability here until the backend exposes it, matching docs/state.md.
+// Unknown/older service data stays compatible; only known no-numbering families
+// are hidden (their separate light-bar/HOME previews remain available).
+function hasPlayerLeds(type) {
+    return ["ds4", "dualsense", "xboxone", "xboxseries"].indexOf(type) === -1;
+}
+
+var standardPlayerLedMasks = [0, 1, 2, 4, 8, 9, 10, 12, 13, 3, 5];
+var rightJoyconPlayerLedMasks = [0, 8, 4, 2, 1, 9, 5, 3, 11, 12, 10];
+
+function playerLedSlotMask(type, player) {
+    var masks = type === "joyconr" ? rightJoyconPlayerLedMasks : standardPlayerLedMasks;
+    return player >= 1 && player < masks.length ? masks[player] : 0;
+}
+
+function playerLedPattern(mask) {
+    var lit = [];
+    for (var i = 0; i < 4; i++) {
+        if (mask & (1 << i)) lit.push(i + 1);
+    }
+    return lit.length ? lit.join(" + ") : "none";
+}
+
 function artwork(type) {
     var refs = {
         pro: "steam/switch-pro.png",
