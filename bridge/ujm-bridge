@@ -132,8 +132,9 @@ class Store:
             for key in ("family", "hid", "event", "home_led"):
                 if c.get(key):
                     d[key] = c[key]
-            if isinstance(c.get("player_led_manual"), bool):
-                d["player_led_manual"] = c["player_led_manual"]
+            for key in ("player_led_manual", "player_leds"):
+                if isinstance(c.get(key), bool):
+                    d[key] = c[key]
             if MAC_RE.match(d["id"]):
                 d["address"] = d["id"]
             alias = self.aliases.get(d["id"])
@@ -543,10 +544,14 @@ class Bridge:
             self._ret_none(inv)
         self._authorized(sender, inv, ACTION_ALIAS, go)
 
-    def _bt_target(self, cid):
-        c = self.store.controller(cid)
+    def _bt_target(self, ident):
+        """A Bluetooth address (any device BlueZ knows, such as a controller that dropped, which is not in
+        the controller list any more) or the id of a controller that is connected over Bluetooth now."""
+        if MAC_RE.match(ident):
+            return ident.upper()
+        c = self.store.controller(ident)
         if c["transport"] != "bluetooth" or "address" not in c:
-            raise err_invalid("only a controller connected over Bluetooth can be connected or disconnected here")
+            raise err_invalid("only a Bluetooth controller, or a Bluetooth address, can be connected or disconnected here")
         return c["address"]
 
     def do_ConnectBluetooth(self, sender, inv, cid):
@@ -586,6 +591,8 @@ class Bridge:
             raise err_invalid("mask must be 0-15 (bit 0 = LED 1), or 255 to go back to the automatic pattern")
         if c["transport"] == "virtual":
             raise err_invalid("the combined Joy-Con pair has no player LEDs of its own")
+        if c.get("player_leds") is False:
+            raise err_invalid("this controller has no player LEDs (Xbox One/Series have only a HOME LED, DualShock 4 and DualSense only an RGB light)")
         self._authorized(sender, inv, ACTION_LEDS, self._to_service(inv, "player_leds", [cid, mask]))
 
     def do_SetHomeLed(self, sender, inv, cid, enabled):

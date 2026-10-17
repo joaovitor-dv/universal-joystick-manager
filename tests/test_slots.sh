@@ -529,6 +529,24 @@ t_scan_registers_a_registered_node_that_was_replaced() {
     check "event5 re-created as another controller is picked up" 2 "$(slot_of "$B")"
 }
 
+t_player_leds_capability_follows_the_leds_the_controller_has() {
+    cmd_setup
+    experimental=1   # the Xbox profiles are experimental
+    led_fixture "0005:057E:2009.$A" home                 # Switch controller: numbering LEDs and a HOME LED
+    local hid="0005:045E:02FD.0001" d="$sys_leds/0005:045E:02FD.0001:blue:player-5"
+    mkdir -p "$d"; printf '0\n' >"$d/brightness"; printf '15\n' >"$d/max_brightness"   # an Xbox-like controller: HOME LED only
+    connect event1 "$A"
+    mkdir -p "$T/dev/$hid"; printf '%s\n' "$B" >"$T/dev/$hid/uniq"; printf 'Xbox Wireless Controller\n' >"$T/dev/$hid/name"
+    mkdir -p "$sys_input/event2"; ln -sfn "$T/dev/$hid" "$sys_input/event2/device"; register_event event2
+    update_batteries_once
+    local f="$runtime_dir/state.json"
+    check "a controller with numbering LEDs says so" True "$(jget "$f" 'd["controllers"][0]["player_leds"]')"
+    check "a HOME-LED-only controller has no player LEDs" False "$(jget "$f" 'd["controllers"][1]["player_leds"]')"
+    req iiiiiii10 player_leds "$B" 3
+    check "player LEDs are refused on it" "error|this controller has no player LEDs the service can write" "$(ack iiiiiii10)"
+    check "while its HOME LED is still reported" "['on', 'on']" "$(jget "$f" '[c["home_led"] for c in d["controllers"]]')"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -619,6 +637,7 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_command_idle_timeout_stops_a_running_worker_and_its_pipeline t_command_channel_through_the_fifo_and_the_real_loop \
          t_battery_is_found_when_the_id_is_not_above_the_battery_device t_battery_without_capacity_reports_the_status_only \
          t_scan_does_not_resolve_known_controllers_again t_scan_registers_a_registered_node_that_was_replaced \
+         t_player_leds_capability_follows_the_leds_the_controller_has \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done

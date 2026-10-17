@@ -456,7 +456,7 @@ json_str() {
 json_int() { if [[ $1 =~ ^[0-9]+$ ]]; then printf '%s' "$1"; else printf 'null'; fi; }
 
 write_state() {
-    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp mask manual home
+    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp mask manual home pleds
     body='"format":"ujm-state","version":1,"service":{"led_refresh":'"$(json_str "$led_refresh")"',"idle_timeout":'"$(json_int "$idle_timeout")"',"experimental":'"$([ "$experimental" = 1 ] && printf true || printf false)"'},"controllers":['
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
@@ -470,6 +470,7 @@ write_state() {
         esac
         reverse=0; [ "$name" = 'Joy-Con (R)' ] && reverse=1
         mask=${led_manual[$id]:-}; manual=true; [ -n "$mask" ] || { manual=false; mask=$(slot_mask "$slot" "$reverse"); }
+        pleds=false; ! has_player_leds "$prefix" || pleds=true
         home=unsupported
         if [ "$prefix" != - ] && [ -e "$sys_leds/$prefix:blue:player-5/brightness" ]; then home=on; [ -z "${home_off[$prefix]:-}" ] || home=off; fi
         battery=null
@@ -478,7 +479,7 @@ write_state() {
             battery='{"percent":'"$(json_int "$cap")"',"status":'"$(json_str "$status")"',"level":'"$(json_str "$state")"'}'
         fi
         [ "$first" -eq 1 ] || body+=','; first=0
-        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$mask"',"player_led_manual":'"$manual"',"home_led":"'"$home"'","battery":'"$battery"'}'
+        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$mask"',"player_leds":'"$pleds"',"player_led_manual":'"$manual"',"home_led":"'"$home"'","battery":'"$battery"'}'
     done < <(sort -t $'\t' -k2,2n "$slots_file")
     body+=']'
     [ "$body" = "$state_body_last" ] && return 0
@@ -511,8 +512,10 @@ controller_row() {
     IFS=$'\t' read -r _ c_slot c_prefix c_event <<<"$row"
 }
 
+# Player-number LEDs exist on the Switch controllers and the DualShock 3 only. The Xbox One/Series
+# controllers have just a HOME LED, and the DualShock 4 and DualSense just an RGB light: no numbering.
 has_player_leds() {
-    [ "$1" != - ] && { [ -e "$sys_leds/$1:green:player-1/brightness" ] || [ -e "$sys_leds/$1::sony1/brightness" ] || [ -e "$sys_leds/$1:blue:player-5/brightness" ]; }
+    [ "$1" != - ] && { [ -e "$sys_leds/$1:green:player-1/brightness" ] || [ -e "$sys_leds/$1::sony1/brightness" ]; }
 }
 
 cmd_player_leds() { # ID MASK (0-15, or 255 to go back to the automatic pattern)
