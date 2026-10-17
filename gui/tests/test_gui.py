@@ -160,6 +160,15 @@ class FileSourceTests(Base):
         share = lambda: next((o for o in self.visual_items() if o.objectName() == "xboxSeriesShare"), None)
         self.win.setProperty("selectedId", "test:series")
         self.assertTrue(pump(lambda: share() is not None and share().isVisible()), "Series Share overlay is missing")
+        series_art = next((o for o in self.visual_items() if o.objectName() == "controllerArtwork" and o.isVisible()), None)
+        self.assertIsNotNone(series_art)
+        self.assertTrue(pump(lambda: series_art.property("paintedWidth") > 0), "Series vector did not load")
+        self.assertIn("xbox-series-front.svg", series_art.property("source").toString())
+        for icon in ("xbox_button_select", "xbox_button_start", "xbox_button_share"):
+            with open(os.path.join(GUI, "..", "ui", "assets", "controller-icons", icon + ".svg"), encoding="utf-8") as source:
+                svg = source.read()
+            self.assertIn('fill="#eff7f0"', svg, f"{icon} has no light foreground")
+            self.assertNotIn('fill="black"', svg, f"{icon} would disappear on the dark QML panel")
         self.win.setProperty("selectedId", "20:1C:3A:AA:00:01")
         self.assertTrue(pump(lambda: share() is not None and not share().isVisible()), "Series Share leaks to the Pro Controller")
         self.win.setProperty("selectedId", "30:2C:3A:AA:00:03")

@@ -277,7 +277,7 @@
       ds4: 'assets/controller-references/steam/dualshock-4.png',
       xbox360: 'assets/controller-references/xbox-360-xcf-ui.svg',
       xboxone: 'assets/controller-references/steam/xbox-one.png',
-      xboxseries: 'assets/controller-references/steam/xbox-one.png',
+      xboxseries: 'assets/controller-references/xbox-series-front.svg',
       joyconl: 'assets/controller-references/steam/joycon-l.png',
       joyconr: 'assets/controller-references/steam/joycon-r.png',
       joyconpair: 'assets/controller-references/steam/joycon-pair.png'
@@ -315,7 +315,7 @@
       // Centers measured on the 1000×702 Steam image (X 763/142, Y 686/211, A 841/211, B 763/274).
       pro: [['X',76.3,20.23],['Y',68.6,30.06],['A',84.1,30.06],['B',76.3,39.03]],
       xboxone: [['Y',76.2,18.3],['X',69,27.7],['B',82.9,27.7],['A',76.2,37.4]],
-      xboxseries: [['Y',76.2,18.3],['X',69,27.7],['B',82.9,27.7],['A',76.2,37.4]],
+      xboxseries: [['Y',76.2,27],['X',69,36.4],['B',82.9,36.4],['A',76.2,45.9]],
       joyconr: [['Y',73.5,46.5],['X',80.8,63.3],['B',66.4,63.3],['A',73.5,79.5]],
       joyconpair: [['X',83.3,19.3],['Y',75.8,26.6],['A',90.5,26.6],['B',83.3,33.7]]
     };
@@ -378,7 +378,7 @@
       dualsense: ['assets/controller-references/steam/dualsense.png',678,'playstation'],
       ds4: ['assets/controller-references/steam/dualshock-4.png',620,'playstation'],
       xboxone: ['assets/controller-references/steam/xbox-one.png',703,'xbox'],
-      xboxseries: ['assets/controller-references/steam/xbox-one.png',703,'xbox']
+      xboxseries: ['assets/controller-references/xbox-series-front.svg',703,'xbox']
     };
     const playstationFacePositions = {
       dualsense: [['triangle',817,112],['square',751,181],['circle',885,181],['x',817,248]],
@@ -400,7 +400,10 @@
     };
     function perspectiveDiagram(type) {
       const [src,height,family] = perspectiveAssets[type];
-      const bodyTop = 150;
+      // The Series artwork is a complete transparent vector, including four
+      // separate shoulder silhouettes. Other references need the external band.
+      const vectorSeries = type === 'xboxseries';
+      const bodyTop = vectorSeries ? 0 : 150;
       const colors = family === 'xbox' ? {A:'#53b92c',B:'#d93635',X:'#2879df',Y:'#e8bf1f'} : {A:'#e23441',B:'#edb929',X:'#2879df',Y:'#1dae72'};
       const face = (faceOverlays[type] || []).map(([label,x,y]) => `<g transform="translate(${x*10} ${bodyTop+y*height/100})"><circle r="33" fill="${colors[label]}" stroke="#e3edf7" stroke-width="4"/><text y="12" font-size="34" fill="#fff" font-weight="700" text-anchor="middle">${label}</text></g>`).join('');
       const psPositions = playstationFacePositions[type] || [];
@@ -408,15 +411,15 @@
       const psFaces = family === 'playstation' ? psPositions.map(([name,x,y]) => `<image href="${icon(`ps_wire_button_${name}`)}" x="${x-34}" y="${bodyTop+y-34}" width="68" height="68"/>`).join('') : '';
       // The Series Share button sits on the central bridge, below View/Menu
       // and above the D-pad/right stick rather than level with the sticks.
-      const series = type === 'xboxseries' ? `<g data-share-control="xbox-series" transform="translate(500 ${bodyTop+255})" fill="none" stroke="#d2dce5" stroke-width="4"><rect x="-17" y="-12" width="34" height="24" rx="4"/><path d="M0 7V-6m-6 6 6-6 6 6"/></g>` : '';
-      const lineFilter = smoothContrastFilter('controller-outline',[13,19,27]);
-      const shoulders = shoulderControls[family].map(([label,x,y,kind]) => {
+      const series = vectorSeries ? `<g data-share-control="xbox-series" transform="translate(500 309)" fill="none" stroke="#d2dce5" stroke-width="4"><rect x="-17" y="-12" width="34" height="24" rx="4"/><path d="M0 7V-6m-6 6 6-6 6 6"/></g>` : '';
+      const lineFilter = vectorSeries ? '' : smoothContrastFilter('controller-outline',[13,19,27]);
+      const shoulders = (vectorSeries ? [] : shoulderControls[family]).map(([label,x,y,kind]) => {
         const path = kind === 'trigger'
           ? `M${x-40} ${y+18}Q${x-33} ${y-20} ${x-12} ${y-24}Q${x+18} ${y-29} ${x+35} ${y-12}L${x+40} ${y+18}Z`
           : `M${x-44} ${y-12}Q${x} ${y-24} ${x+44} ${y-12}L${x+44} ${y+13}Q${x} ${y+4} ${x-44} ${y+13}Z`;
         return `<g data-shoulder-control="${label}" fill="none" stroke="#dce6ef" stroke-width="4" stroke-linejoin="round"><path d="${path}"/><text x="${x}" y="${y+6}" fill="#f4f8fc" stroke="none" font-family="Segoe UI,sans-serif" font-size="23" font-weight="700" text-anchor="middle">${label}</text></g>`;
       }).join('');
-      return `<div class="controller-art controller-art--perspective" data-family="${family}"><svg viewBox="0 0 1000 ${height+bodyTop}" role="img" aria-label="${names[type][0]} elevated front diagram with four separate shoulder and trigger buttons" xmlns="http://www.w3.org/2000/svg"><defs>${psClip}${lineFilter}</defs><image href="${src}" x="0" y="${bodyTop}" width="1000" height="${height}" ${psClip ? 'clip-path="url(#playstation-face-clip)"' : ''} filter="url(#controller-outline)"/>${series}${face}${psFaces}${shoulders}</svg></div>`;
+      return `<div class="controller-art controller-art--perspective" data-family="${family}"><svg viewBox="0 0 1000 ${height+bodyTop}" role="img" aria-label="${names[type][0]} elevated front diagram with four separate shoulder and trigger buttons" xmlns="http://www.w3.org/2000/svg"><defs>${psClip}${lineFilter}</defs><image href="${src}" x="0" y="${bodyTop}" width="1000" height="${height}" ${psClip ? 'clip-path="url(#playstation-face-clip)"' : ''} ${vectorSeries ? '' : 'filter="url(#controller-outline)"'}/>${series}${face}${psFaces}${shoulders}</svg></div>`;
     }
     function xbox360Diagram() {
       // The vector trace comes from the XCF's upper layer only; the lower backdrop

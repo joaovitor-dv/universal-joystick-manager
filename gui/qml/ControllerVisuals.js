@@ -30,7 +30,7 @@ function artwork(type) {
         dualsense: "steam/dualsense.png",
         xbox360: "xbox-360-xcf-ui.svg",
         xboxone: "steam/xbox-one.png",
-        xboxseries: "steam/xbox-one.png",
+        xboxseries: "xbox-series-front.svg",
         joyconl: "steam/joycon-l.png",
         joyconr: "steam/joycon-r.png",
         joyconpair: "steam/joycon-pair.png"
@@ -48,7 +48,7 @@ function faceOverlays(type) {
     var positions = {
         pro: [["X",76.3,20.23],["Y",68.6,30.06],["A",84.1,30.06],["B",76.3,39.03]],
         xboxone: [["Y",76.2,18.3],["X",69,27.7],["B",82.9,27.7],["A",76.2,37.4]],
-        xboxseries: [["Y",76.2,18.3],["X",69,27.7],["B",82.9,27.7],["A",76.2,37.4]],
+        xboxseries: [["Y",76.2,27],["X",69,36.4],["B",82.9,36.4],["A",76.2,45.9]],
         joyconr: [["Y",73.5,46.5],["X",80.8,63.3],["B",66.4,63.3],["A",73.5,79.5]],
         joyconpair: [["X",83.3,19.3],["Y",75.8,26.6],["A",90.5,26.6],["B",83.3,33.7]],
         ds4: [["Triangle",81.3,18.06],["Square",74,30.32],["Circle",88.6,30.32],["Cross",81.3,42.26]],

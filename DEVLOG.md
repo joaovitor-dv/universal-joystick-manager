@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Xbox Series gets a dedicated transparent vector diagram
+
+- **What changed:** the HTML prototype and native QML panel now use a Series-specific SVG with a rounded shell, hybrid D-pad and four individually outlined shoulder/trigger controls instead of reusing the Xbox One raster. The existing colored face buttons and central Share overlay were aligned to the new geometry. View, Menu and Share icon strokes are now light enough to read in the native dark panel.
+- **Why:** the reused One silhouette and cross D-pad described the wrong controller; the black system icons disappeared against the QML background.
+- **Evidence:** 115/115 HTML checks and 13/13 offscreen QML tests passed on synthetic data. The SVG was rasterized locally at 1400 px and the QML Series panel was captured and visually inspected. The corner remains transparent, and the HTML does not recolor the SVG or add duplicate shoulder art.
+- **Open questions:** João has not yet approved the new Series geometry in the interactive prototype; a physical Series controller and real input telemetry were not tested. Claude's adversarial review is still required before integration.
+
 ### Native controller details show current LED modes
 
 - **What changed:** the selected controller's QML details now show HOME LED on/off when the service reports it, plus a badge when player LEDs use a manual pattern. Unknown and unsupported HOME states add no badge. The panel still has no LED-writing action.
