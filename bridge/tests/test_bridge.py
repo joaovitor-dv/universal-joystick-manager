@@ -57,11 +57,15 @@ def pump(cond, timeout=5.0):
 class Env:
     """Runtime dir, state dir, fake BlueZ and the bridge process for one group of tests."""
 
-    def __init__(self, auth="allow", idle_exit="0", service=True, ack_timeout="5"):
+    def __init__(self, auth="allow", idle_exit="0", service=True, ack_timeout="5", aliases_file=None):
         self.tmp = tempfile.TemporaryDirectory()
         t = self.tmp.name
         self.runtime, self.data, self.log = os.path.join(t, "run"), os.path.join(t, "data"), os.path.join(t, "bluez.log")
         os.makedirs(self.runtime)
+        if aliases_file is not None:  # pre-seed what an older bridge left behind
+            os.makedirs(self.data)
+            with open(os.path.join(self.data, "aliases.json"), "w", encoding="utf-8") as fh:
+                fh.write(aliases_file)
         env = dict(os.environ, JOYMANAGER_RUNTIME_DIR=self.runtime, UJM_BRIDGE_STATE_DIR=self.data, UJM_BUS="session",
                    UJM_TEST_AUTH=auth, UJM_BRIDGE_IDLE_EXIT=idle_exit, UJM_ACK_TIMEOUT=ack_timeout, FAKE_BLUEZ_LOG=self.log)
         self.service = None
@@ -198,6 +202,24 @@ class AllowedTests(unittest.TestCase):
         self.assertEqual(len(self.env.call("GetController", (PRO,), "(s)")[0]["alias"]), 40)
         self.env.call("SetControllerAlias", (PRO, ""), "(ss)")
         self.assertNotIn("alias", self.env.call("GetController", (PRO,), "(s)")[0])
+
+    def test_an_alias_follows_the_unit_when_only_the_case_of_its_address_changes(self):
+        """Review finding (Codex): the alias was keyed by the literal spelling of the id."""
+        for first, second in ((PRO, PRO.lower()), (PRO.lower(), PRO)):
+            spelled = json.loads(json.dumps(STATE))
+            spelled["controllers"][0]["id"] = first
+            self.env.write_state(spelled)
+            self.assertTrue(pump(lambda: self.env.call("ListControllers")[0][0]["id"] == first))
+            self.env.call("SetControllerAlias", (first, "Sala"), "(ss)")
+            again = json.loads(json.dumps(STATE))
+            again["controllers"][0]["id"] = second          # the same unit, spelled the other way
+            self.env.write_state(again)
+            self.assertTrue(pump(lambda: self.env.call("ListControllers")[0][0]["id"] == second))
+            self.assertEqual(self.env.call("GetController", (second,), "(s)")[0].get("alias"), "Sala", (first, second))
+            saved = json.load(open(os.path.join(self.env.data, "aliases.json"), encoding="utf-8"))["aliases"]
+            self.assertEqual(list(saved), [PRO], "one canonical key, upper case")
+            self.env.call("SetControllerAlias", (second, ""), "(ss)")        # cleared through the other spelling
+            self.assertNotIn("alias", self.env.call("GetController", (second,), "(s)")[0])
 
     def test_alias_refused_without_a_stable_address_or_for_unknown_ids(self):
         self.raises("InvalidArgs", self.env.call, "SetControllerAlias", ("joycond:event5", "pair"), "(ss)")
@@ -417,6 +439,18 @@ class ServiceProblemTests(unittest.TestCase):
         name, message = self.call_error(env)
         self.assertEqual(name, "org.ujm.Manager1.Error.ServiceUnavailable")
         self.assertIn("not reading", message)
+
+
+class OlderAliasFileTests(unittest.TestCase):
+    def test_a_lower_case_key_written_by_an_older_bridge_is_still_found(self):
+        env = Env("allow", aliases_file=json.dumps({"format": "ujm-aliases", "version": 1, "aliases": {PRO.lower(): "Antigo"}}))
+        self.addCleanup(env.close)
+        env.write_state(STATE)
+        self.assertTrue(pump(lambda: len(env.call("ListControllers")[0]) == 3))
+        self.assertEqual(env.call("GetController", (PRO,), "(s)")[0].get("alias"), "Antigo")
+        env.call("SetControllerAlias", (PRO, "Novo"), "(ss)")      # rewriting migrates the key
+        saved = json.load(open(os.path.join(env.data, "aliases.json"), encoding="utf-8"))["aliases"]
+        self.assertEqual(saved, {PRO: "Novo"})
 
 
 class LifetimeTests(unittest.TestCase):
