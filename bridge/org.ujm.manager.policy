@@ -25,6 +25,16 @@
     </defaults>
   </action>
 
+  <action id="org.ujm.manager.leds">
+    <description>Set the player or HOME LEDs of a game controller</description>
+    <message>Authentication is required to change the LEDs of a game controller</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+
   <action id="org.ujm.manager.configure">
     <description>Change the UJM service settings</description>
     <message>Authentication is required to change the UJM service settings</message>

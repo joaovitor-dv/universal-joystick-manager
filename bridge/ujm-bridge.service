@@ -11,6 +11,8 @@ BusName=org.ujm.Manager1
 ExecStart=/usr/local/libexec/ujm-bridge
 StateDirectory=ujm
 StateDirectoryMode=0755
+# The command channel: write into the service's FIFO and remove the answer files it leaves.
+ReadWritePaths=-/run/joystickmanager
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

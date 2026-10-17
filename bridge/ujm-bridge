@@ -8,10 +8,13 @@ BlueZ (scan, pair, connect, disconnect) on behalf of the interface, with polkit 
 It is activated by the bus on first use and exits when no client that called it is left, so it
 costs nothing while the interface is closed. See docs/bridge.md.
 """
+import errno
 import json
 import os
 import re
 import sys
+import time
+import uuid
 
 import gi
 
@@ -27,6 +30,7 @@ MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 ALIAS_MAX = 40
 IDLE_EXIT_SECONDS = int(os.environ.get("UJM_BRIDGE_IDLE_EXIT", "30"))
 SCAN_MAX = 60
+ACK_TIMEOUT = float(os.environ.get("UJM_ACK_TIMEOUT", "5"))
 
 XML = """
 <node>
@@ -56,6 +60,7 @@ XML = """
 ACTION_ALIAS = "org.ujm.manager.set-alias"
 ACTION_BLUETOOTH = "org.ujm.manager.bluetooth"
 ACTION_CONFIGURE = "org.ujm.manager.configure"
+ACTION_LEDS = "org.ujm.manager.leds"
 
 
 class DBusError(Exception):
@@ -124,9 +129,11 @@ class Store:
                 "player_led_mask": c.get("player_led_mask") if isinstance(c.get("player_led_mask"), int) else 0,
                 "connected": True,
             }
-            for key in ("family", "hid", "event"):
+            for key in ("family", "hid", "event", "home_led"):
                 if c.get(key):
                     d[key] = c[key]
+            if isinstance(c.get("player_led_manual"), bool):
+                d["player_led_manual"] = c["player_led_manual"]
             if MAC_RE.match(d["id"]):
                 d["address"] = d["id"]
             alias = self.aliases.get(d["id"])
@@ -217,6 +224,62 @@ class Authorizer:
                        "org.freedesktop.PolicyKit1.Authority", "CheckAuthorization", params,
                        GLib.VariantType("((bba{ss}))"), Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION,
                        120000, None, done)
+
+
+class ServiceChannel:
+    """Requests to the shell service over its command channel (docs/command-channel.md).
+
+    One line goes into a FIFO that only root can open; the service answers with a small file in
+    its ack directory, which is polled for a few seconds without blocking the bus."""
+
+    def __init__(self):
+        self.timeout = ACK_TIMEOUT
+
+    def send(self, command, args, ok, fail):
+        for a in [command, *map(str, args)]:
+            if not a or any(ch in a for ch in "\t\n\r\x00"):
+                raise err_invalid("a request argument is empty or has a control character")
+        reqid = uuid.uuid4().hex[:24]
+        line = "\t".join(["REQ", reqid, command, *map(str, args)]) + "\n"
+        try:
+            fd = os.open(os.path.join(runtime_dir(), "command.fifo"), os.O_WRONLY | os.O_NONBLOCK)
+        except FileNotFoundError:
+            raise DBusError("org.ujm.Manager1.Error.ServiceUnavailable",
+                            "the UJM service has no command channel: it is not running, or it is an older version")
+        except OSError as e:
+            if e.errno == errno.ENXIO:
+                raise DBusError("org.ujm.Manager1.Error.ServiceUnavailable",
+                                "the UJM service is not reading its command channel (is joystickmanager.service running?)")
+            raise DBusError("org.ujm.Manager1.Error.ServiceUnavailable", f"cannot open the command channel: {e.strerror}")
+        try:
+            os.write(fd, line.encode("utf-8"))
+        except BlockingIOError:
+            raise DBusError("org.ujm.Manager1.Error.ServiceBusy", "the service command channel is full")
+        finally:
+            os.close(fd)
+        ack = os.path.join(runtime_dir(), "ack", reqid)
+        deadline = time.monotonic() + self.timeout
+
+        def poll():
+            try:
+                with open(ack, encoding="utf-8") as fh:
+                    text = fh.read()
+            except FileNotFoundError:
+                if time.monotonic() < deadline:
+                    return True
+                fail(DBusError("org.ujm.Manager1.Error.ServiceTimeout", "the service did not answer in time"))
+                return False
+            try:
+                os.unlink(ack)
+            except OSError:
+                pass
+            status, _, reason = text.rstrip("\n").partition("\t")
+            if status == "ok":
+                ok()
+            else:
+                fail(DBusError("org.ujm.Manager1.Error.Rejected", reason or "the service refused the request"))
+            return False
+        GLib.timeout_add(40, poll)
 
 
 class BlueZ:
@@ -320,6 +383,7 @@ class Bridge:
         self.store.reload_state()
         self.auth = Authorizer(conn)
         self.bluez = BlueZ(conn, self._bluez_changed)
+        self.service = ServiceChannel()
         self.clients = {}
         self.exit_timer = 0
         self._bt_pending = False
@@ -506,18 +570,28 @@ class Bridge:
         self._authorized(sender, inv, ACTION_BLUETOOTH,
                          lambda: self.bluez.pair(address, lambda: self._ret_none(inv), self._failer(inv)))
 
-    # Needs a command channel into the shell service, which does not exist yet.
-    def _not_yet(self, what):
-        raise DBusError("org.freedesktop.DBus.Error.NotSupported", f"{what} is not available yet: the service has no command channel")
+    # These go to the shell service, the only writer of LEDs and numbering (docs/command-channel.md).
+    def _to_service(self, inv, command, args):
+        return lambda: self.service.send(command, args, lambda: self._ret_none(inv), self._failer(inv))
 
     def do_SetIdleTimeout(self, sender, inv, seconds):
-        self._not_yet("changing the idle timeout")
+        if not (seconds == 0 or 60 <= seconds <= 86400):
+            raise err_invalid("seconds must be 0 (never power off) or between 60 and 86400")
+        self._authorized(sender, inv, ACTION_CONFIGURE, self._to_service(inv, "idle_timeout", [seconds]))
 
     def do_SetPlayerLeds(self, sender, inv, cid, mask):
-        self._not_yet("setting the player LEDs")
+        c = self.store.controller(cid)
+        if not (mask <= 15 or mask == 255):
+            raise err_invalid("mask must be 0-15 (bit 0 = LED 1), or 255 to go back to the automatic pattern")
+        if c["transport"] == "virtual":
+            raise err_invalid("the combined Joy-Con pair has no player LEDs of its own")
+        self._authorized(sender, inv, ACTION_LEDS, self._to_service(inv, "player_leds", [cid, mask]))
 
     def do_SetHomeLed(self, sender, inv, cid, enabled):
-        self._not_yet("setting the HOME LED")
+        c = self.store.controller(cid)
+        if c.get("home_led") == "unsupported":
+            raise err_invalid("this controller has no HOME LED")
+        self._authorized(sender, inv, ACTION_LEDS, self._to_service(inv, "home_led", [cid, "on" if enabled else "off"]))
 
 
 def main():

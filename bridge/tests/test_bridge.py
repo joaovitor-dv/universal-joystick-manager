@@ -23,6 +23,7 @@ from gi.repository import Gio, GLib  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 BRIDGE = os.path.join(HERE, "..", "ujm-bridge")
 FAKE = os.path.join(HERE, "fake_bluez.py")
+FAKE_SERVICE = os.path.join(HERE, "fake_service.py")
 NAME, PATH, IFACE = "org.ujm.Manager1", "/org/ujm/Manager1", "org.ujm.Manager1"
 
 PRO = "20:1C:3A:00:00:01"
@@ -31,12 +32,13 @@ STATE = {
     "service": {"led_refresh": "10", "idle_timeout": 1800, "experimental": False},
     "controllers": [
         {"id": PRO, "player": 1, "name": "Pro Controller", "family": "switch-pro", "transport": "bluetooth",
-         "hid": "0005:057E:2009.0031", "event": "event30", "player_led_mask": 1,
-         "battery": {"percent": 55, "status": "Charging", "level": "normal"}},
+         "hid": "0005:057E:2009.0031", "event": "event30", "player_led_mask": 1, "player_led_manual": False,
+         "home_led": "on", "battery": {"percent": 55, "status": "Charging", "level": "normal"}},
         {"id": "joycond:event5", "player": 2, "name": "Nintendo Switch Combined Joy-Cons", "family": "joycon-combined",
          "transport": "virtual", "hid": None, "event": "event5", "player_led_mask": 3, "battery": None},
         {"id": "30:2C:3A:00:00:02", "player": 3, "name": "Pro Controller", "family": "switch-pro", "transport": "usb",
-         "hid": "0003:057E:2009.0040", "event": "event31", "player_led_mask": 4, "battery": None},
+         "hid": "0003:057E:2009.0040", "event": "event31", "player_led_mask": 4, "home_led": "unsupported",
+         "battery": None},
     ],
 }
 
@@ -55,13 +57,17 @@ def pump(cond, timeout=5.0):
 class Env:
     """Runtime dir, state dir, fake BlueZ and the bridge process for one group of tests."""
 
-    def __init__(self, auth="allow", idle_exit="0"):
+    def __init__(self, auth="allow", idle_exit="0", service=True, ack_timeout="5"):
         self.tmp = tempfile.TemporaryDirectory()
         t = self.tmp.name
         self.runtime, self.data, self.log = os.path.join(t, "run"), os.path.join(t, "data"), os.path.join(t, "bluez.log")
         os.makedirs(self.runtime)
         env = dict(os.environ, JOYMANAGER_RUNTIME_DIR=self.runtime, UJM_BRIDGE_STATE_DIR=self.data, UJM_BUS="session",
-                   UJM_TEST_AUTH=auth, UJM_BRIDGE_IDLE_EXIT=idle_exit, FAKE_BLUEZ_LOG=self.log)
+                   UJM_TEST_AUTH=auth, UJM_BRIDGE_IDLE_EXIT=idle_exit, UJM_ACK_TIMEOUT=ack_timeout, FAKE_BLUEZ_LOG=self.log)
+        self.service = None
+        if service:
+            self.service = subprocess.Popen([sys.executable, FAKE_SERVICE], env=env, stdout=subprocess.PIPE, text=True)
+            assert self.service.stdout.readline().strip() == "READY"
         self.bluez = subprocess.Popen([sys.executable, FAKE], env=env, stdout=subprocess.PIPE, text=True)
         assert self.bluez.stdout.readline().strip() == "READY"
         self.bridge = subprocess.Popen([sys.executable, BRIDGE], env=env, stdout=subprocess.PIPE, text=True)
@@ -84,6 +90,21 @@ class Env:
                                   GLib.Variant("(ss)", (IFACE, name)), None, Gio.DBusCallFlags.NONE, 5000, None)
         return res.unpack()[0]
 
+    def service_log(self):
+        try:
+            with open(os.path.join(self.runtime, "service.log"), encoding="utf-8") as fh:
+                return [line.split("\t") for line in fh.read().split("\n")[:-1]]
+        except OSError:
+            return []
+
+    def set_service_mode(self, mode):
+        path = os.path.join(self.runtime, "service.mode")
+        if mode:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(mode)
+        elif os.path.exists(path):
+            os.remove(path)
+
     def bluez_log(self):
         try:
             with open(self.log, encoding="utf-8") as fh:
@@ -92,7 +113,9 @@ class Env:
             return []
 
     def close(self):
-        for p in (self.bridge, self.bluez):
+        for p in (self.bridge, self.bluez, self.service):
+            if p is None:
+                continue
             if p.poll() is None:
                 p.terminate()
             p.wait(5)
@@ -219,10 +242,49 @@ class AllowedTests(unittest.TestCase):
         self.assertTrue(devs[PRO]["gamepad"])
         self.assertFalse(devs["11:22:33:44:55:66"]["gamepad"])
 
-    def test_actions_that_need_the_service_say_so(self):
-        self.raises("NotSupported", self.env.call, "SetIdleTimeout", (60,), "(u)")
-        self.raises("NotSupported", self.env.call, "SetPlayerLeds", (PRO, 1), "(su)")
-        self.raises("NotSupported", self.env.call, "SetHomeLed", (PRO, True), "(sb)")
+    def test_idle_timeout_goes_to_the_service(self):
+        before = len(self.env.service_log())
+        self.env.call("SetIdleTimeout", (120,), "(u)")
+        self.env.call("SetIdleTimeout", (0,), "(u)")
+        self.assertEqual(self.env.service_log()[before:], [["idle_timeout", "120"], ["idle_timeout", "0"]])
+        for bad in (1, 59, 86401, 4000000000):
+            self.raises("InvalidArgs", self.env.call, "SetIdleTimeout", (bad,), "(u)")
+        self.assertEqual(len(self.env.service_log()), before + 2)
+
+    def test_player_leds_go_to_the_service(self):
+        before = len(self.env.service_log())
+        self.env.call("SetPlayerLeds", (PRO, 12), "(su)")
+        self.env.call("SetPlayerLeds", (PRO, 255), "(su)")
+        self.assertEqual(self.env.service_log()[before:], [["player_leds", PRO, "12"], ["player_leds", PRO, "255"]])
+        self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", (PRO, 16), "(su)")
+        self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", (PRO, 254), "(su)")
+        self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", ("joycond:event5", 3), "(su)")  # the virtual pair
+        self.raises("UnknownController", self.env.call, "SetPlayerLeds", ("AA:AA:AA:AA:AA:AA", 3), "(su)")
+        self.assertEqual(len(self.env.service_log()), before + 2)
+
+    def test_home_led_goes_to_the_service(self):
+        before = len(self.env.service_log())
+        self.env.call("SetHomeLed", (PRO, False), "(sb)")
+        self.env.call("SetHomeLed", (PRO, True), "(sb)")
+        self.assertEqual(self.env.service_log()[before:], [["home_led", PRO, "off"], ["home_led", PRO, "on"]])
+        self.raises("InvalidArgs", self.env.call, "SetHomeLed", ("30:2C:3A:00:00:02", True), "(sb)")  # reported unsupported
+        self.assertEqual(len(self.env.service_log()), before + 2)
+
+    def test_the_led_state_is_published(self):
+        c = {x["id"]: x for x in self.env.call("ListControllers")[0]}
+        self.assertEqual((c[PRO]["home_led"], c[PRO]["player_led_manual"]), ("on", False))
+        self.assertEqual(c["30:2C:3A:00:00:02"]["home_led"], "unsupported")
+        self.assertNotIn("home_led", c["joycond:event5"])
+
+    def test_a_refusal_by_the_service_is_passed_on_with_its_reason(self):
+        self.env.set_service_mode("reject")
+        try:
+            with self.assertRaises(GLib.Error) as cm:
+                self.env.call("SetPlayerLeds", (PRO, 3), "(su)")
+            self.assertEqual(Gio.DBusError.get_remote_error(cm.exception), "org.ujm.Manager1.Error.Rejected")
+            self.assertIn("nope, said the service", cm.exception.message)
+        finally:
+            self.env.set_service_mode("")
 
 
 class DeniedTests(unittest.TestCase):
@@ -239,11 +301,13 @@ class DeniedTests(unittest.TestCase):
         pump(lambda: len(self.env.call("ListControllers")[0]) == 3)
         for method, args, sig in (("SetControllerAlias", (PRO, "x"), "(ss)"), ("ConnectBluetooth", (PRO,), "(s)"),
                                   ("DisconnectBluetooth", (PRO,), "(s)"), ("PairBluetooth", (PRO,), "(s)"),
-                                  ("ScanBluetooth", (5,), "(u)")):
+                                  ("ScanBluetooth", (5,), "(u)"), ("SetIdleTimeout", (120,), "(u)"),
+                                  ("SetPlayerLeds", (PRO, 3), "(su)"), ("SetHomeLed", (PRO, False), "(sb)")):
             with self.assertRaises(GLib.Error) as cm:
                 self.env.call(method, args, sig)
             self.assertIn("AccessDenied", Gio.DBusError.get_remote_error(cm.exception), method)
         self.assertFalse(os.path.exists(os.path.join(self.env.data, "aliases.json")))
+        self.assertEqual(self.env.service_log(), [])
         self.assertEqual([c for c in self.env.bluez_log() if c.startswith(("Device.", "Adapter."))], [])
         self.assertEqual(len(self.env.call("ListControllers")[0]), 3)  # reads need no authorization
 
@@ -269,6 +333,13 @@ class PolkitTests(unittest.TestCase):
         self.assertEqual(asked[-2:], [f"Polkit org.ujm.manager.set-alias system-bus-name={me} flags=1",
                                       f"Polkit org.ujm.manager.bluetooth system-bus-name={me} flags=1"])
 
+    def test_service_actions_ask_for_their_own_polkit_actions(self):
+        self.env.call("SetPlayerLeds", (PRO, 3), "(su)")
+        self.env.call("SetHomeLed", (PRO, True), "(sb)")
+        self.env.call("SetIdleTimeout", (300,), "(u)")
+        asked = [c.split()[1] for c in self.env.bluez_log() if c.startswith("Polkit")]
+        self.assertEqual(asked[-3:], ["org.ujm.manager.leds", "org.ujm.manager.leds", "org.ujm.manager.configure"])
+
     def test_reads_do_not_ask_polkit(self):
         before = len([c for c in self.env.bluez_log() if c.startswith("Polkit")])
         self.env.call("ListControllers")
@@ -284,6 +355,43 @@ class PolkitTests(unittest.TestCase):
             self.assertNotIn("Device.Disconnect", self.env.bluez_log()[-3:])
         finally:
             os.remove(self.env.log + ".polkit-deny")
+
+
+class ServiceProblemTests(unittest.TestCase):
+    """The command channel when the service is silent, absent, or not reading."""
+
+    def call_error(self, env, method="SetIdleTimeout", args=(120,), sig="(u)"):
+        with self.assertRaises(GLib.Error) as cm:
+            env.call(method, args, sig)
+        return Gio.DBusError.get_remote_error(cm.exception), cm.exception.message
+
+    def test_a_silent_service_times_out(self):
+        env = Env("allow", ack_timeout="1")
+        self.addCleanup(env.close)
+        env.write_state(STATE)
+        env.set_service_mode("silent")
+        started = time.monotonic()
+        name, _ = self.call_error(env)
+        self.assertEqual(name, "org.ujm.Manager1.Error.ServiceTimeout")
+        self.assertTrue(1 <= time.monotonic() - started < 4)
+
+    def test_no_command_channel_means_service_unavailable(self):
+        env = Env("allow", service=False)
+        self.addCleanup(env.close)
+        env.write_state(STATE)
+        name, message = self.call_error(env)
+        self.assertEqual(name, "org.ujm.Manager1.Error.ServiceUnavailable")
+        self.assertIn("older version", message)
+        self.assertEqual(env.call("GetServiceStatus")[0]["idle_timeout"], 1800)  # reads keep working
+
+    def test_a_fifo_nobody_reads_means_service_unavailable(self):
+        env = Env("allow", service=False)
+        self.addCleanup(env.close)
+        env.write_state(STATE)
+        os.mkfifo(os.path.join(env.runtime, "command.fifo"), 0o600)  # the service died and left it
+        name, message = self.call_error(env)
+        self.assertEqual(name, "org.ujm.Manager1.Error.ServiceUnavailable")
+        self.assertIn("not reading", message)
 
 
 class LifetimeTests(unittest.TestCase):

@@ -43,7 +43,7 @@ step() { # description command...
 # ---- what the CI "Tests" job runs ---------------------------------------------------------
 step "unit tests (fake sysfs)" bash tests/test_slots.sh
 step "bash syntax" bash -c 'for f in joystickmanager.sh joystickmanager-doctor install.sh tests/test_slots.sh tools/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || { echo "syntax error in $f"; exit 1; }; done'
-step "python compiles" bash -c 'python3 -m py_compile switchpro-leds.py bridge/ujm-bridge bridge/tests/test_bridge.py bridge/tests/fake_bluez.py gui/ujm_gui.py gui/tests/test_gui.py; r=$?; find . -name __pycache__ -not -path "./ui/*" -prune -exec rm -rf {} + 2>/dev/null; exit $r'
+step "python compiles" bash -c 'python3 -m py_compile switchpro-leds.py bridge/ujm-bridge bridge/tests/test_bridge.py bridge/tests/fake_bluez.py bridge/tests/fake_service.py gui/ujm_gui.py gui/tests/test_gui.py; r=$?; find . -name __pycache__ -not -path "./ui/*" -prune -exec rm -rf {} + 2>/dev/null; exit $r'
 step "report script masks Bluetooth addresses" tools/collect-report.sh --self-test
 step "profile table has 7 fields per row" awk -F'\t' '!/^#/ && NF != 7 { printf "line %d has %d fields, expected 7\n", NR, NF; bad=1 } END { exit bad }' controllers.tsv
 if command -v udevadm >/dev/null 2>&1 && udevadm verify --help >/dev/null 2>&1; then
