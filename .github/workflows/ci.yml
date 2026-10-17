@@ -34,10 +34,8 @@ jobs:
           awk -F'\t' '!/^#/ && NF != 7 { printf "line %d has %d fields, expected 7\n", NR, NF; bad=1 } END { exit bad }' controllers.tsv
 
   ui:
-    name: Interface (headless Chrome, informational)
+    name: Interface (headless Chrome)
     runs-on: ubuntu-latest
-    # Informational until it has proven stable on the runners: the tests wait on simulated delays.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
