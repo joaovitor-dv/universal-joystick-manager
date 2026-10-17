@@ -25,7 +25,7 @@ ApplicationWindow {
         Menu {
             title: "File"
             MenuItem {
-                text: "Update UJM…"
+                text: "Open UJM releases page"
                 onTriggered: Qt.openUrlExternally("https://github.com/joaovitor-dv/universal-joystick-manager/releases")
             }
         }
@@ -70,7 +70,7 @@ ApplicationWindow {
 
         Rectangle {
             id: sidebar
-            width: Math.max(265, Math.min(340, parent.width * 0.32))
+            width: Math.max(265, Math.min(440, parent.width * 0.40))
             height: parent.height
             color: Theme.panel
             border.color: Theme.line
@@ -99,18 +99,20 @@ ApplicationWindow {
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
                 }
-                ListView {
+                GridView {
                     id: list
                     objectName: "controllerList"
                     width: parent.width
                     height: parent.height - y
+                    cellWidth: Math.floor(width / 2)
+                    cellHeight: Math.max(68, Math.min(90, height / 5))
                     clip: true
-                    spacing: 6
                     model: controllerModel
                     boundsBehavior: Flickable.StopAtBounds
                     ScrollBar.vertical: ScrollBar { }
                     delegate: ControllerCard {
-                        width: list.width - (list.ScrollBar.vertical.visible ? 12 : 0)
+                        width: list.cellWidth - 6
+                        height: list.cellHeight - 6
                         selected: win.selectedId === controllerId
                         onClicked: win.selectedId = controllerId
                         Component.onCompleted: {

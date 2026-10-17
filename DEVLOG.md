@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Native QML roster uses the ten-slot grid
+
+- **What changed:** the connected-controller roster now uses two columns and up to five rows, with names allowed to wrap in compact cards. The File action is labeled "Open UJM releases page" to match its actual behavior.
+- **Why:** carry the approved ten-player roster layout into the native interface without implying that the releases link installs an update.
+- **Evidence:** all 14 file-backed/no-service QML tests passed; the two D-Bus integration tests were skipped because this session cannot open a private bus. A rendered synthetic ten-controller state showed the two-column/five-row layout and masks 14 and 15 for players 9 and 10. No hardware was tested.
+- **Open questions:** the service still caps real player assignment at eight, and persistent QML alias editing still needs a backend action. The HTML browser suite could not be run locally because Chromium did not open a DevTools port.
+
 ### Fix PlayStation face-overlay mapping and preserve controller selection
 
 - **What changed:** map the PlayStation Cross overlay to the actual `ps_wire_button_x.svg` asset; keep the selected controller across roster resets when it remains connected, and clear selection when it disconnects without auto-selecting a different controller.

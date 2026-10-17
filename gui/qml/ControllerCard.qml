@@ -48,13 +48,18 @@ Rectangle {
         Text { anchors.centerIn: parent; text: card.player > 0 ? card.player : "–"; color: Theme.accent; font.pixelSize: 18; font.bold: true }
     }
     Column {
-        anchors { left: playerBadge.right; leftMargin: 10; right: parent.right; rightMargin: 10; top: parent.top; topMargin: 10 }
-        spacing: 2
-        Text { width: parent.width; text: card.displayName; color: Theme.text; font.pixelSize: 14; font.bold: true; elide: Text.ElideRight }
+        anchors { left: playerBadge.right; leftMargin: 10; right: parent.right; rightMargin: 10; top: parent.top; topMargin: 8 }
+        spacing: 1
+        Text {
+            width: parent.width
+            text: card.displayName
+            color: Theme.text; font.pixelSize: 13; font.bold: true
+            wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
+        }
         Text {
             width: parent.width
             text: card.alias.length > 0 ? card.name + " · " + card.subtitle : card.subtitle
-            color: Theme.muted; font.pixelSize: 12; elide: Text.ElideRight
+            color: Theme.muted; font.pixelSize: 11; elide: Text.ElideRight
         }
     }
     Text {
