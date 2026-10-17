@@ -53,7 +53,7 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
 | `player_led_mask` | integer | The 4-bit player LED pattern the service applies (bit 0 = LED 1); mirrored for the right Joy-Con. |
 | `player_leds` | boolean | The controller has player-number LEDs the service can drive. `false` for the Xbox One and Series controllers (a HOME light only) and for the DualShock 4 and DualSense (an RGB light only); the interface should not draw numbering for them. Absent in older services: treat as `true`. |
 | `player_led_manual` | boolean | `true` when the player LEDs were set by hand through the [command channel](command-channel.md) (then `player_led_mask` is that pattern and the service does not refresh or blink them). |
-| `home_led` | string | `on` or `off` (what the service applies to the HOME LED) or `unsupported` when the controller has none **that the service can drive**. |
+| `home_led` | string | `on` or `off` (what the service last asked of the HOME LED) or `unsupported` when the controller has none **that the service can drive**. The controller itself lights it for only about 15 s per command, so `on` does not mean it is lit now. |
 | `battery` | object or null | `percent` (integer or null: a Pro Controller on a cable reports its status but no percentage), `status` (`Charging`, `Discharging`, `Full`, ...) and `level` (`normal`, `low`, `critical`). `null` when the driver exposes no battery. The joycond virtual pair has none: its Joy-Cons report their own. |
 
 ## What each controller has

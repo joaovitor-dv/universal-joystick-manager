@@ -549,7 +549,7 @@ t_player_leds_capability_follows_the_leds_the_controller_has() {
 }
 
 t_nintendo_leds_wait_until_the_controller_has_settled() {
-    cmd_setup; led_settle=6; led_refresh=off; home_refresh=0   # the HOME LED cadence has its own test
+    cmd_setup; led_settle=6; led_refresh=off
     local pre="0005:057E:2009.$A"; led_fixture "$pre" home
     connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"   # no charging blink
     check "nothing is written when a Nintendo controller registers" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
@@ -582,29 +582,21 @@ t_other_controllers_still_get_their_leds_at_once() {
     check "a DualShock 3 is written on registration, as before" "1000" "$(for n in 1 2 3 4; do printf '%s' "$(cat "$sys_leds/$pre::sony$n/brightness")"; done)"
 }
 
-t_home_led_is_re_sent_on_its_own_cadence_without_touching_the_player_leds() {
-    cmd_setup; led_refresh=off; home_refresh=10
+t_home_led_is_lit_once_per_connection_and_not_kept_alive() {
+    # The controller keeps the HOME LED lit for ~15 s per command; keeping it lit would cost commands
+    # that drop the link, so the periodic refresh must not send it again.
+    cmd_setup; led_refresh=10
     local pre="0005:057E:2009.$A"; led_fixture "$pre" home
     connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
     now_s() { printf '1000\n'; }; update_batteries_once
-    check "the first pass writes the pattern and the HOME LED" "1 0 0 0 15" "$(leds_of "$pre") $(home_of "$pre")"
-    printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"; printf '1\n' >"$sys_leds/$pre:green:player-2/brightness"   # what the controller did on its own
-    now_s() { printf '1005\n'; }; update_batteries_once
-    check "5 s later nothing is written" "1 1 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    check "the HOME LED is lit when the controller connects" 15 "$(home_of "$pre")"
+    printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"        # what the controller did on its own after ~15 s
+    printf '1\n' >"$sys_leds/$pre:green:player-2/brightness"
     now_s() { printf '1010\n'; }; update_batteries_once
-    check "10 s later only the HOME LED is sent again, the player LEDs are not touched" "1 1 0 0 15" "$(leds_of "$pre") $(home_of "$pre")"
-    req hhhhhhh10 home_led "$A" off; now_s() { printf '1020\n'; }; update_batteries_once
-    check "a HOME LED turned off by hand is not re-sent" 0 "$(home_of "$pre")"
-}
-
-t_home_refresh_zero_never_re_sends_the_home_led() {
-    cmd_setup; led_refresh=off; home_refresh=0
-    local pre="0005:057E:2009.$A"; led_fixture "$pre" home
-    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
-    now_s() { printf '1000\n'; }; update_batteries_once
-    printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"
-    now_s() { printf '1100\n'; }; update_batteries_once
-    check "with HOME_REFRESH=0 it is written once and left to go dark" 0 "$(home_of "$pre")"
+    check "a periodic refresh rewrites the player LEDs" "1 0 0 0" "$(leds_of "$pre")"
+    check "but does not send the HOME LED again" 0 "$(home_of "$pre")"
+    req hhhhhhh10 home_led "$A" on
+    check "SetHomeLed still lights it on request" 15 "$(home_of "$pre")"
 }
 
 t_udev_rule_for_pro_controller() {
@@ -700,7 +692,7 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_player_leds_capability_follows_the_leds_the_controller_has \
          t_nintendo_leds_wait_until_the_controller_has_settled t_nintendo_leds_with_a_periodic_refresh_also_wait \
          t_other_controllers_still_get_their_leds_at_once \
-         t_home_led_is_re_sent_on_its_own_cadence_without_touching_the_player_leds t_home_refresh_zero_never_re_sends_the_home_led \
+         t_home_led_is_lit_once_per_connection_and_not_kept_alive \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
