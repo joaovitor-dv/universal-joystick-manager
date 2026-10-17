@@ -160,6 +160,7 @@ then `sudo systemctl restart joystickmanager`.
 | Variable | Default | What it does |
 |---|---|---|
 | `JOYMANAGER_IDLE_TIMEOUT` | `300` | Seconds of inactivity before a Bluetooth controller is disconnected; `0` turns it off. It was 1800 during the testing phase, until the numbering, Joy-Con and battery tests passed. |
+| `JOYMANAGER_LED_SETTLE` | `6` | Seconds a Nintendo controller (Pro Controller, Joy-Con) is left alone after connecting before its LEDs are written: its firmware finishes initialising by then and overwrites anything sent earlier. `0` writes at once. |
 | `JOYMANAGER_LED_REFRESH` | `10` | Seconds between LED re-applications. `off` applies the LEDs once per connected controller and never again (experimental: under test on hardware, see the devlog). `0` re-applies on every 2 s cycle (the old behavior). Any other value falls back to `10`. Real changes, such as starting to charge, are always written at once. |
 | `JOYMANAGER_EXPERIMENTAL` | `0` | `1` enables `experimental` and `planned` controller profiles. |
 | `JOYMANAGER_PROFILES` | auto | Path to a custom profile table. If the file is missing, the service uses its built-in list of validated controllers. |
@@ -173,7 +174,7 @@ then `sudo systemctl restart joystickmanager`.
 | **My controller is not listed in `slots.tsv`** | Run `joystickmanager-doctor`. If its family is `experimental`, set `JOYMANAGER_EXPERIMENTAL=1`. If no profile matches, [open a test report](https://github.com/joaovitor-dv/universal-joystick-manager/issues/new/choose). |
 | **The controller drops Bluetooth when I plug in a cable** | Expected for data cables, see [above](#the-pro-controller-and-usb-cables). |
 | **The Pro Controller disconnects every few minutes; `journalctl -k` shows `exceeded max attempts` or `timeout waiting for input report`** | Make sure you run v0.6.1 or newer; older versions rewrote the LEDs too often. |
-| **LEDs show the wrong pattern for a few seconds** | The firmware sometimes restores its own pattern; UJM fixes it at the next refresh (10 s by default). Lower `JOYMANAGER_LED_REFRESH` if it bothers you, but very low values can overload the controller. |
+| **LEDs show the wrong pattern for a few seconds** | A Nintendo controller finishes initialising a few seconds after connecting and rewrites its own LEDs (and turns the HOME LED off), so UJM waits `JOYMANAGER_LED_SETTLE` seconds (6) before the first write; after that the firmware can still restore its pattern, and UJM fixes it at the next refresh (10 s by default; with `LED_REFRESH=off` it does not). Lower `JOYMANAGER_LED_REFRESH` if it bothers you, but very low values can overload the controller. |
 | **Player LEDs keep blinking (Joy-Cons or Pro Controllers)** | `joycond` is waiting for a logical pairing: press **L + R** (Pro Controller) or **+ and -** (combined Joy-Cons). |
 | **I need logs** | `journalctl -u joystickmanager`, `journalctl -k \| grep -i nintendo`, `journalctl -u bluetooth`. |
 

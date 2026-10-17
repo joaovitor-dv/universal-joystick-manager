@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Nintendo controllers get their LEDs once they have settled
+
+- **What changed:** for Nintendo controllers (HID vendor 057E: Pro Controller, Joy-Con) the first LED write no longer happens when the controller registers but `JOYMANAGER_LED_SETTLE` seconds later (6 by default, `0` for the old behavior). Other controllers are written at once, as before.
+- **Why:** on real hardware, with `LED_REFRESH=off`, the HOME LED went dark a few seconds after connecting while sysfs still said 15, and the second Pro Controller showed the kernel's pattern (LEDs 1 and 2) instead of ours (LED 2). `hid-nintendo` finishes initialising after the connection and rewrites the player LEDs and turns the HOME LED off ("set to 0 at probe"), so an earlier write is lost; sysfs keeps the value we wrote, not the controller's. This is also the old "brightness changes without physical effect" note. The immediate write also added five subcommands to the ones the driver sends during initialisation, which fits the `exceeded max attempts` bursts seen when two Pro Controllers connected.
+- **Evidence:** 3 new unit tests (nothing is written at registration or in the first 5 s, the pattern and the HOME LED are written after 6 s and not again with `off`, other controllers still get their LEDs at once); removing either half of the change makes them fail. **Not yet seen on a controller.**
+- **Open questions:** whether the delay removes the link drops with two or more Pro Controllers; the settle time of 6 s is a guess.
+
 ### Development tools: one check script, a hardware checklist
 
 - **What changed:** `tools/check.sh` runs what CI runs (unit tests, syntax, the udev rule, the profile table, the bridge XML and tests, ShellCheck) and, on request, the interface tests, the QML tests and the package builds (`.deb` and `.rpm` in Docker, Arch with `makepkg`). CI's Tests job now calls the same script. `tools/collect-report.sh` writes one diagnostic file with Bluetooth addresses masked; `tools/measure-service.sh` measures the running service's CPU from its cgroup. [docs/hardware-checklist.md](docs/hardware-checklist.md) turns every check that needs a real controller into one ordered session with expected results.

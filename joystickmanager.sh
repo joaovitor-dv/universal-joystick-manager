@@ -12,6 +12,12 @@ sys_power=${JOYMANAGER_SYS_POWER:-/sys/class/power_supply}
 # again); real changes are written immediately. Anything else falls back to 10.
 led_refresh=${JOYMANAGER_LED_REFRESH:-10}
 case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
+# Nintendo controllers finish their own initialisation a few seconds after connecting, and it
+# overwrites the player LEDs and turns the HOME LED off. An earlier write is lost (sysfs keeps the
+# value we wrote, the controller does not) and only adds subcommands to the ones the driver is
+# sending, so for them the first LED write waits this many seconds (0 = write at once).
+led_settle=${JOYMANAGER_LED_SETTLE:-6}
+case "$led_settle" in ''|*[!0-9]*) led_settle=6;; esac
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-300}
@@ -221,7 +227,17 @@ now_s() { printf '%(%s)T\n' -1; }
 declare -gA led_last_refresh=() led_last_battery=()
 # led_manual[ID]=mask: a pattern set by hand (SetPlayerLeds) that wins over the slot pattern.
 # home_off[PREFIX]=1: the HOME LED was turned off by hand (SetHomeLed).
-declare -gA led_manual=() home_off=()
+declare -gA led_manual=() home_off=() led_first_seen=()
+
+# nintendo_prefix PREFIX: a HID device of vendor 057E (Bluetooth 0005 or USB 0003)
+nintendo_prefix() { case "$1" in *:057E:*) return 0;; esac; return 1; }
+# led_settled PREFIX: a Nintendo controller has been connected for led_settle seconds
+led_settled() {
+    local k=$1 now
+    [ "$led_settle" -gt 0 ] || return 0
+    now=$(now_s); [ -n "${led_first_seen[$k]:-}" ] || led_first_seen[$k]=$now
+    [ $((now - led_first_seen[$k])) -ge "$led_settle" ]
+}
 led_refresh_due() {
     local k=$1 now last
     now=$(now_s); last=${led_last_refresh[$k]:--1}
@@ -303,8 +319,11 @@ register_event() {
     if [ "$prefix" != - ]; then
         reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
-        set_player_leds "$prefix" "$slot" "$id" "$reverse"
-        set_home_led "$prefix"
+        # Nintendo controllers get their LEDs from the battery loop, once they have settled
+        if [ "$led_settle" -gt 0 ] && nintendo_prefix "$prefix"; then :; else
+            set_player_leds "$prefix" "$slot" "$id" "$reverse"
+            set_home_led "$prefix"
+        fi
     else
         sync_combined_joycon_leds "$slot"
     fi
@@ -429,6 +448,8 @@ update_batteries_once() {
         battery_by_prefix[$prefix]="$cap;$status;$state"
         # A pattern set by hand (SetPlayerLeds) is left alone: no re-apply, no battery blinking.
         [ -z "${led_manual[$id]:-}" ] || continue
+        # A Nintendo controller that has only just connected is left alone until it has settled.
+        ! nintendo_prefix "$prefix" || led_settled "$prefix" || continue
         # Every led_refresh s, re-apply the player identification before the battery
         # state; this also restores the LEDs if the controller firmware has updated them.
         refresh=0

@@ -13,6 +13,7 @@ setup() {
     export JOYMANAGER_RUNTIME_DIR="$T/run" JOYMANAGER_SYS_INPUT="$T/input"
     # use the repository table, never one installed on the machine running the tests
     export JOYMANAGER_PROFILES="$here/controllers.tsv"
+    export JOYMANAGER_LED_SETTLE=0           # most tests want the LEDs written at once; the settle tests set it
     export JOYMANAGER_STATE_DIR="$T/state"   # settings saved at run time never go to the machine's /var/lib
     mkdir -p "$T/run" "$T/input" "$T/dev"
     # shellcheck source=../joystickmanager.sh
@@ -547,6 +548,40 @@ t_player_leds_capability_follows_the_leds_the_controller_has() {
     check "while its HOME LED is still reported" "['on', 'on']" "$(jget "$f" '[c["home_led"] for c in d["controllers"]]')"
 }
 
+t_nintendo_leds_wait_until_the_controller_has_settled() {
+    cmd_setup; led_settle=6; led_refresh=off
+    local pre="0005:057E:2009.$A"; led_fixture "$pre" home
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"   # no charging blink
+    check "nothing is written when a Nintendo controller registers" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    now_s() { printf '1005\n'; }; update_batteries_once
+    check "nor during its first 5 s" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    now_s() { printf '1006\n'; }; update_batteries_once
+    check "after 6 s the pattern and the HOME LED are written" "1 0 0 0 15" "$(leds_of "$pre") $(home_of "$pre")"
+    printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"
+    now_s() { printf '1030\n'; }; update_batteries_once
+    check "with LED_REFRESH=off they are written once and not again" 0 "$(home_of "$pre")"
+}
+
+t_nintendo_leds_with_a_periodic_refresh_also_wait() {
+    cmd_setup; led_settle=6; led_refresh=10
+    local pre="0005:057E:2009.$A"; led_fixture "$pre" home
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '2000\n'; }; update_batteries_once
+    check "no LED write in the first cycle" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    now_s() { printf '2007\n'; }; update_batteries_once
+    check "the first write comes after the settle time" "1 0 0 0 15" "$(leds_of "$pre") $(home_of "$pre")"
+}
+
+t_other_controllers_still_get_their_leds_at_once() {
+    cmd_setup; led_settle=6; led_refresh=off
+    local pre="0005:054C:0268.$A" d="$T/dev/0005:054C:0268.$A" n
+    for n in 1 2 3 4; do mkdir -p "$sys_leds/$pre::sony$n"; printf '0\n' >"$sys_leds/$pre::sony$n/brightness"; done
+    mkdir -p "$d" "$sys_input/event1"; printf '%s\n' "$A" >"$d/uniq"; printf 'PLAYSTATION(R)3 Controller\n' >"$d/name"; ln -sfn "$d" "$sys_input/event1/device"
+    register_event event1
+    check "a DualShock 3 is written on registration, as before" "1000" "$(for n in 1 2 3 4; do printf '%s' "$(cat "$sys_leds/$pre::sony$n/brightness")"; done)"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -638,6 +673,8 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_battery_is_found_when_the_id_is_not_above_the_battery_device t_battery_without_capacity_reports_the_status_only \
          t_scan_does_not_resolve_known_controllers_again t_scan_registers_a_registered_node_that_was_replaced \
          t_player_leds_capability_follows_the_leds_the_controller_has \
+         t_nintendo_leds_wait_until_the_controller_has_settled t_nintendo_leds_with_a_periodic_refresh_also_wait \
+         t_other_controllers_still_get_their_leds_at_once \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
