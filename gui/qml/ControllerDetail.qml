@@ -143,7 +143,7 @@ Rectangle {
                     visible: detail.visualType === "xboxseries" && art.status === Image.Ready
                     width: 28; height: 20; radius: 3
                     x: art.x + (art.width - art.paintedWidth) / 2 + art.paintedWidth * 0.5 - width / 2
-                    y: art.y + (art.height - art.paintedHeight) / 2 + art.paintedHeight * (309 / 703) - height / 2
+                    y: art.y + (art.height - art.paintedHeight) / 2 + art.paintedHeight * (255 / 703) - height / 2
                     color: "transparent"
                     border.color: "#e7f0f7"
                     border.width: 2

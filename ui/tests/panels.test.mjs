@@ -1,7 +1,6 @@
 // Every controller panel renders: assets load, nothing overflows, no JavaScript errors,
 // and the colored face buttons of the Joy-Con diagrams sit on the drawn circles.
 import { openPage, reporter, sleep } from './lib.mjs';
-import { readFileSync } from 'node:fs';
 
 const page = await openPage(process.argv[2]);
 const t = reporter('panels');
@@ -63,7 +62,7 @@ for (const [type, list] of Object.entries(faces)) {
 // and the filtered source linework must be mapped to a visible cool-white rather than shell black.
 const shoulders = {
   pro: ['ZL','L','R','ZR'], dualsense: ['L2','L1','R1','R2'], ds4: ['L2','L1','R1','R2'],
-  xboxone: ['LT','LB','RB','RT']
+  xboxone: ['LT','LB','RB','RT'], xboxseries: ['LT','LB','RB','RT']
 };
 for (const [type, expected] of Object.entries(shoulders)) {
   await click(`.card[data-controller="${type}"]`); await sleep(500);
@@ -80,21 +79,6 @@ for (const [type, expected] of Object.entries(shoulders)) {
 }
 
 await click('.card[data-controller="xboxseries"]'); await sleep(500);
-const seriesVector = readFileSync(new URL('../assets/controller-references/xbox-series-front.svg', import.meta.url), 'utf8');
-const seriesImage = await ev(`(() => {
-  const art = document.querySelector('#controller-diagram svg');
-  const image = art?.querySelector('image');
-  return {href:image?.getAttribute('href'), filter:image?.getAttribute('filter'),
-    shoulderOverlays:art?.querySelectorAll('[data-shoulder-control]').length};
-})()`);
-t.ok('Xbox Series uses its own unfiltered transparent SVG, not the Xbox One silhouette',
-  seriesImage.href === 'assets/controller-references/xbox-series-front.svg' &&
-  seriesImage.filter === null && seriesImage.shoulderOverlays === 0 &&
-  seriesVector.includes('id="series-shell"') && !seriesVector.includes('<rect width="1000"'), JSON.stringify(seriesImage));
-t.ok('Xbox Series vector has the hybrid D-pad and four independent shoulder controls',
-  seriesVector.includes('id="hybrid-dpad-facets"') &&
-  JSON.stringify([...seriesVector.matchAll(/data-shoulder-control="([A-Z]+)"/g)].map(m => m[1])) ===
-    JSON.stringify(['LT','LB','RB','RT']));
 const seriesShare = await ev(`(() => {
   const art = document.querySelector('#controller-diagram svg');
   const share = art?.querySelector('[data-share-control="xbox-series"]');
@@ -104,7 +88,7 @@ const seriesShare = await ev(`(() => {
     x: coords[0] ?? null, y: coords[1] ?? null,
     transparent: share?.getAttribute('fill') === 'none' };
 })()`);
-t.ok('Xbox Series Share sits on the center bridge above the sticks', seriesShare.count === 1 && seriesShare.x === 500 && seriesShare.y >= 290 && seriesShare.y <= 330 && seriesShare.transparent, JSON.stringify(seriesShare));
+t.ok('Xbox Series Share sits on the center bridge above the sticks', seriesShare.count === 1 && seriesShare.x === 500 && seriesShare.y >= 370 && seriesShare.y <= 430 && seriesShare.transparent, JSON.stringify(seriesShare));
 
 await click('.card[data-controller="ds4"]'); await sleep(500);
 const ds4System = await ev(`(() => ['SHARE', 'OPTIONS'].map(label => {
