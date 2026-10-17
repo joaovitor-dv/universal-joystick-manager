@@ -13,6 +13,7 @@ setup() {
     export JOYMANAGER_RUNTIME_DIR="$T/run" JOYMANAGER_SYS_INPUT="$T/input"
     # use the repository table, never one installed on the machine running the tests
     export JOYMANAGER_PROFILES="$here/controllers.tsv"
+    export JOYMANAGER_STATE_DIR="$T/state"   # settings saved at run time never go to the machine's /var/lib
     mkdir -p "$T/run" "$T/input" "$T/dev"
     # shellcheck source=../joystickmanager.sh
     source "$here/joystickmanager.sh"
@@ -337,6 +338,162 @@ t_combined_pair_lights_the_right_joycon_home_led() {
     check "combined pair: the left Joy-Con gets no HOME LED file" 0 "$(find "$sys_leds" -name "*2009.$C:blue*" | wc -l)"
 }
 
+# ---- command channel -------------------------------------------------------------------------
+led_fixture() { # PREFIX [home]: fake player LEDs (and the HOME LED) of one controller
+    local p=$1 n d
+    for n in 1 2 3 4; do d="$sys_leds/$p:green:player-$n"; mkdir -p "$d"; printf '0\n' >"$d/brightness"; done
+    if [ "${2:-}" = home ]; then d="$sys_leds/$p:blue:player-5"; mkdir -p "$d"; printf '0\n' >"$d/brightness"; printf '15\n' >"$d/max_brightness"; fi
+}
+leds_of() { local n out=''; for n in 1 2 3 4; do out+="$(cat "$sys_leds/$1:green:player-$n/brightness") "; done; printf '%s\n' "${out% }"; }
+home_of() { cat "$sys_leds/$1:blue:player-5/brightness"; }
+req() { handle_command "$(printf 'REQ\t%s\t%s\t%s\t%s' "$1" "$2" "${3:-}" "${4:-}")" 2>/dev/null; }   # reqid command arg1 arg2
+ack() { tr '\t' '|' <"$ack_dir/$1" 2>/dev/null; }
+cmd_setup() { sys_leds="$T/leds"; sys_power="$T/power"; mkdir -p "$sys_leds" "$sys_power"; start_idle_workers() { :; }; now_s() { printf '1000\n'; }; }
+charging_battery() { local b="$T/power/nintendo_switch_controller_battery_a"; mkdir -p "$b"; ln -sfn "$T/dev/0005:057E:2009.$1" "$b/device"; printf 'Charging\n' >"$b/status"; printf '55\n' >"$b/capacity"; }
+
+t_command_player_leds_survive_refresh_and_battery_blinking() {
+    cmd_setup; local pre="0005:057E:2009.$A"; led_fixture "$pre"
+    connect event1 "$A"; charging_battery "$A"
+    check "starts with the slot pattern (LED 1)" "1 0 0 0" "$(leds_of "$pre")"
+    req aaaaaaa01 player_leds "$A" 12
+    check "the request is acknowledged" ok "$(ack aaaaaaa01)"
+    check "the pattern is applied at once" "0 0 1 1" "$(leds_of "$pre")"
+    led_refresh=0; update_batteries_once; now_s() { printf '1001\n'; }; update_batteries_once
+    check "a refresh and the charging blink leave a manual pattern alone" "0 0 1 1" "$(leds_of "$pre")"
+    local f="$runtime_dir/state.json"
+    check "state.json shows the manual pattern" "(12, True)" "$(jget "$f" '(d["controllers"][0]["player_led_mask"], d["controllers"][0]["player_led_manual"])')"
+    req aaaaaaa02 player_leds "$A" 255
+    check "255 goes back to the automatic pattern" "1 0 0 0" "$(leds_of "$pre")"
+    update_batteries_once
+    check "state.json is automatic again" "(1, False)" "$(jget "$f" '(d["controllers"][0]["player_led_mask"], d["controllers"][0]["player_led_manual"])')"
+}
+
+t_command_player_leds_manual_pattern_is_forgotten_when_the_controller_leaves() {
+    cmd_setup; local pre="0005:057E:2009.$A"; led_fixture "$pre"
+    connect event1 "$A"; req aaaaaaa03 player_leds "$A" 5
+    disconnect event1; cleanup_missing
+    check "the manual pattern is dropped with the connection" "" "${led_manual[$A]:-}"
+    connect event1 "$A"
+    check "a reconnection gets the automatic pattern again" "1 0 0 0" "$(leds_of "$pre")"
+}
+
+t_command_player_leds_refuses_what_it_cannot_do() {
+    cmd_setup; local pre="0005:057E:2009.$A"; led_fixture "$pre"
+    connect event1 "$A"
+    connect event2 "$B"            # no LED files for this one
+    connect event3 "$C" "Nintendo Switch Combined Joy-Cons"
+    req bbbbbbb01 player_leds "$A" 16;   check "mask 16 is refused" "error|mask must be 0-15, or 255 to go back to the automatic pattern" "$(ack bbbbbbb01)"
+    req bbbbbbb02 player_leds "$A" abc;  check "a non-numeric mask is refused" "error" "$(ack bbbbbbb02 | cut -d'|' -f1)"
+    req bbbbbbb03 player_leds "$A" "-1"; check "a negative mask is refused" "error" "$(ack bbbbbbb03 | cut -d'|' -f1)"
+    req bbbbbbb04 player_leds "ZZ:ZZ" 3; check "an unknown controller is refused" "error|no connected controller with that id" "$(ack bbbbbbb04)"
+    req bbbbbbb05 player_leds "$B" 3;    check "a controller without player LEDs is refused" "error|this controller has no player LEDs the service can write" "$(ack bbbbbbb05)"
+    req bbbbbbb06 player_leds "joycond:event3" 3; check "the joycond pair is refused" "error" "$(ack bbbbbbb06 | cut -d'|' -f1)"
+    check "the LEDs were not touched by any refused request" "1 0 0 0" "$(leds_of "$pre")"
+    check "nothing is remembered from refused requests" "" "${led_manual[*]:-}"
+}
+
+t_command_ignores_malformed_requests() {
+    cmd_setup
+    req "../../etc" idle_timeout 120; req short idle_timeout 120; handle_command "garbage line" 2>/dev/null
+    handle_command "$(printf 'XXX\tccccccc01\tidle_timeout\t120')" 2>/dev/null
+    check "no answer file for a bad id, a short id or another tag" 0 "$(ls "$ack_dir" 2>/dev/null | wc -l)"
+    check "and nothing was changed" 1800 "$idle_timeout"
+    req ccccccc02 reboot now;  check "an unknown command is refused" "error|unknown command" "$(ack ccccccc02)"
+    req ccccccc03 idle_timeout "120; touch $T/pwned"; check "an argument with shell syntax is just refused" "error" "$(ack ccccccc03 | cut -d'|' -f1)"
+    check "and was not executed" no "$([ -e "$T/pwned" ] && echo yes || echo no)"
+}
+
+t_command_home_led_can_be_turned_off_and_stays_off() {
+    cmd_setup; local pre="0005:057E:2009.$A"; led_fixture "$pre" home
+    connect event1 "$A"; charging_battery "$A"
+    check "the HOME LED is on after the connection" 15 "$(home_of "$pre")"
+    req ddddddd01 home_led "$A" off; check "off is acknowledged" ok "$(ack ddddddd01)"
+    check "the HOME LED is off" 0 "$(home_of "$pre")"
+    led_refresh=0; update_batteries_once
+    check "a refresh does not turn it on again" 0 "$(home_of "$pre")"
+    check "state.json says so" off "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["home_led"]')"
+    req ddddddd02 home_led "$A" on; check "on brings it back to full" 15 "$(home_of "$pre")"
+    update_batteries_once; check "state.json says on" on "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["home_led"]')"
+}
+
+t_command_home_led_refuses_controllers_without_one() {
+    cmd_setup; led_fixture "0005:057E:2009.$A"; connect event1 "$A"; update_batteries_once
+    req eeeeeee01 home_led "$A" on;  check "no HOME LED: refused" "error|this controller has no HOME LED" "$(ack eeeeeee01)"
+    req eeeeeee02 home_led "$A" maybe; check "a value other than on/off is refused" "error|the value must be on or off" "$(ack eeeeeee02)"
+    check "state.json reports unsupported" unsupported "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["home_led"]')"
+}
+
+t_command_idle_timeout_is_validated_applied_and_kept() {
+    cmd_setup; local n=0
+    req fffffff01 idle_timeout 120; check "120 s is accepted" ok "$(ack fffffff01)"
+    check "it is applied" 120 "$idle_timeout"
+    check "it is written to the settings file" "idle_timeout=120" "$(cat "$settings_file")"
+    update_batteries_once
+    check "state.json shows the new value" 120 "$(jget "$runtime_dir/state.json" 'd["service"]["idle_timeout"]')"
+    local bad
+    for bad in 30 59 86401 99999999999999999999 abc -5 ""; do
+        req "fffffff0$((++n))" idle_timeout "$bad"
+    done
+    check "values outside 0 or 60-86400 and non-numbers are refused" 120 "$idle_timeout"
+    check "and the file is unchanged" "idle_timeout=120" "$(cat "$settings_file")"
+    idle_timeout=1800; load_settings
+    check "after a restart the saved value wins over the environment" 120 "$idle_timeout"
+    printf 'idle_timeout=5\nsomething=else\n' >"$settings_file"; idle_timeout=1800; load_settings
+    check "an invalid saved value is ignored" 1800 "$idle_timeout"
+    state_dir=/proc/nonexistent; settings_file="$state_dir/settings"; idle_timeout=1800
+    req fffffff20 idle_timeout 300
+    check "an unwritable state directory refuses the change" "error|the setting could not be saved" "$(ack fffffff20)"
+    check "and does not apply it" 1800 "$idle_timeout"
+}
+
+t_command_idle_timeout_zero_means_never_and_stops_the_workers() {
+    cmd_setup; unset -f start_idle_workers; source "$here/joystickmanager.sh"   # the real start_idle_workers
+    connect event1 "$A"
+    req ggggggg01 idle_timeout 0; check "0 is accepted" ok "$(ack ggggggg01)"
+    ls "$runtime_dir"/idle.*.pid >/dev/null 2>&1; check "no idle worker is started when the timeout is 0" 2 $?
+    check "state.json shows 0" 0 "$(update_batteries_once; jget "$runtime_dir/state.json" 'd["service"]["idle_timeout"]')"
+    ls "$runtime_dir"/idle.*.pid >/dev/null 2>&1; check "still none after a cycle" 2 $?
+}
+
+t_command_idle_timeout_stops_a_running_worker_and_its_pipeline() {
+    cmd_setup
+    bash -c 'sleep 300 & wait' & local worker=$!
+    sleep 0.3; local child; child=$(pgrep -P "$worker" | head -1)
+    printf '%s\n' "$worker" >"$runtime_dir/idle.1.pid"
+    req hhhhhhh01 idle_timeout 120
+    sleep 0.3
+    kill -0 "$worker" 2>/dev/null; check "the worker is stopped" 1 $?
+    kill -0 "$child" 2>/dev/null; check "and so is the evtest pipeline it started (not left behind)" 1 $?
+    check "its pid file is gone" no "$([ -e "$runtime_dir/idle.1.pid" ] && echo yes || echo no)"
+}
+
+t_command_channel_through_the_fifo_and_the_real_loop() {
+    local rt="$T/rt2" st="$T/state2" i ms t0 t1
+    mkdir -p "$rt" "$T/leds" "$T/power"
+    JOYMANAGER_RUNTIME_DIR=$rt JOYMANAGER_STATE_DIR=$st JOYMANAGER_SYS_INPUT="$T/input" JOYMANAGER_SYS_LEDS="$T/leds" \
+        JOYMANAGER_SYS_POWER="$T/power" JOYMANAGER_PROFILES="$here/controllers.tsv" setsid bash "$here/joystickmanager.sh" 2>/dev/null &
+    local pid=$!
+    for i in $(seq 40); do [ -p "$rt/command.fifo" ] && [ -e "$rt/state.json" ] && break; sleep 0.1; done
+    check "the service creates its FIFO, readable only by its owner" 600 "$(stat -c %a "$rt/command.fifo" 2>/dev/null)"
+    t0=$(date +%s%N)
+    printf 'REQ\tiiiiiii01\tidle_timeout\t120\t\n' >"$rt/command.fifo"
+    for i in $(seq 30); do [ -e "$rt/ack/iiiiiii01" ] && break; sleep 0.05; done
+    t1=$(date +%s%N); ms=$(( (t1 - t0) / 1000000 ))
+    check "the answer is ok" ok "$(cat "$rt/ack/iiiiiii01" 2>/dev/null)"
+    check "the answer comes at once, not at the next 2 s cycle (took ${ms} ms)" yes "$([ "$ms" -lt 1500 ] && echo yes || echo no)"
+    check "the ack directory is private" 700 "$(stat -c %a "$rt/ack" 2>/dev/null)"
+    for i in $(seq 30); do [ "$(jget "$rt/state.json" 'd["service"]["idle_timeout"]' 2>/dev/null)" = 120 ] && break; sleep 0.1; done
+    check "state.json follows in the next cycle" 120 "$(jget "$rt/state.json" 'd["service"]["idle_timeout"]')"
+    check "the setting is saved" "idle_timeout=120" "$(cat "$st/settings" 2>/dev/null)"
+    printf 'REQ\tiiiiiii02\thome_led\tnobody\ton\n' >"$rt/command.fifo"
+    for i in $(seq 30); do [ -e "$rt/ack/iiiiiii02" ] && break; sleep 0.05; done
+    check "an unknown controller is refused over the FIFO too" "error" "$(cut -f1 "$rt/ack/iiiiiii02" 2>/dev/null)"
+    kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; sleep 0.5
+    check "the FIFO is removed when the service stops" no "$([ -e "$rt/command.fifo" ] && echo yes || echo no)"
+    check "nothing it started is left running (no stray udev monitor)" 0 "$(pgrep -s "$pid" 2>/dev/null | wc -l)"
+    kill -TERM -- "-$pid" 2>/dev/null || true
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -419,7 +576,13 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_combined_pair_lights_the_right_joycon_home_led \
          t_scan_does_not_rematch_nodes_that_are_not_controllers t_scan_registers_a_controller_plugged_after_other_nodes \
          t_scan_registers_a_recreated_node t_scan_rechecks_ignored_nodes_every_so_often \
-         t_idle_cycle_does_not_spawn_per_node_processes t_udev_rule_for_pro_controller; do
+         t_idle_cycle_does_not_spawn_per_node_processes \
+         t_command_player_leds_survive_refresh_and_battery_blinking t_command_player_leds_manual_pattern_is_forgotten_when_the_controller_leaves \
+         t_command_player_leds_refuses_what_it_cannot_do t_command_ignores_malformed_requests \
+         t_command_home_led_can_be_turned_off_and_stays_off t_command_home_led_refuses_controllers_without_one \
+         t_command_idle_timeout_is_validated_applied_and_kept t_command_idle_timeout_zero_means_never_and_stops_the_workers \
+         t_command_idle_timeout_stops_a_running_worker_and_its_pipeline t_command_channel_through_the_fifo_and_the_real_loop \
+         t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s failure(s)\n' "$fails"

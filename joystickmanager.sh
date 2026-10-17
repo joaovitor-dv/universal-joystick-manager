@@ -15,6 +15,25 @@ case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
+# 0 turns the idle power-off off; anything else must be a whole number of seconds.
+case "$idle_timeout" in ''|*[!0-9]*) idle_timeout=1800;; esac
+# Settings changed at run time (command channel, docs/command-channel.md) are kept in a small file and
+# win over the unit's Environment= after a restart.
+state_dir=${JOYMANAGER_STATE_DIR:-/var/lib/joystickmanager}
+settings_file="$state_dir/settings"
+cmd_fifo="$runtime_dir/command.fifo"
+ack_dir="$runtime_dir/ack"
+cmd_fd_ok=0
+valid_idle_timeout() { [[ $1 =~ ^[0-9]+$ ]] && { [ "$1" -eq 0 ] || { [ "$1" -ge 60 ] && [ "$1" -le 86400 ]; }; }; }
+load_settings() {
+    local k v
+    [ -r "$settings_file" ] || return 0
+    while IFS='=' read -r k v; do
+        case "$k" in idle_timeout) if valid_idle_timeout "$v" 2>/dev/null; then idle_timeout=$v; fi;; esac
+    done <"$settings_file"
+    return 0
+}
+load_settings
 # "experimental" and "planned" controllers in controllers.tsv are only used with JOYMANAGER_EXPERIMENTAL=1.
 experimental=${JOYMANAGER_EXPERIMENTAL:-0}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
@@ -140,8 +159,9 @@ slot_mask() {
 }
 
 set_player_leds() {
-    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} n v mask
-    mask=$(slot_mask "$slot" "$reverse")
+    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} n v mask=''
+    [ -z "$controller_id" ] || mask=${led_manual[$controller_id]:-}
+    [ -n "$mask" ] || mask=$(slot_mask "$slot" "$reverse")
     for n in 1 2 3 4; do
         v=0
         (( mask & (1 << (n - 1)) )) && v=1
@@ -161,6 +181,7 @@ set_home_led() {
     local prefix=$1 home max
     home="$sys_leds/$prefix:blue:player-5/brightness"
     [ -e "$home" ] || return 0
+    [ -z "${home_off[$prefix]:-}" ] || return 0
     max=$(read_file "${home%/brightness}/max_brightness")
     [ -n "$max" ] || max=1
     write_led "$home" "$max"
@@ -198,6 +219,9 @@ now_s() { date +%s; }
 
 # led_refresh_due PREFIX -> success if led_refresh seconds have passed since the last re-apply.
 declare -gA led_last_refresh=() led_last_battery=()
+# led_manual[ID]=mask: a pattern set by hand (SetPlayerLeds) that wins over the slot pattern.
+# home_off[PREFIX]=1: the HOME LED was turned off by hand (SetHomeLed).
+declare -gA led_manual=() home_off=()
 led_refresh_due() {
     local k=$1 now last
     now=$(now_s); last=${led_last_refresh[$k]:--1}
@@ -284,12 +308,28 @@ register_event() {
     fi
 }
 
+# stop_idle_worker PIDFILE: the worker and the evtest pipeline it started (killing only the worker leaves them running).
+stop_idle_worker() {
+    local pid
+    [ -r "$1" ] || return 0
+    pid=$(cat "$1")
+    [[ $pid =~ ^[0-9]+$ ]] && { pkill -P "$pid" 2>/dev/null || true; kill "$pid" 2>/dev/null || true; }
+    rm -f "$1"
+}
+# Everything the main process started, for its exit trap.
+stop_children() {
+    stop_idle_workers
+    [ -z "${monitor_pid:-}" ] || { pkill -P "$monitor_pid" 2>/dev/null || true; kill "$monitor_pid" 2>/dev/null || true; }
+    return 0
+}
+stop_idle_workers() { local p; for p in "$runtime_dir"/idle.*.pid; do [ -e "$p" ] && stop_idle_worker "$p"; done; return 0; }
+
 cleanup_missing() {
     local id slot prefix event pid
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
         if [ "$event" != - ] && [ ! -e "$sys_input/$event" ]; then
-            pid="$runtime_dir/idle.$slot.pid"; [ -r "$pid" ] && kill "$(cat "$pid")" 2>/dev/null || true; rm -f "$pid"
+            stop_idle_worker "$runtime_dir/idle.$slot.pid"; unset "led_manual[$id]"
         else printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"; fi
     done <"$slots_file" >"$slots_file.tmp"
     mv "$slots_file.tmp" "$slots_file"
@@ -313,12 +353,13 @@ idle_worker() {
 
 start_idle_workers() {
     local id slot prefix event pid
+    [ "$idle_timeout" -gt 0 ] 2>/dev/null || return 0
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] && [ "$event" != - ] || continue
         # Idle power-off is a Bluetooth disconnect: only Bluetooth HID devices (bus 0005) get a worker.
         case "$prefix" in 0005:*) ;; *) continue;; esac
         pid="$runtime_dir/idle.$slot.pid"
-        if [ ! -r "$pid" ] || ! kill -0 "$(cat "$pid")" 2>/dev/null; then idle_worker "$id" "$event" & printf '%s\n' "$!" >"$pid"; fi
+        if [ ! -r "$pid" ] || ! kill -0 "$(cat "$pid")" 2>/dev/null; then idle_worker "$id" "$event" 8<&- & printf '%s\n' "$!" >"$pid"; fi
     done <"$slots_file"
 }
 
@@ -377,6 +418,8 @@ update_batteries_once() {
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
         cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
         battery_by_prefix[$prefix]="$cap"$'\t'"$status"$'\t'"$state"
+        # A pattern set by hand (SetPlayerLeds) is left alone: no re-apply, no battery blinking.
+        [ -z "${led_manual[$id]:-}" ] || continue
         # Every led_refresh s, re-apply the player identification before the battery
         # state; this also restores the LEDs if the controller firmware has updated them.
         refresh=0
@@ -404,7 +447,7 @@ json_str() {
 json_int() { if [[ $1 =~ ^[0-9]+$ ]]; then printf '%s' "$1"; else printf 'null'; fi; }
 
 write_state() {
-    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp
+    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp mask manual home
     body='"format":"ujm-state","version":1,"service":{"led_refresh":'"$(json_str "$led_refresh")"',"idle_timeout":'"$(json_int "$idle_timeout")"',"experimental":'"$([ "$experimental" = 1 ] && printf true || printf false)"'},"controllers":['
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
@@ -417,13 +460,16 @@ write_state() {
             *) transport=other;;
         esac
         reverse=0; [ "$name" = 'Joy-Con (R)' ] && reverse=1
+        mask=${led_manual[$id]:-}; manual=true; [ -n "$mask" ] || { manual=false; mask=$(slot_mask "$slot" "$reverse"); }
+        home=unsupported
+        if [ "$prefix" != - ] && [ -e "$sys_leds/$prefix:blue:player-5/brightness" ]; then home=on; [ -z "${home_off[$prefix]:-}" ] || home=off; fi
         battery=null
         if [ "$prefix" != - ] && [ -n "${battery_by_prefix[$prefix]:-}" ]; then
             IFS=$'\t' read -r cap status state <<<"${battery_by_prefix[$prefix]}"
             battery='{"percent":'"$(json_int "$cap")"',"status":'"$(json_str "$status")"',"level":'"$(json_str "$state")"'}'
         fi
         [ "$first" -eq 1 ] || body+=','; first=0
-        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$(slot_mask "$slot" "$reverse")"',"battery":'"$battery"'}'
+        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$mask"',"player_led_manual":'"$manual"',"home_led":"'"$home"'","battery":'"$battery"'}'
     done < <(sort -t $'\t' -k2,2n "$slots_file")
     body+=']'
     [ "$body" = "$state_body_last" ] && return 0
@@ -432,18 +478,119 @@ write_state() {
     printf '%s\n' "$out" >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$runtime_dir/state.json" && state_body_last=$body
 }
 
+# ---- command channel (docs/command-channel.md) --------------------------------------------
+# The bridge writes one line per request to a FIFO that only root can open:
+#   REQ <TAB> request-id <TAB> command <TAB> arg1 <TAB> arg2
+# and reads the answer from $ack_dir/request-id ("ok", or "error<TAB>reason"). The service is the
+# only writer of LEDs and numbering; every argument is checked here again, whatever the sender did.
+open_command_channel() {
+    rm -rf "$ack_dir"
+    [ -p "$cmd_fifo" ] || { rm -f "$cmd_fifo"; mkfifo -m 600 "$cmd_fifo" 2>/dev/null || return 0; }
+    { exec 8<>"$cmd_fifo"; } 2>/dev/null && cmd_fd_ok=1
+    return 0
+}
+
+write_ack() { # REQID RESULT
+    mkdir -p "$ack_dir" 2>/dev/null && chmod 700 "$ack_dir" || return 0
+    printf '%s\n' "$2" >"$ack_dir/$1.tmp" && mv -f "$ack_dir/$1.tmp" "$ack_dir/$1"
+}
+
+# controller_row ID -> c_slot, c_prefix, c_event of a connected controller; fails if there is none
+controller_row() {
+    local row
+    row=$(row_for_id "$1"); [ -n "$row" ] || return 1
+    IFS=$'\t' read -r _ c_slot c_prefix c_event <<<"$row"
+}
+
+has_player_leds() {
+    [ "$1" != - ] && { [ -e "$sys_leds/$1:green:player-1/brightness" ] || [ -e "$sys_leds/$1::sony1/brightness" ] || [ -e "$sys_leds/$1:blue:player-5/brightness" ]; }
+}
+
+cmd_player_leds() { # ID MASK (0-15, or 255 to go back to the automatic pattern)
+    local id=$1 mask=$2 reverse=0 name
+    if ! { [[ $mask =~ ^[0-9]{1,3}$ ]] && { [ "$mask" -le 15 ] || [ "$mask" -eq 255 ]; }; }; then
+        cmd_result=$'error\tmask must be 0-15, or 255 to go back to the automatic pattern'; return
+    fi
+    controller_row "$id" || { cmd_result=$'error\tno connected controller with that id'; return; }
+    has_player_leds "$c_prefix" || { cmd_result=$'error\tthis controller has no player LEDs the service can write'; return; }
+    if [ "$mask" -eq 255 ]; then
+        unset "led_manual[$id]" "led_last_refresh[$c_prefix]" "led_last_battery[$c_prefix:$c_slot]"
+    else
+        led_manual[$id]=$mask
+    fi
+    name=$(read_file "$sys_input/$c_event/device/name"); [ "$name" = 'Joy-Con (R)' ] && reverse=1
+    set_player_leds "$c_prefix" "$c_slot" "$id" "$reverse"
+    cmd_result=ok
+}
+
+cmd_home_led() { # ID on|off
+    local id=$1 on home
+    case "$2" in 1|on|true) on=1;; 0|off|false) on=0;; *) cmd_result=$'error\tthe value must be on or off'; return;; esac
+    controller_row "$id" || { cmd_result=$'error\tno connected controller with that id'; return; }
+    home="$sys_leds/$c_prefix:blue:player-5/brightness"
+    if [ "$c_prefix" = - ] || [ ! -e "$home" ]; then cmd_result=$'error\tthis controller has no HOME LED'; return; fi
+    if [ "$on" -eq 1 ]; then unset "home_off[$c_prefix]"; set_home_led "$c_prefix"
+    else home_off[$c_prefix]=1; write_led "$home" 0; fi
+    cmd_result=ok
+}
+
+cmd_idle_timeout() { # SECONDS: 0 = never, otherwise 60-86400; kept across restarts
+    local n=$1 tmp="$settings_file.tmp"
+    valid_idle_timeout "$n" 2>/dev/null || { cmd_result=$'error\tseconds must be 0 (never) or between 60 and 86400'; return; }
+    if ! { mkdir -p "$state_dir" && printf 'idle_timeout=%s\n' "$n" >"$tmp" && mv -f "$tmp" "$settings_file"; } 2>/dev/null; then
+        cmd_result=$'error\tthe setting could not be saved'; return
+    fi
+    idle_timeout=$n
+    stop_idle_workers   # they come back with the new value on the next cycle (or not at all for 0)
+    cmd_result=ok
+}
+
+handle_command() { # one line from the FIFO
+    local tag reqid cmd a1 a2
+    IFS=$'\t' read -r tag reqid cmd a1 a2 <<<"$1"
+    [ "$tag" = REQ ] || return 0
+    [[ $reqid =~ ^[A-Za-z0-9]{8,64}$ ]] || return 0
+    cmd_result=''
+    case "$cmd" in
+        idle_timeout) cmd_idle_timeout "$a1";;
+        player_leds) cmd_player_leds "$a1" "$a2";;
+        home_led) cmd_home_led "$a1" "$a2";;
+        *) cmd_result=$'error\tunknown command';;
+    esac
+    printf 'command %s: %s\n' "$cmd" "${cmd_result%%$'\t'*}" >&2
+    write_ack "$reqid" "$cmd_result"
+}
+
+# The 2 s pause of the main loop is a read on the FIFO with a timeout: a builtin, so no process is
+# started per cycle, and a command is answered at once instead of at the next cycle.
+wait_for_commands() {
+    local line rc
+    if [ "$cmd_fd_ok" -ne 1 ]; then sleep 2; return; fi
+    read -r -t 2 -u 8 line; rc=$?
+    if [ "$rc" -eq 0 ]; then
+        handle_command "$line"
+        while read -r -t 0.05 -u 8 line; do handle_command "$line"; done
+    elif [ "$rc" -le 128 ]; then
+        sleep 2   # not a timeout: the FIFO is unusable, do not spin
+    fi
+}
+
 update_batteries() {
     local tick=0
     while :; do
         (( tick++ % 10 == 0 )) && ensure_connectable
         update_batteries_once
-        sleep 2
+        wait_for_commands
     done
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-    trap 'for p in "$runtime_dir"/idle.*.pid; do [ -r "$p" ] && kill "$(cat "$p")" 2>/dev/null || true; done; exit 0' INT TERM EXIT
+    # Stop everything this process started: under systemd the cgroup does it, but a manual run
+    # (or a test) used to leave the udev monitor behind.
+    trap 'stop_children; rm -f "$cmd_fifo"; rm -rf "$ack_dir"; exit 0' INT TERM EXIT
+    open_command_channel
     scan_existing
-    monitor_udev &
+    monitor_udev 8<&- &
+    monitor_pid=$!
     update_batteries
 fi
