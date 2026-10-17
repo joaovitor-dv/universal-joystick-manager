@@ -27,7 +27,7 @@ jobs:
         with:
           ref: ${{ env.TAG }}
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends debhelper dpkg-dev rpm
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential debhelper dpkg-dev rpm
       - name: Build the .deb
         run: |
           mkdir -p dist
