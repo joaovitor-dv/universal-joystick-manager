@@ -25,6 +25,7 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
       "hid": "0005:057E:2009.0031",
       "event": "event30",
       "player_led_mask": 1,
+      "player_leds": true,
       "player_led_manual": false,
       "home_led": "on",
       "battery": { "percent": 55, "status": "Charging", "level": "normal" }
@@ -50,9 +51,25 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
 | `hid` | string or null | HID device (`bus:vendor:product.instance`); a new connection gets a new one. |
 | `event` | string | Input event node, `/dev/input/<event>`. |
 | `player_led_mask` | integer | The 4-bit player LED pattern the service applies (bit 0 = LED 1); mirrored for the right Joy-Con. |
+| `player_leds` | boolean | The controller has player-number LEDs the service can drive. `false` for the Xbox One and Series controllers (a HOME light only) and for the DualShock 4 and DualSense (an RGB light only); the interface should not draw numbering for them. Absent in older services: treat as `true`. |
 | `player_led_manual` | boolean | `true` when the player LEDs were set by hand through the [command channel](command-channel.md) (then `player_led_mask` is that pattern and the service does not refresh or blink them). |
-| `home_led` | string | `on` or `off` (what the service applies to the HOME LED) or `unsupported` when the controller has none. |
+| `home_led` | string | `on` or `off` (what the service applies to the HOME LED) or `unsupported` when the controller has none **that the service can drive**. |
 | `battery` | object or null | `percent` (integer or null: a Pro Controller on a cable reports its status but no percentage), `status` (`Charging`, `Discharging`, `Full`, ...) and `level` (`normal`, `low`, `critical`). `null` when the driver exposes no battery. The joycond virtual pair has none: its Joy-Cons report their own. |
+
+## What each controller has
+
+Hardware facts reported by the maintainer; whether the kernel exposes a light as something the service can drive is what `player_leds` and `home_led` report.
+
+| Controller | Player-number LEDs | HOME LED | Other light |
+|---|---|---|---|
+| Pro Controller | yes | yes | |
+| Joy-Con R, and the `joycond` pair | yes | yes (the right one) | |
+| Joy-Con L | yes | no | |
+| DualShock 3 | yes | no | |
+| Xbox One, Xbox Series X/S | **no** | yes (its only light) | |
+| DualShock 4, DualSense | **no** | no | RGB light bar, not driven by UJM |
+
+Numbering still exists in software for all of them (the `player` field); it just has no LED to show it on.
 
 ## Reading it
 

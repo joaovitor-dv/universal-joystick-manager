@@ -121,7 +121,7 @@ Then the interface and Bluetooth actions:
 ```bash
 python3 gui/ujm_gui.py            # the pill at the top must say "D-Bus bridge", not "state.json, read-only"
 busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 DisconnectBluetooth s "<id>"
-busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ConnectBluetooth s "<id>"
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ConnectBluetooth s "<its Bluetooth address>"   # the id is gone once it drops; some controllers (DualShock 3) only reconnect from their own button
 busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ScanBluetooth u 15
 ```
 
