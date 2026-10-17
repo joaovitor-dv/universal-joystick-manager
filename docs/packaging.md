@@ -12,8 +12,8 @@ UJM has two very different parts, and they need different formats:
 | Source tarball + `install.sh` | service | `git archive`, attached to each release | works on any systemd distribution |
 | Arch Linux `.pkg.tar.zst` | service | `packaging/arch/PKGBUILD` (builds from the checkout: run `makepkg` in that folder) | builds; checked with `namcap` |
 | **AUR** | service | `packaging/aur/PKGBUILD` + `.SRCINFO`, from the release tarball; `packaging/aur/update.sh <version>` points it at a new release | recipe builds from the v0.8.0 tarball; **not published** (needs the maintainer's AUR account). Publish from the first release after v0.8.0, which carries the LED-helper path fix |
-| Debian/Ubuntu `.deb` | service | `packaging/debian/` (copied to `debian/` for `dpkg-buildpackage`) | CI job added to build and check it; **first run pending** (cannot be built on the maintainers' machine) |
-| Fedora `.rpm` | service | `packaging/fedora/universal-joystick-manager.spec` | CI job added to build and check it; **first run pending** |
+| Debian/Ubuntu `.deb` | service | `packaging/debian/` (copied to `debian/` for `dpkg-buildpackage`) | built and checked in CI on every push (files in place, `ExecStart` in `/usr/bin`); not yet installed on a real Debian/Ubuntu system |
+| Fedora `.rpm` | service | `packaging/fedora/universal-joystick-manager.spec` | built and checked in CI on every push; not yet installed on a real Fedora system |
 | Flatpak | interface | not yet | planned for the GUI app; a Flatpak cannot install a system service or udev rules, so it will talk to the service over D-Bus |
 | AppImage | interface | not yet | same as Flatpak: GUI only |
 
