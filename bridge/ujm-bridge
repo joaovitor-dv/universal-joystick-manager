@@ -330,6 +330,9 @@ class BlueZ:
     def _map(e):
         name = GLib.dbus_error_get_remote_error(e) if hasattr(GLib, "dbus_error_get_remote_error") else ""
         name = Gio.DBusError.get_remote_error(e) or name or "org.ujm.Manager1.Error.Bluetooth"
+        if name in ("org.freedesktop.DBus.Error.UnknownObject", "org.freedesktop.DBus.Error.UnknownMethod"):
+            # BlueZ has no object for that address, which D-Bus words as a missing method
+            return DBusError("org.ujm.Manager1.Error.UnknownDevice", "BlueZ does not know this device: pair it first")
         return DBusError(name, e.message)
 
     def pair(self, address, ok, fail):

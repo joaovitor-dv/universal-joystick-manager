@@ -236,7 +236,10 @@ class AllowedTests(unittest.TestCase):
         calls = [c for c in self.env.bluez_log()[before:] if c.startswith("Device.")]
         self.assertEqual(calls, ["Device.Pair", "Device.Set Trusted=True", "Device.Connect"])
         self.raises("InvalidArgs", self.env.call, "PairBluetooth", ("not-an-address",), "(s)")
-        self.raises("Unknown", self.env.call, "PairBluetooth", ("AA:BB:CC:DD:EE:FF",), "(s)")  # BlueZ has no such device
+        with self.assertRaises(GLib.Error) as cm:  # BlueZ has no such device: say so, not "method doesn't exist"
+            self.env.call("PairBluetooth", ("AA:BB:CC:DD:EE:FF",), "(s)")
+        self.assertEqual(Gio.DBusError.get_remote_error(cm.exception), "org.ujm.Manager1.Error.UnknownDevice")
+        self.assertIn("pair it first", cm.exception.message)
 
     def test_scan_starts_and_stops_by_itself(self):
         before = len(self.env.bluez_log())

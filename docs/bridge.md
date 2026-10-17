@@ -60,7 +60,7 @@ Signals: `ControllersChanged`, `BluetoothDevicesChanged` (both without payload: 
 
 A controller (`a{sv}`) has: `id`, `name`, `transport` (`bluetooth`, `usb`, `virtual`, `other`), `player`, `player_led_mask`, `connected`, and when known `family`, `hid`, `event`, `address`, `alias`, `battery_percent`, `battery_status`, `battery_level`, `home_led` (`on`, `off`, `unsupported`), `player_leds` (it has player-number LEDs) and `player_led_manual` (the player LEDs were set by hand). The field meanings are the ones in [state.md](state.md).
 
-Errors are standard D-Bus errors: `InvalidArgs` (for example an alias for an id without an address, connecting a USB controller), `AccessDenied` (polkit said no), `org.ujm.Manager1.Error.UnknownController`, `NoAdapter`/`NoBluetooth`, BlueZ's own errors passed through (`org.bluez.Error.Failed`...), and for the three service actions `ServiceUnavailable` (the service is not running, or is an older version without the command channel), `Rejected` (the service refused, with its reason) and `ServiceTimeout`.
+Errors are standard D-Bus errors: `InvalidArgs` (for example an alias for an id without an address, connecting a USB controller), `AccessDenied` (polkit said no), `org.ujm.Manager1.Error.UnknownController`, `UnknownDevice` (BlueZ has no such address: pair it first), `NoAdapter`/`NoBluetooth`, BlueZ's own errors passed through (`org.bluez.Error.Failed`...), and for the three service actions `ServiceUnavailable` (the service is not running, or is an older version without the command channel), `Rejected` (the service refused, with its reason) and `ServiceTimeout`.
 
 ## Authorization
 
