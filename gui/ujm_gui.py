@@ -42,9 +42,11 @@ def controllers_from_state(state):
         d = {"id": c.get("id", ""), "name": c.get("name") or "", "transport": c.get("transport") or "other",
              "player": c.get("player") if isinstance(c.get("player"), int) else 0,
              "player_led_mask": c.get("player_led_mask") if isinstance(c.get("player_led_mask"), int) else 0}
-        for key in ("family", "hid", "event"):
+        for key in ("family", "hid", "event", "home_led"):
             if c.get(key):
                 d[key] = c[key]
+        if isinstance(c.get("player_led_manual"), bool):
+            d["player_led_manual"] = c["player_led_manual"]
         if MAC_RE.match(d["id"]):
             d["address"] = d["id"]
         b = c.get("battery")
@@ -71,7 +73,8 @@ def read_state_file(path):
 
 class ControllerModel(QAbstractListModel):
     ROLES = ["controllerId", "name", "alias", "displayName", "vendor", "transportText", "transport", "player",
-             "address", "hasBattery", "batteryPercent", "batteryStatus", "batteryLevel", "ledMask", "family"]
+             "address", "hasBattery", "batteryPercent", "batteryStatus", "batteryLevel", "ledMask", "family",
+             "homeLed", "ledManual"]
     countChanged = Signal()
 
     def __init__(self):
@@ -120,6 +123,10 @@ class ControllerModel(QAbstractListModel):
             return c["player_led_mask"]
         if key == "family":
             return c.get("family", "")
+        if key == "homeLed":  # "on", "off" or "unsupported" ("" when the service is older and does not say)
+            return c.get("home_led", "")
+        if key == "ledManual":  # the player LEDs were set by hand (SetPlayerLeds), not by the slot
+            return c.get("player_led_manual", False)
         return None
 
     @Property(int, notify=countChanged)
