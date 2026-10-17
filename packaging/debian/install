@@ -2,5 +2,9 @@ joystickmanager.sh usr/bin
 joystickmanager-doctor usr/bin
 controllers.tsv usr/share/joystickmanager
 joystickmanager.service lib/systemd/system
+bridge/ujm-bridge.service lib/systemd/system
+bridge/org.ujm.Manager1.conf usr/share/dbus-1/system.d
+bridge/org.ujm.Manager1.service usr/share/dbus-1/system-services
+bridge/org.ujm.manager.policy usr/share/polkit-1/actions
 README.md usr/share/doc/universal-joystick-manager
 LICENSE usr/share/doc/universal-joystick-manager

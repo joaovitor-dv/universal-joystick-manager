@@ -25,6 +25,14 @@ jobs:
           bash -n install.sh
           bash -n tests/test_slots.sh
           python3 -m py_compile switchpro-leds.py
+          python3 -m py_compile bridge/ujm-bridge bridge/tests/test_bridge.py bridge/tests/fake_bluez.py
+          xmllint --noout --nonet bridge/org.ujm.Manager1.conf bridge/org.ujm.manager.policy
+
+      - name: Bridge tests (private D-Bus session, fake BlueZ and polkit)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-gi gir1.2-glib-2.0 dbus libxml2-utils
+          dbus-run-session -- python3 -W ignore bridge/tests/test_bridge.py
 
       - name: Validate the udev rule
         run: udevadm verify udev/99-joystickmanager-procontroller-charge-only.rules
@@ -73,6 +81,8 @@ jobs:
           dpkg-buildpackage -us -uc -b
           deb=$(ls ../universal-joystick-manager_*_all.deb)
           dpkg-deb -c "$deb"
+          dpkg-deb -c "$deb" | grep -q 'usr/lib/joystickmanager/ujm-bridge'
+          dpkg-deb -c "$deb" | grep -q 'usr/share/polkit-1/actions/org.ujm.manager.policy'
           dpkg-deb -c "$deb" | grep -q 'usr/lib/joystickmanager/switchpro-leds'
           dpkg-deb --fsys-tarfile "$deb" | tar -xO ./lib/systemd/system/joystickmanager.service | grep -q '^ExecStart=/usr/bin/joystickmanager.sh$'
       - name: Build and check the .rpm
@@ -80,6 +90,8 @@ jobs:
           rpmbuild -bb --define "_sourcedir $PWD" --define "_topdir $RUNNER_TEMP/rpm" --define "_unitdir /usr/lib/systemd/system" packaging/fedora/universal-joystick-manager.spec
           rpm=$(ls "$RUNNER_TEMP"/rpm/RPMS/noarch/*.rpm)
           rpm -qlp "$rpm"
+          rpm -qlp "$rpm" | grep -q 'libexec/ujm-bridge$'
+          rpm -qlp "$rpm" | grep -q 'polkit-1/actions/org.ujm.manager.policy$'
           rpm -qlp "$rpm" | grep -q 'joystickmanager-switchpro-leds$'
           rpm2cpio "$rpm" | cpio -i --to-stdout ./usr/lib/systemd/system/joystickmanager.service 2>/dev/null | grep -q '^ExecStart=/usr/bin/joystickmanager.sh$'
 

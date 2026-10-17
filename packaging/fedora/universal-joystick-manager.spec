@@ -6,7 +6,7 @@ License:        MIT
 BuildArch:      noarch
 URL:            https://github.com/joaovitor-dv/universal-joystick-manager
 Requires:       bash, systemd, bluez, evtest, python3
-Recommends:     upower
+Recommends:     upower, python3-gobject-base, polkit
 Suggests:       joycond
 
 %description
@@ -20,6 +20,12 @@ install -m 0644 %{_sourcedir}/controllers.tsv %{buildroot}%{_datadir}/joystickma
 install -m 0755 %{_sourcedir}/switchpro-leds.py %{buildroot}%{_libexecdir}/joystickmanager-switchpro-leds
 # the unit in the repository points at /usr/local (install.sh); packages install to /usr
 sed 's|/usr/local/bin/|%{_bindir}/|' %{_sourcedir}/joystickmanager.service > %{buildroot}%{_unitdir}/joystickmanager.service
+# D-Bus bridge for the interface (needs python3-gobject-base; started by the bus, stops by itself)
+install -m 0755 %{_sourcedir}/bridge/ujm-bridge %{buildroot}%{_libexecdir}/ujm-bridge
+sed 's|/usr/local/libexec/ujm-bridge|%{_libexecdir}/ujm-bridge|' %{_sourcedir}/bridge/ujm-bridge.service > %{buildroot}%{_unitdir}/ujm-bridge.service
+install -Dm 0644 %{_sourcedir}/bridge/org.ujm.Manager1.conf %{buildroot}%{_datadir}/dbus-1/system.d/org.ujm.Manager1.conf
+install -Dm 0644 %{_sourcedir}/bridge/org.ujm.Manager1.service %{buildroot}%{_datadir}/dbus-1/system-services/org.ujm.Manager1.service
+install -Dm 0644 %{_sourcedir}/bridge/org.ujm.manager.policy %{buildroot}%{_datadir}/polkit-1/actions/org.ujm.manager.policy
 install -m 0644 %{_sourcedir}/README.md %{buildroot}%{_docdir}/%{name}/README.md
 install -m 0644 %{_sourcedir}/LICENSE %{buildroot}%{_docdir}/%{name}/LICENSE
 
@@ -29,6 +35,11 @@ install -m 0644 %{_sourcedir}/LICENSE %{buildroot}%{_docdir}/%{name}/LICENSE
 %{_libexecdir}/joystickmanager-switchpro-leds
 %{_datadir}/joystickmanager/controllers.tsv
 %{_unitdir}/joystickmanager.service
+%{_libexecdir}/ujm-bridge
+%{_unitdir}/ujm-bridge.service
+%{_datadir}/dbus-1/system.d/org.ujm.Manager1.conf
+%{_datadir}/dbus-1/system-services/org.ujm.Manager1.service
+%{_datadir}/polkit-1/actions/org.ujm.manager.policy
 %doc %{_docdir}/%{name}/README.md
 %license %{_docdir}/%{name}/LICENSE
 

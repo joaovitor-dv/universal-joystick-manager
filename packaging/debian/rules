@@ -7,4 +7,11 @@
 override_dh_install:
 	dh_install
 	sed -i 's|/usr/local/bin/|/usr/bin/|' debian/universal-joystick-manager/lib/systemd/system/joystickmanager.service
+	sed -i 's|/usr/local/libexec/ujm-bridge|/usr/lib/joystickmanager/ujm-bridge|' debian/universal-joystick-manager/lib/systemd/system/ujm-bridge.service
 	install -Dm755 switchpro-leds.py debian/universal-joystick-manager/usr/lib/joystickmanager/switchpro-leds
+	install -Dm755 bridge/ujm-bridge debian/universal-joystick-manager/usr/lib/joystickmanager/ujm-bridge
+
+# Packages never enable or start services on their own (same as the Arch and Fedora packages):
+# the user runs `sudo systemctl enable --now joystickmanager`.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start

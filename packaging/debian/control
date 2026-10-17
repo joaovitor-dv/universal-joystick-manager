@@ -8,7 +8,7 @@ Standards-Version: 4.6.0
 Package: universal-joystick-manager
 Architecture: all
 Depends: bash, systemd, bluez, evtest, python3
-Recommends: upower
+Recommends: upower, python3-gi, polkitd | policykit-1
 Suggests: joycond
 Description: UJM - Universal Joystick Manager for Linux
  Unified player numbering, battery indicators and Joy-Con pairing integration.

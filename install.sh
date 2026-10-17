@@ -3,11 +3,13 @@ set -u
 
 optional=0
 charge_only=0
+bridge=0
 for arg in "$@"; do
     case "$arg" in
         --install-optional) optional=1;;
         --pro-charge-only) charge_only=1;;
-        -h|--help) printf '%s\n' 'Uso: sudo ./install.sh [--install-optional] [--pro-charge-only]'; exit 0;;
+        --with-bridge) bridge=1;;
+        -h|--help) printf '%s\n' 'Usage: sudo ./install.sh [--install-optional] [--pro-charge-only] [--with-bridge]'; exit 0;;
         *) printf 'Unknown option: %s\n' "$arg" >&2; exit 2;;
     esac
 done
@@ -16,11 +18,14 @@ done
 
 if command -v pacman >/dev/null 2>&1; then
     pacman -S --needed bluez bluez-utils upower evtest joystick
+    [ "$bridge" -eq 0 ] || pacman -S --needed python-gobject polkit
 elif command -v apt-get >/dev/null 2>&1; then
     apt-get update
     apt-get install -y bluez dbus udev upower evtest joystick
+    [ "$bridge" -eq 0 ] || apt-get install -y python3-gi polkitd
 elif command -v dnf >/dev/null 2>&1; then
     dnf install -y bluez dbus systemd-udev upower evtest joystick
+    [ "$bridge" -eq 0 ] || dnf install -y python3-gobject-base polkit
 else
     printf '%s\n' 'Unrecognized distribution; see docs/dependencies.md.' >&2
     exit 1
@@ -31,6 +36,15 @@ install -Dm755 joystickmanager-doctor /usr/local/bin/joystickmanager-doctor
 install -Dm644 controllers.tsv /usr/local/share/joystickmanager/controllers.tsv
 install -Dm755 switchpro-leds.py /usr/local/libexec/joystickmanager-switchpro-leds
 install -Dm644 joystickmanager.service /etc/systemd/system/joystickmanager.service
+if [ "$bridge" -eq 1 ]; then
+    # D-Bus bridge for the graphical interface: started by the bus on first use, stops by itself.
+    install -Dm755 bridge/ujm-bridge /usr/local/libexec/ujm-bridge
+    install -Dm644 bridge/ujm-bridge.service /etc/systemd/system/ujm-bridge.service
+    install -Dm644 bridge/org.ujm.Manager1.conf /etc/dbus-1/system.d/org.ujm.Manager1.conf
+    install -Dm644 bridge/org.ujm.Manager1.service /usr/share/dbus-1/system-services/org.ujm.Manager1.service
+    install -Dm644 bridge/org.ujm.manager.policy /usr/share/polkit-1/actions/org.ujm.manager.policy
+    systemctl reload dbus.service 2>/dev/null || true
+fi
 systemctl daemon-reload
 if [ "$charge_only" -eq 1 ]; then
     # Optional: the Pro Controller only charges over USB (no data). See the rule header.

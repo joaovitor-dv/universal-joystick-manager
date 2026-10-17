@@ -8,7 +8,7 @@ arch=('any')
 url='https://github.com/joaovitor-dv/universal-joystick-manager'
 license=('MIT')
 depends=('bash' 'systemd' 'bluez' 'bluez-utils' 'evtest' 'python')
-optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration')
+optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration' 'python-gobject: D-Bus bridge for the graphical interface' 'polkit: authorization for the bridge actions')
 
 package() {
     local root="$startdir/../.."
@@ -21,6 +21,13 @@ package() {
     install -dm755 "$pkgdir/usr/lib/systemd/system"
     sed 's|/usr/local/bin/|/usr/bin/|' "$root/joystickmanager.service" >"$pkgdir/usr/lib/systemd/system/joystickmanager.service"
     chmod 644 "$pkgdir/usr/lib/systemd/system/joystickmanager.service"
+    # D-Bus bridge for the interface (needs python-gobject; started by the bus, stops by itself)
+    install -Dm755 "$root/bridge/ujm-bridge" "$pkgdir/usr/lib/joystickmanager/ujm-bridge"
+    sed 's|/usr/local/libexec/ujm-bridge|/usr/lib/joystickmanager/ujm-bridge|' "$root/bridge/ujm-bridge.service" >"$pkgdir/usr/lib/systemd/system/ujm-bridge.service"
+    chmod 644 "$pkgdir/usr/lib/systemd/system/ujm-bridge.service"
+    install -Dm644 "$root/bridge/org.ujm.Manager1.conf" "$pkgdir/usr/share/dbus-1/system.d/org.ujm.Manager1.conf"
+    install -Dm644 "$root/bridge/org.ujm.Manager1.service" "$pkgdir/usr/share/dbus-1/system-services/org.ujm.Manager1.service"
+    install -Dm644 "$root/bridge/org.ujm.manager.policy" "$pkgdir/usr/share/polkit-1/actions/org.ujm.manager.policy"
     install -Dm644 "$root/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
     install -Dm644 "$root/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
