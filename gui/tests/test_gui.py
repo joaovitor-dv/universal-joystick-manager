@@ -2,7 +2,7 @@
 """Headless tests of the QML interface (offscreen, software rendering).
 
 Usage: dbus-run-session -- python3 gui/tests/test_gui.py            (the bridge tests need a session bus)
-       python3 gui/tests/test_gui.py --screenshot OUT.png            (renders the example data to a PNG)
+       python3 gui/tests/test_gui.py --screenshot OUT.png [PLAYER] [HEIGHT] [STATE_FILE]
 """
 import json
 import os
@@ -113,6 +113,82 @@ class FileSourceTests(Base):
         expected = ["led0on", "led0on", "led1on", "led2on", "led3on"]
         self.assertTrue(pump(lambda: leds() == expected), leds())
 
+    def test_native_details_reuse_controller_diagrams_and_button_icons(self):
+        self.start(state_file=self.file)
+        self.assertTrue(pump(lambda: self.win.property("selectedId") == "20:1C:3A:AA:00:01"))
+        visible = lambda name: next((o for o in self.visual_items() if o.objectName() == name and o.isVisible()), None)
+        self.assertTrue(pump(lambda: visible("detailTitle") is not None))
+        self.assertEqual(visible("detailTitle").property("text"), "Pro Controller")
+        self.win.setProperty("selectedId", "phys:usb-0000:00:14.0-2/input0")
+        self.assertTrue(pump(lambda: visible("detailTitle") is not None and visible("detailTitle").property("text") == "Microsoft X-Box 360 pad"))
+        art = visible("controllerArtwork")
+        self.assertIsNotNone(art)
+        self.assertTrue(pump(lambda: art.property("paintedWidth") > 0), "Xbox 360 SVG did not load")
+        self.assertIn("xbox-360-xcf-ui.svg", art.property("source").toString())
+        sectors = [o for o in self.visual_items() if o.objectName() == "buttonSector"]
+        self.assertEqual(len(sectors), 4)
+        icons = [o for o in self.visual_items() if o.objectName() == "buttonIcon" and o.isVisible()]
+        self.assertTrue(pump(lambda: all(o.property("paintedWidth") > 0 for o in icons)), "a controller button SVG did not load")
+        self.assertGreaterEqual(len(icons), 14)
+
+    def test_native_diagrams_load_for_supported_families(self):
+        def add_families(state):
+            for i, (family, name) in enumerate([
+                ("dualsense", "DualSense"), ("xbox-one-series", "Xbox Series X/S Controller"),
+                ("joycon", "Joy-Con (L)"), ("joycon", "Joy-Con (R)")
+            ], start=6):
+                state["controllers"].append({"id": f"test:{i}", "player": i, "name": name,
+                    "family": family, "transport": "bluetooth", "player_led_mask": 0, "battery": None})
+        rewrite(self.file, add_families)
+        self.start(state_file=self.file)
+        role = lambda r: ujm_gui.Qt.UserRole + 1 + ujm_gui.ControllerModel.ROLES.index(r)
+        for i in range(self.model.count):
+            controller_id = self.model.data(self.model.index(i), role("controllerId"))
+            self.win.setProperty("selectedId", controller_id)
+            def artwork():
+                return next((o for o in self.visual_items() if o.objectName() == "controllerArtwork" and o.isVisible()), None)
+            self.assertTrue(pump(lambda: artwork() is not None and artwork().property("paintedWidth") > 0),
+                            f"diagram did not load for {controller_id}")
+
+    def test_series_share_and_ds4_system_icons_are_model_specific(self):
+        def add_series(state):
+            state["controllers"].append({"id": "test:series", "player": 6,
+                "name": "Xbox Series X/S Controller", "family": "xbox-one-series",
+                "transport": "bluetooth", "player_led_mask": 0, "battery": None})
+        rewrite(self.file, add_series)
+        self.start(state_file=self.file)
+        share = lambda: next((o for o in self.visual_items() if o.objectName() == "xboxSeriesShare"), None)
+        self.win.setProperty("selectedId", "test:series")
+        self.assertTrue(pump(lambda: share() is not None and share().isVisible()), "Series Share overlay is missing")
+        self.win.setProperty("selectedId", "20:1C:3A:AA:00:01")
+        self.assertTrue(pump(lambda: share() is not None and not share().isVisible()), "Series Share leaks to the Pro Controller")
+        self.win.setProperty("selectedId", "30:2C:3A:AA:00:03")
+        def ds4_icons():
+            return [o for o in self.visual_items() if o.objectName() == "buttonIcon" and o.isVisible()
+                    and any(name in o.property("source").toString() for name in ("ps4_button_share", "ps4_button_options"))]
+        self.assertTrue(pump(lambda: len(ds4_icons()) == 2 and all(o.property("paintedWidth") > 0 for o in ds4_icons())),
+                        "DualShock 4 Share/Options icons did not render")
+
+    def test_led_state_badges_follow_service_data_without_guessing(self):
+        self.start(state_file=self.file)
+        pill = lambda name: next((o for o in self.visual_items() if o.objectName() == name), None)
+        self.assertTrue(pump(lambda: pill("homeLedPill") is not None and pill("manualLedPill") is not None))
+        self.assertFalse(pill("homeLedPill").isVisible(), "an old service must not be reported as HOME off")
+        self.assertFalse(pill("manualLedPill").isVisible(), "automatic mode needs no badge")
+
+        def set_leds(state):
+            state["controllers"][0].update(home_led="on", player_led_manual=True)
+        rewrite(self.file, set_leds)
+        self.assertTrue(pump(lambda: pill("homeLedPill").isVisible()
+                             and pill("homeLedPill").property("text") == "HOME LED on"
+                             and pill("manualLedPill").isVisible()), "LED state did not reach QML")
+        rewrite(self.file, lambda state: state["controllers"][0].update(home_led="off", player_led_manual=False))
+        self.assertTrue(pump(lambda: pill("homeLedPill").property("text") == "HOME LED off"
+                             and not pill("manualLedPill").isVisible()), "LED badge did not follow the update")
+        rewrite(self.file, lambda state: state["controllers"][0].update(home_led="unsupported"))
+        self.assertTrue(pump(lambda: not pill("homeLedPill").isVisible()),
+                        "unsupported HOME LED should not add the old availability comment")
+
     def test_updates_live_when_the_file_is_replaced(self):
         self.start(state_file=self.file)
         rewrite(self.file, lambda d: d["controllers"].append(
@@ -194,10 +270,15 @@ class BridgeSourceTests(Base):
         self.assertEqual(self.model.count, 5)
 
 
-def screenshot(out):
-    app, engine, backend, model = ujm_gui.build(["shot"], state_file=EXAMPLE)
+def screenshot(out, player=1, height=740, state_file=EXAMPLE):
+    app, engine, backend, model = ujm_gui.build(["shot"], state_file=state_file)
     win = engine.rootObjects()[0]
-    pump(lambda: model.count == 5, 3)
+    win.setHeight(height)
+    pump(lambda: model.count > 0, 3)
+    role = ujm_gui.Qt.UserRole + 1 + ujm_gui.ControllerModel.ROLES.index("controllerId")
+    if not 1 <= player <= model.count:
+        raise ValueError("PLAYER must be within the screenshot state controller list")
+    win.setProperty("selectedId", model.data(model.index(player - 1), role))
     for _ in range(30):
         QCoreApplication.processEvents()
         time.sleep(0.02)
@@ -207,6 +288,8 @@ def screenshot(out):
 
 if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[1] == "--screenshot":
-        screenshot(sys.argv[2])
+        screenshot(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 1,
+                   int(sys.argv[4]) if len(sys.argv) > 4 else 740,
+                   sys.argv[5] if len(sys.argv) > 5 else EXAMPLE)
     else:
         unittest.main(verbosity=2)

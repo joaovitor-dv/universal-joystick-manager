@@ -21,11 +21,37 @@
     .identity { display:flex; align-items:center; gap:8px; } .player { width:26px; height:26px; display:grid; place-items:center; border:1px solid #47704e; background:#101a12; color:#dff5e1; font-weight:700; }
     .status { color:var(--green); font-size:12px; } .transport { color:var(--blue); font-size:12px; } .battery { color:var(--orange); }
     .leds { display:flex; gap:5px; margin-top:8px; } .led { width:9px; height:9px; border:1px solid #52735a; border-radius:50%; background:#26372a; } .led.on { background:#2670c2; border-color:#174a83; }
-    .home { margin-left:auto; color:#8bdf95; font-size:12px; } .bar { height:8px; border:1px solid #37543c; background:#101911; overflow:hidden; margin-top:5px; } .bar span { display:block; height:100%; background:#61d77c; width:82%; }
+    .bar { height:8px; border:1px solid #37543c; background:#101911; overflow:hidden; margin-top:5px; } .bar span { display:block; height:100%; background:#61d77c; width:82%; }
     .diag { display:grid; gap:10px; } .section { border:1px solid var(--line); padding:8px; background:var(--panel-2); } .section-title { display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:5px; margin-bottom:8px; }
     .stick-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; } .stick-grid.is-single { grid-template-columns:1fr; } .stick-grid [hidden] { display:none; } .stick { width:145px; height:145px; margin:5px auto 0; border:1px solid #55735b; border-radius:50%; position:relative; background:radial-gradient(circle,#55735b 0 1px,transparent 2px); background-size:18px 18px; }
     .dot { position:absolute; width:20px; height:20px; border:2px solid #317540; border-radius:50%; background:#83d890; left:58%; top:38%; }
-    .keys { display:flex; flex-wrap:wrap; gap:6px; } .key { width:42px; height:38px; padding:3px; display:grid; place-items:center; text-align:center; border:1px solid #385a3e; border-radius:2px; color:#e3f6e5; background:linear-gradient(#18271a,#0a120b); } .key img { max-width:32px; max-height:32px; filter:url(#key-solid-silhouette); } .key--direction img,.key--face img,.key--system-home img { filter:none; } .key-symbol { display:grid; place-items:center; width:29px; height:29px; border:2px solid #f0fff1; border-radius:50%; background:#080d09; font-size:18px; font-weight:700; line-height:1; } .key--face .key-symbol { border-color:transparent; background:transparent; } .key-text { font-size:12px; font-weight:800; letter-spacing:0; text-shadow:none; } .key--ps-triangle { color:#24c494; } .key--ps-circle { color:#ee535d; } .key--ps-cross { color:#368efa; } .key--ps-square { color:#e576a5; } .key--nintendo-a { color:#f3424d; } .key--nintendo-b { color:#f5c443; } .key--nintendo-x { color:#337ff0; } .key--nintendo-y { color:#20c985; }
+    /* Keep the functional sectors while preserving each controller's approved button styling. */
+    .keys { display:grid; grid-template-columns:repeat(auto-fit,minmax(204px,1fr)); gap:8px; align-items:start; }
+    .key-sector { min-width:0; border:1px solid var(--line); background:#070c08; padding:6px; }
+    .key-sector-title { display:block; margin-bottom:6px; color:#a8c6ad; font-size:11px; font-weight:700; letter-spacing:.02em; }
+    .key-sector-grid { display:grid; grid-template-columns:repeat(4,42px); gap:6px; justify-content:start; }
+    .key { width:42px; height:38px; padding:3px; display:grid; place-items:center; text-align:center; border:1px solid #385a3e; border-radius:2px; color:#e3f6e5; background:linear-gradient(#18271a,#0a120b); }
+    .key img { max-width:32px; max-height:32px; filter:url(#key-solid-silhouette); }
+    .key--direction img,.key--face img,.key--system-home img,.key--clear-icon img { filter:none; }
+    .key-symbol { display:grid; place-items:center; width:29px; height:29px; border:2px solid #f0fff1; border-radius:50%; background:#080d09; font-size:18px; font-weight:700; line-height:1; }
+    .key--face .key-symbol { border-color:transparent; background:transparent; }
+    .key-text { font-size:12px; font-weight:800; letter-spacing:0; text-shadow:none; }
+    .key--ps-triangle { color:#24c494; } .key--ps-circle { color:#ee535d; } .key--ps-cross { color:#368efa; } .key--ps-square { color:#e576a5; }
+    .key--nintendo-a { color:#f3424d; } .key--nintendo-b { color:#f5c443; } .key--nintendo-x { color:#337ff0; } .key--nintendo-y { color:#20c985; }
+    /* Approved DS3 and Pro Controller refinements predate the sectorized layout. */
+    .keys[data-controller="dualshock"] .key { width:42px; padding:2px; }
+    .keys[data-controller="dualshock"] .key img { display:block; width:30px; height:30px; object-fit:contain; }
+    .keys[data-controller="dualshock"] .key--ps3-system img { width:38px; height:30px; max-width:none; max-height:none; filter:none; }
+    .key--ps3-home img { border:2px solid #f0fff1; border-radius:50%; }
+    .keys[data-controller="pro"] .key { padding:2px; }
+    .keys[data-controller="pro"] .key img { display:block; width:30px; height:30px; object-fit:contain; }
+    .keys[data-controller="pro"] .key--face .key-symbol { width:30px; height:30px; border:0; color:#fff; font-size:17px; }
+    .keys[data-controller="pro"] .key--nintendo-a .key-symbol { background:#e23441; }
+    .keys[data-controller="pro"] .key--nintendo-b .key-symbol { background:#edb929; }
+    .keys[data-controller="pro"] .key--nintendo-x .key-symbol { background:#2879df; }
+    .keys[data-controller="pro"] .key--nintendo-y .key-symbol { background:#1dae72; }
+    /* The DS4's long labels need more icon area, not a different button frame. */
+    .keys[data-controller="ds4"] .key--wide-system img { display:block; width:34px; height:24px; max-width:none; max-height:none; filter:none; }
     .axis { display:grid; grid-template-columns:65px 1fr 42px; gap:7px; align-items:center; color:#bed8c1; font-size:12px; margin:5px 0; } .axisbar { height:8px; border:1px solid #37543c; background:#101911; } .axisbar span { display:block; height:100%; width:65%; background:#65d77d; }
     .adaptive-trigger[hidden] { display:none; } .adaptive-note { color:var(--muted); font-size:11px; line-height:1.45; margin:0 0 9px; }
     .trigger-pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
@@ -51,7 +77,7 @@
     .part-shoulder { top:12px; width:62px; height:15px; border:1px solid #7d858e; border-radius:8px; background:#c2c8cd; } .part-l { left:54px; } .part-r { right:54px; }
     .diagram-caption { margin-top:8px; text-align:center; color:#91a794; font-size:12px; }
     .controller-reference { width:min(100%,620px); height:260px; object-fit:contain; background:#050805; border:1px solid #294331; padding:8px; image-rendering:auto; filter:contrast(1.2) brightness(1.15); }
-    .controller-art { position:relative; width:min(100%,440px); } .controller-art>img,.controller-art>svg { display:block; width:100%; height:auto; filter:contrast(1.2) brightness(1.15); } .controller-art--perspective { width:min(100%,720px); } .controller-art--perspective>svg { filter:none; } .diagram-face { position:absolute; width:7%; aspect-ratio:1; display:grid; place-items:center; transform:translate(-50%,-50%); border:2px solid #101820; border-radius:50%; color:#fff; font-size:clamp(9px,1.7vw,18px); font-weight:800; line-height:1; box-shadow:0 0 0 1px #e3edf7; } .diagram-face--a { background:#e23441; } .diagram-face--b { background:#edb929; } .diagram-face--x { background:#2879df; } .diagram-face--y { background:#1dae72; } .controller-art[data-family="xbox"] .diagram-face--a { background:#53b92c; } .controller-art[data-family="xbox"] .diagram-face--b { background:#d93635; } .controller-art[data-family="xbox"] .diagram-face--y { background:#e8bf1f; }
+    .controller-art { position:relative; width:min(100%,440px); } .controller-art>img,.controller-art>svg { display:block; width:100%; height:auto; filter:contrast(1.2) brightness(1.15); } .controller-art--perspective { width:min(100%,720px); } .controller-art--perspective>svg,.controller-art--xbox360>img { filter:none; } .diagram-face { position:absolute; width:7%; aspect-ratio:1; display:grid; place-items:center; transform:translate(-50%,-50%); border:2px solid #101820; border-radius:50%; color:#fff; font-size:clamp(9px,1.7vw,18px); font-weight:800; line-height:1; box-shadow:0 0 0 1px #e3edf7; } .diagram-face--a { background:#e23441; } .diagram-face--b { background:#edb929; } .diagram-face--x { background:#2879df; } .diagram-face--y { background:#1dae72; } .controller-art[data-family="xbox"] .diagram-face--a { background:#53b92c; } .controller-art[data-family="xbox"] .diagram-face--b { background:#d93635; } .controller-art[data-family="xbox"] .diagram-face--y { background:#e8bf1f; }
     .pair-heading { margin:8px 0 4px; padding-top:8px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:600; }
     .controller-art--joycon>svg { filter:none; }
     .controller-art--pair { width:min(100%,440px); }
@@ -144,9 +170,9 @@
   <div class="banner" id="svc-banner" role="status" hidden>The UJM service is stopped. Player numbering, LEDs and battery indication are not managed; controllers keep working through the kernel drivers. Actions are disabled until you start the service.</div>
   <main>
     <section class="panel"><div class="row"><h2>Controllers</h2><button>Refresh</button></div><p class="muted" style="margin-bottom:8px">Devices found: 3</p><div class="cards">
-      <article class="card selected" data-controller="pro" data-player="1"><div class="card-top"><div class="identity"><div class="player">1</div><div><h3>Pro Controller — Blue</h3><p class="muted">Nintendo · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led on"></i><i class="led"></i><i class="led"></i><i class="led"></i><span class="home">HOME</span></div></article>
-      <article class="card" data-controller="pro" data-player="2"><div class="card-top"><div class="identity"><div class="player">2</div><div><h3>Pro Controller — Red</h3><p class="muted">Nintendo · USB</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led on"></i><i class="led"></i><i class="led"></i><span class="home">HOME</span></div></article>
-      <article class="card" data-controller="dualshock" data-player="3"><div class="card-top"><div class="identity"><div class="player">3</div><div><h3>DualShock 3</h3><p class="muted">Sony · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led"></i><i class="led on"></i><i class="led"></i><span class="home muted">HOME unavailable</span></div></article>
+      <article class="card selected" data-controller="pro" data-player="1"><div class="card-top"><div class="identity"><div class="player">1</div><div><h3>Pro Controller — Blue</h3><p class="muted">Nintendo · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led on"></i><i class="led"></i><i class="led"></i><i class="led"></i></div></article>
+      <article class="card" data-controller="pro" data-player="2"><div class="card-top"><div class="identity"><div class="player">2</div><div><h3>Pro Controller — Red</h3><p class="muted">Nintendo · USB</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led on"></i><i class="led"></i><i class="led"></i></div></article>
+      <article class="card" data-controller="dualshock" data-player="3"><div class="card-top"><div class="identity"><div class="player">3</div><div><h3>DualShock 3</h3><p class="muted">Sony · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led"></i><i class="led on"></i><i class="led"></i></div></article>
       <article class="card" data-controller="dualsense" data-player="4"><div class="card-top"><div class="identity"><div class="player">4</div><div><h3>DualSense</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
       <article class="card" data-controller="ds4" data-player="5"><div class="card-top"><div class="identity"><div class="player">5</div><div><h3>DualShock 4</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
       <article class="card" data-controller="xbox360" data-player="6"><div class="card-top"><div class="identity"><div class="player">6</div><div><h3>Xbox 360 Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
@@ -249,9 +275,7 @@
       dualshock: 'assets/controller-references/dualshock-3-transparent-white.png',
       dualsense: 'assets/controller-references/steam/dualsense.png',
       ds4: 'assets/controller-references/steam/dualshock-4.png',
-      xbox360: 'assets/controller-references/xbox-360-dark-reference-user.png',
-      xbox360Outline: 'assets/controller-references/xbox-360-outline.svg',
-      xbox360Band: 'assets/controller-references/xbox-360-silhouette-band.svg',
+      xbox360: 'assets/controller-references/xbox-360-xcf-ui.svg',
       xboxone: 'assets/controller-references/steam/xbox-one.png',
       xboxseries: 'assets/controller-references/steam/xbox-one.png',
       joyconl: 'assets/controller-references/steam/joycon-l.png',
@@ -277,8 +301,8 @@
     const xboxShoulders = [['LB','xbox_lb'],['LT','xbox_lt'],['RB','xbox_rb'],['RT','xbox_rt']];
     const iconSets = {
       pro: [...nintendoFace,...nintendoDpad,['L (pressed)','switchpro_lstick_click'],['R (pressed)','switchpro_rstick_click'],['L','switchpro_l'],['ZL','switchpro_l2'],['R','switchpro_r'],['ZR','switchpro_r2'],['−','switchpro_button_minus'],['+','switchpro_button_plus'],['CAPTURE','switchpro_button_capture'],['HOME','switchpro_button_home']],
-      dualshock: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],...psShoulders,['SELECT',null],['START',null],['PS','ps4_button_logo']],
-      ds4: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],...psShoulders,['TOUCHPAD','ps4_trackpad_click'],['SHARE','ps4_button_share'],['OPTIONS','ps4_button_options'],['PS','ps4_button_logo_inverted']],
+      dualshock: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],...psShoulders,['SELECT','ps3_select'],['START','ps3_start'],['PS','ps4_button_logo']],
+      ds4: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],...psShoulders,['TOUCHPAD','ps5_trackpad_click'],['SHARE','ps4_button_share'],['OPTIONS','ps4_button_options'],['PS','ps4_button_logo']],
       dualsense: [...psFace,...playstationDpad,['L3','shared_l3'],['R3','shared_r3'],['L1','ps5_l1'],['L2','ps5_l2'],['R1','ps5_r1'],['R2','ps5_r2'],['TOUCHPAD','ps5_trackpad_click'],['CREATE','ps5_button_create'],['OPTIONS','ps5_button_options'],['PS','ps4_button_logo'],['MUTE','ps_button_mute']],
       xbox360: [...xboxFace,...xboxDpad,['LS','xbox_ls_click'],['RS','xbox_rs_click'],...xboxShoulders,['BACK','xbox360_button_select'],['START','xbox360_button_start'],['XBOX','xbox_button_logo']],
       xboxone: [...xboxFace,...xboxDpad,['LS','xbox_ls_click'],['RS','xbox_rs_click'],...xboxShoulders,['VIEW','xbox_button_select'],['MENU','xbox_button_start'],['XBOX','xbox_button_logo']],
@@ -288,7 +312,8 @@
       joyconpair: [...nintendoFace,...nintendoDpad,['L (pressed)','switchpro_lstick_click'],['R (pressed)','switchpro_rstick_click'],['−','switchpro_button_minus'],['+','switchpro_button_plus'],['CAPTURE','switchpro_button_capture'],['HOME','switchpro_button_home'],['L','switchpro_l'],['ZL','switchpro_l2'],['R','switchpro_r'],['ZR','switchpro_r2']]
     };
     const faceOverlays = {
-      pro: [['X',76.3,19.5],['Y',68.6,29.9],['A',84.2,29.9],['B',76.3,39.2]],
+      // Centers measured on the 1000×702 Steam image (X 763/142, Y 686/211, A 841/211, B 763/274).
+      pro: [['X',76.3,20.23],['Y',68.6,30.06],['A',84.1,30.06],['B',76.3,39.03]],
       xboxone: [['Y',76.2,18.3],['X',69,27.7],['B',82.9,27.7],['A',76.2,37.4]],
       xboxseries: [['Y',76.2,18.3],['X',69,27.7],['B',82.9,27.7],['A',76.2,37.4]],
       joyconr: [['Y',73.5,46.5],['X',80.8,63.3],['B',66.4,63.3],['A',73.5,79.5]],
@@ -381,7 +406,9 @@
       const psPositions = playstationFacePositions[type] || [];
       const psClip = family === 'playstation' ? `<clipPath id="playstation-face-clip"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H1000V${height+bodyTop}H0Z ${psPositions.map(([,x,y]) => `M${x-38} ${bodyTop+y}a38 38 0 1 0 76 0a38 38 0 1 0 -76 0Z`).join(' ')}"/></clipPath>` : '';
       const psFaces = family === 'playstation' ? psPositions.map(([name,x,y]) => `<image href="${icon(`ps_wire_button_${name}`)}" x="${x-34}" y="${bodyTop+y-34}" width="68" height="68"/>`).join('') : '';
-      const series = type === 'xboxseries' ? `<g transform="translate(500 ${423+bodyTop-105})" fill="none" stroke="#d2dce5" stroke-width="4"><rect x="-17" y="-12" width="34" height="24" rx="4"/><path d="M-9 0h18m-5-6 6 6-6 6"/></g>` : '';
+      // The Series Share button sits on the central bridge, below View/Menu
+      // and above the D-pad/right stick rather than level with the sticks.
+      const series = type === 'xboxseries' ? `<g data-share-control="xbox-series" transform="translate(500 ${bodyTop+255})" fill="none" stroke="#d2dce5" stroke-width="4"><rect x="-17" y="-12" width="34" height="24" rx="4"/><path d="M0 7V-6m-6 6 6-6 6 6"/></g>` : '';
       const lineFilter = smoothContrastFilter('controller-outline',[13,19,27]);
       const shoulders = shoulderControls[family].map(([label,x,y,kind]) => {
         const path = kind === 'trigger'
@@ -392,14 +419,9 @@
       return `<div class="controller-art controller-art--perspective" data-family="${family}"><svg viewBox="0 0 1000 ${height+bodyTop}" role="img" aria-label="${names[type][0]} elevated front diagram with four separate shoulder and trigger buttons" xmlns="http://www.w3.org/2000/svg"><defs>${psClip}${lineFilter}</defs><image href="${src}" x="0" y="${bodyTop}" width="1000" height="${height}" ${psClip ? 'clip-path="url(#playstation-face-clip)"' : ''} filter="url(#controller-outline)"/>${series}${face}${psFaces}${shoulders}</svg></div>`;
     }
     function xbox360Diagram() {
-      // The housing is a traced vector with transparent interior. Keep only the four
-      // source button caps as raster so their original Xbox colors and letterforms stay exact.
-      const openings = [[1196,413],[1082,513],[1318,513],[1196,613]];
-      const holes = openings.map(([x,y]) => `M${x-65} ${y}a65 65 0 1 0 130 0a65 65 0 1 0 -130 0Z`).join(' ');
-      const buttons = openings.map(([cx,cy]) => `<circle cx="${cx}" cy="${cy}" r="60"/>`).join('');
-      const labelCutouts = 'M334 162h48v36h-48Z M1150 162h48v36h-48Z M324 198h62v38h-62Z M1144 198h62v38h-62Z M534 442h70v46h-70Z M909 442h76v46h-76Z';
-      const systemLabels = `<g fill="#fff" stroke="#fff" paint-order="stroke" font-family="Arial,sans-serif" font-weight="700" text-anchor="middle"><text x="355" y="175" font-size="29">LT</text><text x="1174" y="175" font-size="29">RT</text><text x="356" y="211" font-size="22">LB</text><text x="1175" y="211" font-size="22">RB</text><text x="567" y="456" font-size="29" transform="rotate(-22 567 456)">BACK</text><text x="944" y="456" font-size="29" transform="rotate(14 944 456)">START</text></g>`;
-      return `<div class="controller-art controller-art--perspective" data-family="xbox"><svg viewBox="0 0 1529 1029" role="img" aria-label="Xbox 360 transparency diagram with white labels and clean outlines" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="xbox360-outline-cutouts"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H1529V1029H0Z ${holes} ${labelCutouts}"/></clipPath><clipPath id="xbox360-original-buttons">${buttons}</clipPath><mask id="xbox360-detail-mask" mask-type="luminance"><rect width="1529" height="1029" fill="white"/><image href="${images.xbox360Band}" width="1529" height="1029"/></mask><filter id="xbox360-line-repair" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="1.5" result="joined-gaps"/><feMorphology in="joined-gaps" operator="erode" radius="1.5"/></filter><filter id="xbox360-band-light" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="1.2" result="joined-gaps"/><feMorphology in="joined-gaps" operator="erode" radius="1.2" result="closed-band"/><feColorMatrix in="closed-band" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter></defs><image href="${images.xbox360Outline}" width="1529" height="1029" clip-path="url(#xbox360-outline-cutouts)" mask="url(#xbox360-detail-mask)" filter="url(#xbox360-line-repair)"/><image href="${images.xbox360Band}" width="1529" height="1029" clip-path="url(#xbox360-outline-cutouts)" filter="url(#xbox360-band-light)"/><image href="${images.xbox360}" width="1529" height="1029" clip-path="url(#xbox360-original-buttons)"/>${systemLabels}</svg></div>`;
+      // The vector trace comes from the XCF's upper layer only; the lower backdrop
+      // must stay out of the diagram so the housing and page background remain transparent.
+      return `<div class="controller-art controller-art--perspective controller-art--xbox360" data-family="xbox"><img src="${images.xbox360}" alt="Xbox 360 controller diagram with white outlines and colored face buttons"></div>`;
     }
     function dualShock3Diagram() {
       return `<div class="controller-art" data-family="playstation"><svg viewBox="0 0 1510 1041" role="img" aria-label="Transparent DualShock 3 with clear outlines and colored PlayStation buttons" xmlns="http://www.w3.org/2000/svg">
@@ -441,13 +463,34 @@
       return `<div class="controller-art${type==='joyconpair' ? ' controller-art--pair' : ''}" data-family="${faceFamily(type)}"><img src="${images[type]}" alt="Diagrama do ${names[type][0]}">${markers}</div>`;
     }
     function pairedDiagram() { return controllerDiagram('joyconpair'); }
+    const keySectorLabels = {
+      face: 'Face buttons', dpad: 'D-pad',
+      shoulders: 'Shoulders and triggers', rail: 'Rail buttons', system: 'System and auxiliary'
+    };
+    const keySectorOrder = Object.keys(keySectorLabels);
+    function keySector([label]) {
+      if (/^[ABXY]$/.test(label) || ['△','○','×','□'].includes(label)) return 'face';
+      if (['↑','↓','←','→'].includes(label)) return 'dpad';
+      if (['L3','R3','LS','RS','L (pressed)','R (pressed)'].includes(label)) return 'system';
+      if (['L1','L2','R1','R2','LB','LT','RB','RT','L','ZL','R','ZR'].includes(label)) return 'shoulders';
+      if (['SL','SR'].includes(label)) return 'rail';
+      return 'system';
+    }
     function renderKey(type,[label,file]) {
       const psColors = {'△':'triangle','○':'circle','×':'cross','□':'square'};
       const faceClass = psColors[label] ? `key--ps-${psColors[label]}` : (['pro','joyconr','joyconpair'].includes(type) && /^[ABXY]$/.test(label) ? `key--nintendo-${label.toLowerCase()}` : '');
       const isFace = /^[ABXY]$/.test(label) || Object.prototype.hasOwnProperty.call(psColors,label);
       const content = file ? `<img src="${icon(file)}" alt="">` : `<span class="${faceClass ? 'key-symbol' : 'key-text'}">${label}</span>`;
       const direction = {'↑':'up','↓':'down','←':'left','→':'right'}[label];
-      return `<span class="key ${faceClass}${direction ? ' key--direction' : ''}${isFace ? ' key--face' : ''}${label === 'PS' ? ' key--system-home' : ''}" role="img" aria-label="${direction ? 'D-pad '+direction : label}" title="${direction ? 'D-pad '+direction : label}">${content}</span>`;
+      const clearIcon = ['xbox_lb','xbox_lt','xbox_rb','xbox_rt','xbox_ls_click','xbox_rs_click','xbox360_button_select','xbox360_button_start'].includes(file);
+      return `<span class="key ${faceClass}${direction ? ' key--direction' : ''}${isFace ? ' key--face' : ''}${label === 'PS' ? ' key--system-home' : ''}${type === 'dualshock' && (label === 'SELECT' || label === 'START') ? ' key--ps3-system' : ''}${type === 'ds4' && (label === 'SHARE' || label === 'OPTIONS') ? ' key--wide-system' : ''}${['dualshock','ds4','dualsense'].includes(type) && label === 'PS' ? ' key--ps3-home' : ''}${clearIcon ? ' key--clear-icon' : ''}" role="img" aria-label="${direction ? 'D-pad '+direction : label}" title="${direction ? 'D-pad '+direction : label}">${content}</span>`;
+    }
+    function renderKeySectors(type) {
+      const sectors = new Map(keySectorOrder.map(name => [name, []]));
+      iconSets[type].forEach(item => sectors.get(keySector(item)).push(item));
+      return keySectorOrder.filter(name => sectors.get(name).length).map(name =>
+        `<div class="key-sector" role="group" aria-label="${keySectorLabels[name]}"><span class="key-sector-title">${keySectorLabels[name]}</span><div class="key-sector-grid">${sectors.get(name).map(item => renderKey(type,item)).join('')}</div></div>`
+      ).join('');
     }
     function renderController() {
       const pair = currentMode === 'pair';
@@ -458,7 +501,7 @@
       selectedTransport.textContent = transport;
       diagram.innerHTML = pair ? pairedDiagram() : controllerDiagram(type);
       buttonKeys.dataset.controller = type;
-      buttonKeys.innerHTML = iconSets[type].map(item => renderKey(type,item)).join('');
+      buttonKeys.innerHTML = renderKeySectors(type);
       adaptivePanel.hidden = type !== 'dualsense';
       inputHint.textContent = 'Preview · no live reading';
       connectionStatus.textContent = pair ? 'Preview' : currentCard.querySelector('.status').textContent;

@@ -26,10 +26,45 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Native controller details show current LED modes
+
+- **What changed:** the selected controller's QML details now show HOME LED on/off when the service reports it, plus a badge when player LEDs use a manual pattern. Unknown and unsupported HOME states add no badge. The panel still has no LED-writing action.
+- **Why:** the newly exposed `homeLed` and `ledManual` model roles should be visible without mistaking missing data from an older service for an off LED.
+- **Evidence:** 13/13 native QML tests passed in an offscreen session, including updates from on/manual to off/automatic and then unsupported. `tools/check.sh --gui` finished with 0 failures and 1 skip (ShellCheck not installed locally). A QML preview with synthetic LED state was rendered and inspected. These are file-backed example states, not observations on a physical controller.
+- **Open questions:** user actions still need backend slots and real system-bus/polkit validation.
+
+### Command channel: bridge LED and idle-timeout actions
+
+- **What changed:** the service now handles requests on a root-owned FIFO, and the bridge exposes `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` through it ([docs/command-channel.md](docs/command-channel.md)). A manual player-LED mask takes precedence over the automatic pattern until reset or disconnection; the idle timeout persists across service restarts. `state.json` includes `player_led_manual` and `home_led`. `PairJoycond` is not available because pairing is completed on the controllers with L+R or SL+SR.
+- **Why:** the service remains the only LED writer; the GUI and bridge must not bypass that authority.
+- **Evidence:** Claude's 2026-10-17 handoff reports 14 new service unit tests, one FIFO integration test and eight bridge tests with fake devices/service. The local `tools/check.sh --gui --packages` passed in Claude's run, except ShellCheck was unavailable locally. This agent did not repeat those service/package checks.
+- **Open questions:** real controller behavior, system-bus/polkit/BlueZ integration and the installed service sandbox remain unverified.
+
+### Xbox Series Share and DualShock 4 system-button legibility
+
+- **What changed:** moved the Xbox Series Share symbol to the center bridge, above the sticks, in the HTML prototype and native QML details. Rebuilt the DualShock 4 Share and Options SVGs with larger, high-contrast lettering; both still fit and center inside the standard button frames.
+- **Why:** the Share symbol was too low and the two PlayStation labels were difficult to read at actual button-strip size.
+- **Evidence:** the browser panel suite passed 51/51 checks (including measured Share coordinates and equal top/bottom icon gaps), and the native QML suite passed 12/12. A DualShock 4 QML preview was rendered and inspected. No hardware input or live telemetry was involved.
+- **Visual review:** João approved interface stages 3 and 4 in the interactive HTML tab on 2026-10-17. The native silhouettes still need full visual parity with the composited prototype.
+
+### Native QML controller details reuse prototype artwork
+
+- **What changed:** selecting a controller in the native QML overview opens a read-only details panel. It maps the service's controller family to the prototype's diagrams, colored face-button overlays and family-specific button icons, grouped into face, D-pad, shoulder/trigger and system sections. Xbox 360 uses the new upper-layer XCF SVG directly. The side list was adjusted so names, battery status and LEDs do not overlap.
+- **Why:** migrate the established prototype visuals into the lower-memory native application without duplicating the daemon's device logic or presenting simulated input as telemetry.
+- **Evidence:** 12 offscreen QML tests passed on example state data, including model selection, all covered artwork families, Xbox Series Share and button SVG loading. Pro Controller, DualShock 4 and Xbox 360 screenshots were inspected visually. No live controller or system-bus bridge was used for these visual checks.
+- **Open questions:** the HTML's composited silhouettes and elevated shoulder art are not yet fully reproduced in QML; pressed-state highlights, sticks, triggers and motion readings require a backend telemetry contract. The full `tools/check.sh --gui` run was not conclusive in this restricted session (private D-Bus creation failed there, and concurrent service-command tests failed); the isolated QML suite passed in a permitted local session.
+
+### Xbox 360 diagram from the editable 4K source
+
+- **What changed:** the HTML preview now displays one SVG traced from the upper layer of `ui/assets/controller-references/xbox-360-original-color-transparent-uhd-3840x2160.xcf`. The lower layer is excluded; the source XCF is unchanged. The cropped UI SVG is accompanied by a full-canvas SVG, transparent PNG, editable VectorCraft file, PDF and rendered preview under `ui/assets/controller-references/`. The previous stack of outline, dark raster and text overlays is no longer used for the Xbox 360 panel.
+- **Why:** those overlapping layers produced doubled labels and irregular edges; a single transparent diagram preserves the source artwork and scales in the interactive preview.
+- **Evidence:** VectorCraft reported no trace warnings; both SVGs parse as XML, the PDF contains no embedded raster images, and the transparent PNG preview has alpha 0 in empty areas. Local UI checks passed: 37 file/service/Bluetooth, 49 panel and 27 theme/credits checks, including two new Xbox 360 image assertions; no asset failures or JavaScript errors.
+- **Visual review:** the browser security policy prevented direct inspection of the user's existing `file://` tab by this agent, but João approved stage 3 in that interactive preview on 2026-10-17. No physical controller was involved.
+
 ### Development tools: one check script, a hardware checklist
 
 - **What changed:** `tools/check.sh` runs what CI runs (unit tests, syntax, the udev rule, the profile table, the bridge XML and tests, ShellCheck) and, on request, the interface tests, the QML tests and the package builds (`.deb` and `.rpm` in Docker, Arch with `makepkg`). CI's Tests job now calls the same script. `tools/collect-report.sh` writes one diagnostic file with Bluetooth addresses masked; `tools/measure-service.sh` measures the running service's CPU from its cgroup. [docs/hardware-checklist.md](docs/hardware-checklist.md) turns every check that needs a real controller into one ordered session with expected results.
-- **Why:** two CI failures in one day (a missing build dependency and a tool used before it was installed) were both cheap to catch locally, and the hardware checks were scattered across notes, one of them ("original tests 3, 4 and 6") never written down.
+- **Why:** two CI failures in one day (a missing build dependency and a tool used before it was installed) were both cheap to catch locally, and the hardware checks were scattered across notes. The original numbered tests 3, 4 and 6 were absent from the project files but later recovered from the 2026-10-15 assistant history: global player ordering, original/third-party Joy-Con pairing, and normal/charging/low battery states.
 - **Evidence:** `tools/check.sh` passes here and fails (exit status 1, with the parser error) when a bridge XML file is broken; `--gui` and `--packages` pass; the address masking has a self-test that `check.sh` runs. On this machine ShellCheck is not installed, and the script says so instead of passing.
 - **Open questions:** nothing here has been used on a second machine; the checklist itself has not been run.
 
@@ -46,7 +81,7 @@ When you cut a release: add the tag, add its entry here, update the version in t
 - **What changed:** new `bridge/ujm-bridge`, a small Python program (PyGObject/GIO) that republishes `state.json` on the system bus, stores controller aliases, and drives BlueZ for scan, pair, connect and disconnect, asking polkit before every action. Bus-activated, and it exits 30 s after its last client leaves. Details in [docs/bridge.md](docs/bridge.md). `install.sh --with-bridge` and the three packages ship it (its dependencies are optional).
 - **Why:** the interface must not run `bluetoothctl`, `sudo` or read `/dev/input`, and the shell service cannot speak D-Bus. GIO was chosen over `dbus-fast`/`jeepney`: one dependency that every Linux desktop already has, an idle main loop that costs nothing, and inotify built in.
 - **Evidence:** 19 tests on a private session bus with a fake BlueZ and a fake polkit (the real `CheckAuthorization` call is exercised); measured 0.00% CPU and 19.6 MiB while running, nothing when stopped. The `.deb`, `.rpm` and Arch packages were built with the bridge and inspected.
-- **Open questions:** `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` return `NotSupported` until the shell service has a command channel. Not tested: a real BlueZ, a real polkit, the system bus policy on an installed system.
+- **At this stage:** `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` returned `NotSupported`; the command channel entry above records their later implementation. Still not tested here: a real BlueZ, a real polkit, or the system bus policy on an installed system.
 
 ### Interface measurements: Chromium against QML
 
