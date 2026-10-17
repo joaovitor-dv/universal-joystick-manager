@@ -50,6 +50,14 @@
     .keys[data-controller="pro"] .key--nintendo-b .key-symbol { background:#edb929; }
     .keys[data-controller="pro"] .key--nintendo-x .key-symbol { background:#2879df; }
     .keys[data-controller="pro"] .key--nintendo-y .key-symbol { background:#1dae72; }
+    .keys[data-controller="joyconl"] .key--rail img { transform:rotate(-90deg); }
+    .keys[data-controller="joyconr"] .key--rail img { transform:rotate(90deg); }
+    .keys[data-controller="joyconr"] .key--face { padding:2px; }
+    .keys[data-controller="joyconr"] .key--face .key-symbol { width:30px; height:30px; border:0; color:#fff; font-size:17px; }
+    .keys[data-controller="joyconr"] .key--nintendo-a .key-symbol { background:#e23441; }
+    .keys[data-controller="joyconr"] .key--nintendo-b .key-symbol { background:#edb929; }
+    .keys[data-controller="joyconr"] .key--nintendo-x .key-symbol { background:#2879df; }
+    .keys[data-controller="joyconr"] .key--nintendo-y .key-symbol { background:#1dae72; }
     /* The DS4's long labels need more icon area, not a different button frame. */
     .keys[data-controller="ds4"] .key--wide-system img { display:block; width:34px; height:24px; max-width:none; max-height:none; filter:none; }
     .axis { display:grid; grid-template-columns:65px 1fr 42px; gap:7px; align-items:center; color:#bed8c1; font-size:12px; margin:5px 0; } .axisbar { height:8px; border:1px solid #37543c; background:#101911; } .axisbar span { display:block; height:100%; width:65%; background:#65d77d; }
@@ -449,13 +457,15 @@
         const whiteLines = `<filter id="joycon-transparent-white-lines" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" result="white-lines" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 .897 1.761 .342 0 -.28"/><feComposite in="white-lines" in2="SourceAlpha" operator="in"/></filter>`;
         const shoulderButtons = type === 'joyconpair'
           ? [['ZL',100,-34,'trigger'],['L',245,-34,'bumper'],['R',437,-34,'bumper'],['ZR',582,-34,'trigger']]
-          : [[type === 'joyconl' ? 'L' : 'R',258,-35,'bumper'],[type === 'joyconl' ? 'ZL' : 'ZR',399,-35,'trigger']];
+          : type === 'joyconl'
+            ? [['L',70,-35,'bumper'],['SL',181,-35,'rail'],['SR',445,-35,'rail'],['ZL',568,-35,'trigger']]
+            : [['R',70,-35,'bumper'],['SL',213,-35,'rail'],['SR',475,-35,'rail'],['ZR',568,-35,'trigger']];
         const shoulders = `<g font-family="Segoe UI,sans-serif" font-size="18" font-weight="700" text-anchor="middle" dominant-baseline="central">${shoulderButtons.map(([label,x,y,shape]) => {
-          const w = shape === 'trigger' ? 78 : 88, h = shape === 'trigger' ? 29 : 25, left = x-w/2, top = y-h/2;
+          const w = shape === 'trigger' ? 78 : shape === 'rail' ? 70 : 88, h = shape === 'trigger' ? 29 : shape === 'rail' ? 23 : 25, left = x-w/2, top = y-h/2;
           const silhouette = shape === 'trigger'
             ? `<path d="M${left+4} ${top}H${left+w-4}Q${left+w} ${top} ${left+w} ${top+5}V${top+h}H${left}V${top+5}Q${left} ${top} ${left+4} ${top}Z"/>`
             : `<path d="M${left+8} ${top}H${left+w-8}Q${left+w} ${top} ${left+w} ${top+8}V${top+h-5}Q${left+w/2} ${top+h+4} ${left} ${top+h-5}V${top+8}Q${left} ${top} ${left+8} ${top}Z"/>`;
-          return `<g fill="none" stroke="#f2fff3" stroke-width="2.5" stroke-linejoin="round">${silhouette}<text x="${x}" y="${y+1}" fill="#fff" stroke="none" font-size="18">${label}</text></g>`;
+          return `<g data-joycon-shoulder="${label}" fill="none" stroke="#f2fff3" stroke-width="2.5" stroke-linejoin="round">${silhouette}<text x="${x}" y="${y+1}" fill="#fff" stroke="none" font-size="18">${label}</text></g>`;
         }).join('')}</g>`;
         const viewBox = type === 'joyconpair' ? `0 -70 ${width} ${Number(height)+70}` : `0 -68 ${width} ${Number(height)+68}`;
         return `<div class="controller-art controller-art--joycon${type==='joyconpair' ? ' controller-art--pair' : ''}" data-family="nintendo"><svg viewBox="${viewBox}" role="img" aria-label="${names[type][0]} transparent diagram with external L/ZL or R/ZR button miniatures" xmlns="http://www.w3.org/2000/svg"><defs>${whiteLines}</defs><image href="${images[type]}" width="${width}" height="${height}" filter="url(#joycon-transparent-white-lines)"/>${shoulders}</svg>${markers}</div>`;
@@ -483,7 +493,7 @@
       const content = file ? `<img src="${icon(file)}" alt="">` : `<span class="${faceClass ? 'key-symbol' : 'key-text'}">${label}</span>`;
       const direction = {'↑':'up','↓':'down','←':'left','→':'right'}[label];
       const clearIcon = ['xbox_lb','xbox_lt','xbox_rb','xbox_rt','xbox_ls_click','xbox_rs_click','xbox360_button_select','xbox360_button_start'].includes(file);
-      return `<span class="key ${faceClass}${direction ? ' key--direction' : ''}${isFace ? ' key--face' : ''}${label === 'PS' ? ' key--system-home' : ''}${type === 'dualshock' && (label === 'SELECT' || label === 'START') ? ' key--ps3-system' : ''}${type === 'ds4' && (label === 'SHARE' || label === 'OPTIONS') ? ' key--wide-system' : ''}${['dualshock','ds4','dualsense'].includes(type) && label === 'PS' ? ' key--ps3-home' : ''}${clearIcon ? ' key--clear-icon' : ''}" role="img" aria-label="${direction ? 'D-pad '+direction : label}" title="${direction ? 'D-pad '+direction : label}">${content}</span>`;
+      return `<span class="key ${faceClass}${direction ? ' key--direction' : ''}${isFace ? ' key--face' : ''}${['SL','SR'].includes(label) ? ' key--rail' : ''}${label === 'PS' ? ' key--system-home' : ''}${type === 'dualshock' && (label === 'SELECT' || label === 'START') ? ' key--ps3-system' : ''}${type === 'ds4' && (label === 'SHARE' || label === 'OPTIONS') ? ' key--wide-system' : ''}${['dualshock','ds4','dualsense'].includes(type) && label === 'PS' ? ' key--ps3-home' : ''}${clearIcon ? ' key--clear-icon' : ''}" role="img" aria-label="${direction ? 'D-pad '+direction : label}" title="${direction ? 'D-pad '+direction : label}">${content}</span>`;
     }
     function renderKeySectors(type) {
       const sectors = new Map(keySectorOrder.map(name => [name, []]));

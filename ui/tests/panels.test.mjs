@@ -58,6 +58,46 @@ for (const [type, list] of Object.entries(faces)) {
   t.ok(`${type}: colored A/B/X/Y sit on the drawn circles (max ${Math.max(...dev).toFixed(1)} px)`, Math.max(...dev) <= 2);
 }
 
+await click('.card[data-controller="joyconl"]'); await sleep(500);
+const joyconL = await ev(`(() => {
+  const buttons = [...document.querySelectorAll('#controller-diagram [data-joycon-shoulder]')];
+  const rail = [...document.querySelectorAll('.keys[data-controller="joyconl"] .key--rail img')];
+  return { labels:buttons.map(button => button.dataset.joyconShoulder),
+    boxes:buttons.map(button => { const b = button.getBBox(); return {left:b.x,right:b.x+b.width}; }),
+    railCount:rail.length, railTransforms:rail.map(icon => getComputedStyle(icon).transform) };
+})()`);
+t.ok('Joy-Con L has four distinct shoulder and rail miniatures',
+  JSON.stringify(joyconL.labels) === JSON.stringify(['L','SL','SR','ZL']) &&
+  joyconL.boxes.every((box,index) => index === 0 || joyconL.boxes[index-1].right < box.left),
+  JSON.stringify(joyconL));
+t.ok('Joy-Con L rail icons are upright in the horizontal layout',
+  joyconL.railCount === 2 && joyconL.railTransforms.every(value => /^matrix\(0, -1, 1, 0,/.test(value)),
+  JSON.stringify(joyconL.railTransforms));
+
+await click('.card[data-controller="joyconr"]'); await sleep(500);
+const joyconR = await ev(`(() => {
+  const buttons = [...document.querySelectorAll('#controller-diagram [data-joycon-shoulder]')];
+  const rail = [...document.querySelectorAll('.keys[data-controller="joyconr"] .key--rail img')];
+  const faces = ['A','B','X','Y'].map(label => {
+    const symbol = document.querySelector('.keys[data-controller="joyconr"] .key--nintendo-' + label.toLowerCase() + ' .key-symbol');
+    const style = getComputedStyle(symbol);
+    return {label, width:symbol.getBoundingClientRect().width, color:style.color, background:style.backgroundColor};
+  });
+  return {labels:buttons.map(button => button.dataset.joyconShoulder),
+    boxes:buttons.map(button => { const b = button.getBBox(); return {left:b.x,right:b.x+b.width}; }),
+    railCount:rail.length, railTransforms:rail.map(icon => getComputedStyle(icon).transform), faces};
+})()`);
+t.ok('Joy-Con R has four distinct shoulder and rail miniatures',
+  JSON.stringify(joyconR.labels) === JSON.stringify(['R','SL','SR','ZR']) &&
+  joyconR.boxes.every((box,index) => index === 0 || joyconR.boxes[index-1].right < box.left),
+  JSON.stringify(joyconR));
+t.ok('Joy-Con R rail icons are upright in the horizontal layout',
+  joyconR.railCount === 2 && joyconR.railTransforms.every(value => /^matrix\(0, 1, -1, 0,/.test(value)),
+  JSON.stringify(joyconR.railTransforms));
+t.ok('Joy-Con R face buttons use visible SNES-color disks like the Pro Controller',
+  joyconR.faces.length === 4 && joyconR.faces.every(face => face.width === 30 && face.color === 'rgb(255, 255, 255)' && face.background !== 'rgba(0, 0, 0, 0)'),
+  JSON.stringify(joyconR.faces));
+
 // Perspective diagrams must expose four distinct, separated shoulder/trigger shapes,
 // and the filtered source linework must be mapped to a visible cool-white rather than shell black.
 const shoulders = {

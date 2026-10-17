@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Joy-Con rail and shoulder controls in the prototype
+
+- **What changed:** the individual Joy-Con L and R diagrams now show four separate L/SL/SR/ZL or R/SL/SR/ZR miniatures. Their SL/SR icons are oriented for the horizontal controller view; Joy-Con R face-button tiles use the same readable four-color disks as the Pro Controller. The combined Joy-Con panel is unchanged in this commit.
+- **Why:** the rail buttons had no independent diagram indicators and their tile labels read sideways; A/B/X/Y on the right Joy-Con were too dim at tile size.
+- **Evidence:** João approved the Joy-Con L and R previews separately. Browser tests for the indicator count, separation, icon orientation and face-button styling were added. The UI browser suite passed 117 checks after the L change; after the R change, syntax and diff checks passed, but the local browser test was not rerun because the session's browser policy blocks automated observation of the local file preview. CI results remain to be checked after push. No hardware input was involved.
+- **Open questions:** the combined Joy-Con face-button tiles are a separate visual-review step; native QML parity and hardware behavior remain outside this change.
+
 ### Native controller details show current LED modes
 
 - **What changed:** the selected controller's QML details now show HOME LED on/off when the service reports it, plus a badge when player LEDs use a manual pattern. Unknown and unsupported HOME states add no badge. The panel still has no LED-writing action.
