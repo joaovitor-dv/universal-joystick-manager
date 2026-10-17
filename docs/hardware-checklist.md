@@ -159,5 +159,5 @@ Send the final report **and** the baseline from step 0, plus your notes below. B
 | 4 Joy-Con R HOME LED | | |
 | 5 `state.json` | | |
 | 6 Idle power-off | | |
-| 8 Original tests 3, 4, 6 | | |
+| 8 Original tests 3, 4, 6 | done | Passed, reported by the maintainer on 2026-10-17 (no report file attached, so no numbers). The idle timeout stays at 1800 s until the maintainer authorizes 300 s. |
 | 7 Bridge on the system bus | | |
