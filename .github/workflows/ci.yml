@@ -15,31 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unit tests (fake sysfs, no hardware)
-        run: bash tests/test_slots.sh
-
-      - name: Syntax checks
-        run: |
-          bash -n joystickmanager.sh
-          bash -n joystickmanager-doctor
-          bash -n install.sh
-          bash -n tests/test_slots.sh
-          python3 -m py_compile switchpro-leds.py
-          python3 -m py_compile bridge/ujm-bridge bridge/tests/test_bridge.py bridge/tests/fake_bluez.py
-
-      - name: Bridge tests (private D-Bus session, fake BlueZ and polkit)
+      - name: Install the check dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-glib-2.0 dbus libxml2-utils
-          xmllint --noout --nonet bridge/org.ujm.Manager1.conf bridge/org.ujm.manager.policy
-          dbus-run-session -- python3 -W ignore bridge/tests/test_bridge.py
 
-      - name: Validate the udev rule
-        run: udevadm verify udev/99-joystickmanager-procontroller-charge-only.rules
-
-      - name: Profile table is well formed
-        run: |
-          awk -F'\t' '!/^#/ && NF != 7 { printf "line %d has %d fields, expected 7\n", NR, NF; bad=1 } END { exit bad }' controllers.tsv
+      # The same script developers run before pushing (tools/check.sh): unit tests, syntax, the
+      # udev rule, the profile table, the bridge XML and the bridge tests on a private D-Bus.
+      - name: Checks
+        run: tools/check.sh
 
   ui:
     name: Interface (headless Chrome)
