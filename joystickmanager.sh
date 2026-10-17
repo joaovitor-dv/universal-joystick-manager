@@ -15,10 +15,17 @@ case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
-switchpro_helper=/usr/local/libexec/joystickmanager-switchpro-leds
 # "experimental" and "planned" controllers in controllers.tsv are only used with JOYMANAGER_EXPERIMENTAL=1.
 experimental=${JOYMANAGER_EXPERIMENTAL:-0}
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
+# Pro Controller LED helper: JOYMANAGER_SWITCHPRO_HELPER, or next to wherever this script is
+# installed (install.sh: /usr/local/libexec; packages: /usr/lib/joystickmanager or /usr/libexec).
+switchpro_helper=${JOYMANAGER_SWITCHPRO_HELPER:-}
+if [ -z "$switchpro_helper" ]; then
+    for f in "$script_dir/../libexec/joystickmanager-switchpro-leds" "$script_dir/../lib/joystickmanager/switchpro-leds"; do
+        [ -x "$f" ] && { switchpro_helper=$f; break; }
+    done
+fi
 mkdir -p "$runtime_dir"
 touch "$slots_file"
 

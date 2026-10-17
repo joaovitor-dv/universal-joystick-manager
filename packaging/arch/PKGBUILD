@@ -1,19 +1,26 @@
+# Maintainer: João (joaovitor-dv) <https://github.com/joaovitor-dv>
+# Builds the package from this checkout: run `makepkg` inside packaging/arch.
 pkgname=universal-joystick-manager
 pkgver=0.8.0
 pkgrel=1
 pkgdesc='UJM - Universal Joystick Manager for Linux'
 arch=('any')
+url='https://github.com/joaovitor-dv/universal-joystick-manager'
 license=('MIT')
-depends=('bash' 'systemd' 'bluez' 'bluez-utils' 'evtest')
+depends=('bash' 'systemd' 'bluez' 'bluez-utils' 'evtest' 'python')
 optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration')
-source=('../../joystickmanager.sh' '../../joystickmanager-doctor' '../../controllers.tsv' '../../joystickmanager.service' '../../README.md' '../../LICENSE')
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
-    install -Dm755 "$srcdir/joystickmanager.sh" "$pkgdir/usr/bin/joystickmanager.sh"
-    install -Dm755 "$srcdir/joystickmanager-doctor" "$pkgdir/usr/bin/joystickmanager-doctor"
-    install -Dm644 "$srcdir/controllers.tsv" "$pkgdir/usr/share/joystickmanager/controllers.tsv"
-    install -Dm644 "$srcdir/joystickmanager.service" "$pkgdir/usr/lib/systemd/system/joystickmanager.service"
-    install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
-    install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    local root="$startdir/../.."
+    install -Dm755 "$root/joystickmanager.sh" "$pkgdir/usr/bin/joystickmanager.sh"
+    install -Dm755 "$root/joystickmanager-doctor" "$pkgdir/usr/bin/joystickmanager-doctor"
+    install -Dm755 "$root/switchpro-leds.py" "$pkgdir/usr/lib/joystickmanager/switchpro-leds"
+    install -Dm644 "$root/controllers.tsv" "$pkgdir/usr/share/joystickmanager/controllers.tsv"
+    install -Dm644 "$root/udev/99-joystickmanager-procontroller-charge-only.rules" "$pkgdir/usr/share/joystickmanager/udev/99-joystickmanager-procontroller-charge-only.rules"
+    # the unit in the repository points at /usr/local (install.sh); packages install to /usr
+    install -dm755 "$pkgdir/usr/lib/systemd/system"
+    sed 's|/usr/local/bin/|/usr/bin/|' "$root/joystickmanager.service" >"$pkgdir/usr/lib/systemd/system/joystickmanager.service"
+    chmod 644 "$pkgdir/usr/lib/systemd/system/joystickmanager.service"
+    install -Dm644 "$root/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$root/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

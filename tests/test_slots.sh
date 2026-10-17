@@ -267,6 +267,19 @@ t_idle_workers_only_for_bluetooth() {
     check "only the Bluetooth controller gets an idle worker" "$A" "$(tr '\n' ' ' <"$T/workers.log" | sed 's/ $//')"
 }
 
+t_switchpro_helper_found_next_to_the_install() {
+    local i=0 layout pre bin helper
+    for layout in "local/bin:local/libexec/joystickmanager-switchpro-leds" "bin:lib/joystickmanager/switchpro-leds" "bin:libexec/joystickmanager-switchpro-leds"; do
+        i=$((i + 1)); pre="$T/prefix$i"; bin="$pre/${layout%%:*}"; helper="$pre/${layout#*:}"
+        mkdir -p "$bin" "$(dirname "$helper")"; cp "$here/joystickmanager.sh" "$bin/"; printf '#!/bin/sh\n' >"$helper"; chmod +x "$helper"
+        # shellcheck source=/dev/null
+        JOYMANAGER_SWITCHPRO_HELPER='' source "$bin/joystickmanager.sh"
+        check "helper found for the ${layout%%:*} layout" "$(realpath "$helper")" "$(realpath -m "${switchpro_helper:-/none}")"
+    done
+    JOYMANAGER_SWITCHPRO_HELPER=/custom/helper source "$here/joystickmanager.sh"
+    check "JOYMANAGER_SWITCHPRO_HELPER overrides the search" /custom/helper "$switchpro_helper"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -287,7 +300,8 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_battery_change_writes_immediately t_refresh_off_applies_once_then_only_changes \
          t_refresh_off_new_connection_gets_leds t_invalid_led_refresh_falls_back_to_10 \
          t_idle_worker_disconnects_after_a_full_timeout t_idle_worker_never_disconnects_when_evtest_fails \
-         t_idle_workers_only_for_bluetooth t_udev_rule_for_pro_controller; do
+         t_idle_workers_only_for_bluetooth t_switchpro_helper_found_next_to_the_install \
+         t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s failure(s)\n' "$fails"

@@ -1,3 +1,10 @@
 #!/usr/bin/make -f
 %:
 	dh $@
+
+# The unit in the repository points at /usr/local (install.sh); packages install to /usr.
+# The Pro Controller LED helper is installed without its .py suffix where the service looks for it.
+override_dh_install:
+	dh_install
+	sed -i 's|/usr/local/bin/|/usr/bin/|' debian/universal-joystick-manager/lib/systemd/system/joystickmanager.service
+	install -Dm755 switchpro-leds.py debian/universal-joystick-manager/usr/lib/joystickmanager/switchpro-leds

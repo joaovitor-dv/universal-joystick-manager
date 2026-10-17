@@ -4,9 +4,10 @@ Priority: optional
 Maintainer: João <joao@localhost>
 Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.0
+
 Package: universal-joystick-manager
 Architecture: all
-Depends: bash, systemd, bluez, evtest
+Depends: bash, systemd, bluez, evtest, python3
 Recommends: upower
 Suggests: joycond
 Description: UJM - Universal Joystick Manager for Linux
