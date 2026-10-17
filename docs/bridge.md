@@ -54,19 +54,21 @@ Signals: `ControllersChanged`, `BluetoothDevicesChanged` (both without payload: 
 | `ScanBluetooth(u seconds)` | `org.ujm.manager.bluetooth` | Starts discovery and stops it by itself (1 to 60 s, 15 if 0). |
 | `ListBluetoothDevices() → aa{sv}` | none | `address`, `name`, `paired`, `connected`, `gamepad` (BlueZ icon `input-gaming`). |
 | `PairBluetooth(s address)` | `org.ujm.manager.bluetooth` | Pair, trust, then connect. |
-| `SetIdleTimeout(u)`, `SetPlayerLeds(s,u)`, `SetHomeLed(s,b)` | `org.ujm.manager.configure` | **Not available yet**: they return `org.freedesktop.DBus.Error.NotSupported` (see below). |
+| `SetIdleTimeout(u seconds)` | `org.ujm.manager.configure` | 0 (never power off) or 60 to 86400. Kept across restarts by the service. |
+| `SetPlayerLeds(s id, u mask)` | `org.ujm.manager.leds` | Mask 0-15 (bit 0 = LED 1) sets a pattern that wins over the slot pattern; **255 goes back to the automatic one**. Not for the `joycond` pair. |
+| `SetHomeLed(s id, b enabled)` | `org.ujm.manager.leds` | Only where `home_led` is not `unsupported`. |
 
-A controller (`a{sv}`) has: `id`, `name`, `transport` (`bluetooth`, `usb`, `virtual`, `other`), `player`, `player_led_mask`, `connected`, and when known `family`, `hid`, `event`, `address`, `alias`, `battery_percent`, `battery_status`, `battery_level`. The field meanings are the ones in [state.md](state.md).
+A controller (`a{sv}`) has: `id`, `name`, `transport` (`bluetooth`, `usb`, `virtual`, `other`), `player`, `player_led_mask`, `connected`, and when known `family`, `hid`, `event`, `address`, `alias`, `battery_percent`, `battery_status`, `battery_level`, `home_led` (`on`, `off`, `unsupported`) and `player_led_manual` (the player LEDs were set by hand). The field meanings are the ones in [state.md](state.md).
 
-Errors are standard D-Bus errors: `InvalidArgs` (for example an alias for an id without an address, connecting a USB controller), `AccessDenied` (polkit said no), `org.ujm.Manager1.Error.UnknownController`, `NoAdapter`/`NoBluetooth`, and BlueZ's own errors passed through (`org.bluez.Error.Failed`...).
+Errors are standard D-Bus errors: `InvalidArgs` (for example an alias for an id without an address, connecting a USB controller), `AccessDenied` (polkit said no), `org.ujm.Manager1.Error.UnknownController`, `NoAdapter`/`NoBluetooth`, BlueZ's own errors passed through (`org.bluez.Error.Failed`...), and for the three service actions `ServiceUnavailable` (the service is not running, or is an older version without the command channel), `Rejected` (the service refused, with its reason) and `ServiceTimeout`.
 
 ## Authorization
 
-Reads need none (the snapshot is world readable anyway). Actions ask polkit about the **caller's bus name**, with interaction allowed. Defaults: `set-alias` and `bluetooth` are allowed for the active local session and need an administrator otherwise; `configure` always needs an administrator (kept for the actions that are not available yet).
+Reads need none (the snapshot is world readable anyway). Actions ask polkit about the **caller's bus name**, with interaction allowed. Defaults: `set-alias`, `bluetooth` and `leds` are allowed for the active local session and need an administrator otherwise; `configure` (the idle timeout) always needs an administrator.
 
-## What is not done: a command channel to the service
+## The service actions
 
-`SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` need the shell service to accept commands, and it does not yet. The service is the only writer of the LEDs, so the bridge must not write them behind its back. The plan is a small file the service reads each cycle (for the idle timeout) and a request file for one-shot LED tests; both need design and tests on the service side first.
+`SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` go to the shell service, the only writer of LEDs and numbering, through the [command channel](command-channel.md). The bridge validates first (ranges, a connected controller, no virtual pair), asks polkit, sends one request and waits up to 5 s for the service's answer. There is no `PairJoycond`: `joycond` pairs Joy-Cons when the user presses L+R (or SL+SR) on them, and nothing can trigger that from outside.
 
 ## Resources
 
@@ -78,5 +80,5 @@ Measured on the maintainer's machine (see [gui-measurements.md](gui-measurements
 dbus-run-session -- python3 bridge/tests/test_bridge.py
 ```
 
-20 tests on a private session bus with a **fake BlueZ and a fake polkit** (`bridge/tests/fake_bluez.py`): nothing touches the real system bus or Bluetooth. They cover the snapshot and its change signal, bad or foreign `state.json`, aliases (sanitising, persistence, refusal), Bluetooth routing and error passthrough, polkit being asked with the right action and caller (and a refusal blocking the action), the actions that are not available, and the bridge exiting when unused. The test authorizers (`UJM_TEST_AUTH`) are only honoured on a session bus (`UJM_BUS=session`), never on the system bus.
-Not tested: a real BlueZ, a real polkit and the system bus policy files, which need an installed system.
+28 tests on a private session bus with a **fake BlueZ, a fake polkit and a fake service command channel** (`bridge/tests/fake_bluez.py`): nothing touches the real system bus or Bluetooth. They cover the snapshot and its change signal, bad or foreign `state.json`, aliases (sanitising, persistence, refusal), Bluetooth routing and error passthrough, the three service actions (validation, refusal and timeout, no service, a FIFO nobody reads), polkit being asked with the right action and caller (and a refusal blocking the action), and the bridge exiting when unused. The test authorizers (`UJM_TEST_AUTH`) are only honoured on a session bus (`UJM_BUS=session`), never on the system bus.
+Not tested: a real BlueZ, a real polkit, the system bus policy files and the unit's sandbox (`ReadWritePaths`), which need an installed system.

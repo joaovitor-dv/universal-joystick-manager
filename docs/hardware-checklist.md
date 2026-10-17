@@ -118,6 +118,17 @@ busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ConnectBluetooth
 busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ScanBluetooth u 15
 ```
 
+```bash
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetPlayerLeds su "<id>" 12     # LEDs 3 and 4 light up
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetPlayerLeds su "<id>" 255    # back to the player number
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetHomeLed sb "<id>" false     # Joy-Con R / Pro Controller only
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetHomeLed sb "<id>" true
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetIdleTimeout u 120
+journalctl -u joystickmanager -n 20 --no-pager | grep "command "
+```
+
+Expect: each call answers at once; the LEDs follow, and the manual pattern **stays** while the controller charges or its battery is low (no blinking, no periodic rewrite) until you send `255`; `state.json` shows `player_led_manual` and `home_led` accordingly and `service.idle_timeout` 120; after `sudo systemctl restart joystickmanager` the timeout is still 120 (it is kept in `/var/lib/joystickmanager/settings`; delete that file to go back to the unit's value). These are the first calls of the command channel on a real service and a real system bus: keep the exact error text of anything odd (`ServiceUnavailable` means the running service is an older version; reinstall it, step 0).
+
 Expect: the controller disconnects and reconnects, and the card disappears and returns in the window. This is the first time the bridge meets a real BlueZ and a real polkit: anything odd is the result, so keep the exact error text.
 
 ## 8. Close the sitting

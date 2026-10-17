@@ -25,6 +25,8 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
       "hid": "0005:057E:2009.0031",
       "event": "event30",
       "player_led_mask": 1,
+      "player_led_manual": false,
+      "home_led": "on",
       "battery": { "percent": 55, "status": "Charging", "level": "normal" }
     }
   ]
@@ -37,7 +39,7 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
 |---|---|---|
 | `updated` | integer | Unix time of the last change. |
 | `service.led_refresh` | string | `JOYMANAGER_LED_REFRESH` as the service understood it (`"10"`, `"0"`, `"off"`). |
-| `service.idle_timeout` | integer | Seconds before an idle Bluetooth controller is disconnected. |
+| `service.idle_timeout` | integer | Seconds before an idle Bluetooth controller is disconnected; `0` means never. It can be changed at run time and is then kept across restarts. |
 | `service.experimental` | boolean | Whether experimental controller profiles are enabled. |
 | `controllers[]` | array | Connected controllers, ordered by player number. |
 | `id` | string | Stable identity: the Bluetooth address for HID controllers, `joycond:<event>` for the virtual Joy-Con pair, `phys:...`/`path:...` for drivers without one (for example `xpad`). |
@@ -48,6 +50,8 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
 | `hid` | string or null | HID device (`bus:vendor:product.instance`); a new connection gets a new one. |
 | `event` | string | Input event node, `/dev/input/<event>`. |
 | `player_led_mask` | integer | The 4-bit player LED pattern the service applies (bit 0 = LED 1); mirrored for the right Joy-Con. |
+| `player_led_manual` | boolean | `true` when the player LEDs were set by hand through the [command channel](command-channel.md) (then `player_led_mask` is that pattern and the service does not refresh or blink them). |
+| `home_led` | string | `on` or `off` (what the service applies to the HOME LED) or `unsupported` when the controller has none. |
 | `battery` | object or null | `percent` (integer or null), `status` (`Charging`, `Discharging`, `Full`, ...) and `level` (`normal`, `low`, `critical`). `null` when the driver exposes no battery. The joycond virtual pair has none: its Joy-Cons report their own. |
 
 ## Reading it
