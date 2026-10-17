@@ -1,5 +1,5 @@
 Name:           universal-joystick-manager
-Version:        0.1.0
+Version:        0.8.0
 Release:        1%{?dist}
 Summary:        UJM - Universal Joystick Manager for Linux
 License:        MIT

@@ -1,4 +1,4 @@
-# UJM — Universal Joystick Manager v0.7.1
+# UJM — Universal Joystick Manager v0.8.0
 
 [![CI](https://github.com/joaovitor-dv/universal-joystick-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/joaovitor-dv/universal-joystick-manager/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -63,7 +63,7 @@ Hardware used for validation: 1 original DualShock 3, 2 original Switch Pro Cont
 git clone https://github.com/joaovitor-dv/universal-joystick-manager.git
 cd universal-joystick-manager
 # optional: pin to a release instead of main, for example
-# git checkout v0.7.1
+# git checkout v0.8.0
 sudo ./install.sh
 sudo systemctl start joystickmanager
 ```
@@ -223,6 +223,7 @@ Newest first. Each version links to its release page; the reasoning and hardware
 
 | Version | Date | Highlights |
 |---|---|---|
+| [v0.8.0](https://github.com/joaovitor-dv/universal-joystick-manager/releases/tag/v0.8.0) | 2026-10-16 | The interface joins the repository: `ui/` prototype with browser tests, credits, dark-only themes, File menu and simulated service and Bluetooth |
 | [v0.7.1](https://github.com/joaovitor-dv/universal-joystick-manager/releases/tag/v0.7.1) | 2026-10-16 | English docs and the UJM name |
 | [v0.7.0](https://github.com/joaovitor-dv/universal-joystick-manager/releases/tag/v0.7.0) | 2026-10-16 | Opt-in udev rule to charge the Pro Controller without losing Bluetooth |
 | [v0.6.1](https://github.com/joaovitor-dv/universal-joystick-manager/releases/tag/v0.6.1) | 2026-10-16 | Gentler LED updates: fixes Pro Controller drops |

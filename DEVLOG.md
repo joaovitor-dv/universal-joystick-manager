@@ -26,6 +26,27 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+*Nothing yet.*
+
+---
+
+## v0.8.0 - The interface joins the repository
+
+*2026-10-16 · minor (`feat(ui)`) · 21 commits since v0.7.1*
+
+The graphical interface prototype now lives in the repository with its own browser tests, and the GitHub page became a user manual with this devlog, CI, community files and credits. The service itself did not change in this release; the interface still uses simulated data.
+
+### Release housekeeping
+
+- **What changed:** package versions synchronized with the tag for the first time (`PKGBUILD`, `.spec` and `debian/changelog` said `0.1.0` since v0.1.0); README title, patch notes and the version shown in the interface's Credits & Info updated; the nine README screenshots refreshed from the current interface; the ShellCheck warnings that were not bugs silenced with explained directives; the interface CI job made blocking after its first two green runs.
+- **Evidence:** slot tests 38/38 and interface tests 111/111 pass locally. ShellCheck is not installed locally, so its result is confirmed by CI only.
+
+### Clearer controller outlines and separate shoulder buttons
+
+- **What changed:** on the Pro Controller, DualSense, DualShock 4, Xbox One and Xbox Series diagrams the detail lines are now a light cool white instead of being drawn with the dark shell color, and each diagram shows four separate L/R shoulder and trigger buttons. Ten interface checks were added for it. Work by Codex (`d90adaf`).
+- **Evidence:** Codex could not start Chromium in his environment; the checks were run by Claude in headless Chromium (47/47 for the panels) and the result was reviewed in screenshots.
+- **Open questions:** the *Share* overlay on the Xbox Series diagram still looks lower than on the real controller.
+
 ### The interface moves into the repository
 
 - **What changed:** the interface prototype now lives in [`ui/`](ui/README.md), versioned like the rest of the code, so two people (or agents) can no longer silently overwrite each other's edits. Only the 77 assets it actually uses came along (4.2 MB instead of 14 MB); experiments and backups stayed out. Its browser tests moved too (`ui/tests/`, 101 checks over 3 files, runnable with `ui/tests/run.sh`), and CI got an informational interface job.

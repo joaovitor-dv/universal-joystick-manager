@@ -1,3 +1,10 @@
+universal-joystick-manager (0.8.0-1) unstable; urgency=medium
+
+  * Version synchronized with the v0.8.0 tag.
+  * The interface prototype (ui/) is in the repository but not packaged yet.
+
+ -- João <joao@localhost>  Fri, 16 Oct 2026 21:30:00 -0300
+
 universal-joystick-manager (0.1.0-1) unstable; urgency=medium
 
   * Initial packaging for the unified joystick manager.
