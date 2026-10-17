@@ -4,8 +4,8 @@ Release:        1%{?dist}
 Summary:        UJM - Universal Joystick Manager for Linux
 License:        MIT
 BuildArch:      noarch
-Requires:       bash, systemd, bluez
-Recommends:     upower, evtest
+Requires:       bash, systemd, bluez, evtest
+Recommends:     upower
 Suggests:       joycond
 
 %description

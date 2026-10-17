@@ -4,8 +4,8 @@ pkgrel=1
 pkgdesc='UJM - Universal Joystick Manager for Linux'
 arch=('any')
 license=('MIT')
-depends=('bash' 'systemd' 'bluez' 'bluez-utils')
-optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration' 'evtest: diagnostics')
+depends=('bash' 'systemd' 'bluez' 'bluez-utils' 'evtest')
+optdepends=('joycond-git: combine Nintendo Joy-Cons' 'upower: desktop battery integration')
 source=('../../joystickmanager.sh' '../../joystickmanager-doctor' '../../controllers.tsv' '../../joystickmanager.service' '../../README.md' '../../LICENSE')
 sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 

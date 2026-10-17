@@ -279,15 +279,17 @@ cleanup_missing() {
 }
 
 idle_worker() {
-    local id=$1 event=$2
+    local id=$1 event=$2 start
     case "$id" in [0-9A-Fa-f][0-9A-Fa-f]:*) ;; *) return;; esac
     while [ -e "$sys_input/$event" ]; do
-        timeout "$idle_timeout" stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:' || true
+        start=$(now_s)
+        if timeout "$idle_timeout" stdbuf -oL evtest "/dev/input/$event" 2>/dev/null | grep -m1 -q 'Event:'; then continue; fi
         [ -e "$sys_input/$event" ] || break
+        # Only a full timeout without any input means idle. If evtest is missing or stopped
+        # early (permissions, device going away), do not disconnect: wait and look again.
+        if [ $(( $(now_s) - start )) -lt "$idle_timeout" ]; then sleep 5; continue; fi
         bluetoothctl disconnect "$id" >/dev/null 2>&1 || true
-        # hid-nintendo may restore the pairing LED pattern after an input
-        # report; we re-apply the indication with low latency to keep it
-        # physically stable.
+        # short pause before checking whether the device is gone
         sleep 0.25
     done
 }
@@ -296,6 +298,8 @@ start_idle_workers() {
     local id slot prefix event pid
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] && [ "$event" != - ] || continue
+        # Idle power-off is a Bluetooth disconnect: only Bluetooth HID devices (bus 0005) get a worker.
+        case "$prefix" in 0005:*) ;; *) continue;; esac
         pid="$runtime_dir/idle.$slot.pid"
         if [ ! -r "$pid" ] || ! kill -0 "$(cat "$pid")" 2>/dev/null; then idle_worker "$id" "$event" & printf '%s\n' "$!" >"$pid"; fi
     done <"$slots_file"

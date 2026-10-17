@@ -236,6 +236,37 @@ t_invalid_led_refresh_falls_back_to_10() {
     JOYMANAGER_LED_REFRESH=0 source "$here/joystickmanager.sh"; check "0 is kept" 0 "$led_refresh"
 }
 
+# fake_bins: evtest and bluetoothctl stubs on PATH; bluetoothctl calls are logged.
+fake_bins() { # $1 = evtest behavior: "idle" (no input until killed) or "fail" (exits at once)
+    mkdir -p "$T/bin"
+    printf '#!/bin/sh\necho "$@" >>"%s/bt.log"\n' "$T" >"$T/bin/bluetoothctl"
+    if [ "$1" = idle ]; then printf '#!/bin/sh\nexec sleep 30\n' >"$T/bin/evtest"; else printf '#!/bin/sh\nexit 1\n' >"$T/bin/evtest"; fi
+    chmod +x "$T/bin/bluetoothctl" "$T/bin/evtest"; : >"$T/bt.log"
+    export PATH="$T/bin:$PATH"
+}
+
+t_idle_worker_disconnects_after_a_full_timeout() {
+    fake_bins idle; idle_timeout=1; mkdir -p "$sys_input/event1"
+    idle_worker "$A" event1 & local w=$!
+    sleep 2.5; kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
+    check "an idle Bluetooth controller is disconnected after the timeout" 1 "$(grep -c "^disconnect $A" "$T/bt.log" | awk '{print ($1 > 0)}')"
+}
+
+t_idle_worker_never_disconnects_when_evtest_fails() {
+    fake_bins fail; idle_timeout=3; mkdir -p "$sys_input/event1"
+    idle_worker "$A" event1 & local w=$!
+    sleep 1.5; kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
+    check "evtest failing at once does not disconnect the controller" 0 "$(grep -c disconnect "$T/bt.log")"
+}
+
+t_idle_workers_only_for_bluetooth() {
+    printf '%s\t1\t0005:057E:2009.0001\tevent1\n%s\t2\t0003:057E:2009.0002\tevent2\njoycond:event3\t3\t-\tevent3\n' "$A" "$B" >"$slots_file"
+    : >"$T/workers.log"
+    idle_worker() { echo "$1" >>"$T/workers.log"; }
+    start_idle_workers; wait
+    check "only the Bluetooth controller gets an idle worker" "$A" "$(tr '\n' ' ' <"$T/workers.log" | sed 's/ $//')"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -255,7 +286,8 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_leds_not_rewritten_within_window t_refresh_zero_keeps_old_behavior \
          t_battery_change_writes_immediately t_refresh_off_applies_once_then_only_changes \
          t_refresh_off_new_connection_gets_leds t_invalid_led_refresh_falls_back_to_10 \
-         t_udev_rule_for_pro_controller; do
+         t_idle_worker_disconnects_after_a_full_timeout t_idle_worker_never_disconnects_when_evtest_fails \
+         t_idle_workers_only_for_bluetooth t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s failure(s)\n' "$fails"
