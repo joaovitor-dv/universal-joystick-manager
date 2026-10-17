@@ -26,7 +26,7 @@ BUS_NAME = "org.ujm.Manager1"
 OBJ_PATH = "/org/ujm/Manager1"
 IFACE = "org.ujm.Manager1"
 API_VERSION = "1"
-MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
+MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")  # HID "uniq" may be lower case (DualShock 3)
 ALIAS_MAX = 40
 IDLE_EXIT_SECONDS = int(os.environ.get("UJM_BRIDGE_IDLE_EXIT", "30"))
 SCAN_MAX = 60
@@ -317,7 +317,8 @@ class BlueZ:
         self.managed(got, lambda e: fail(DBusError("org.ujm.Manager1.Error.NoBluetooth", e.message)))
 
     def device_path(self, address, ok, fail):
-        self.adapter_path(lambda ap: ok(f"{ap}/dev_{address.replace(':', '_')}"), fail)
+        # BlueZ object paths are upper case; a DualShock 3 reports its address in lower case
+        self.adapter_path(lambda ap: ok(f"{ap}/dev_{address.upper().replace(':', '_')}"), fail)
 
     def device_call(self, address, method, ok, fail):
         def go(path):

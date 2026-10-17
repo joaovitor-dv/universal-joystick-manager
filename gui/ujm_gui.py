@@ -23,7 +23,7 @@ from PySide6.QtQuickControls2 import QQuickStyle
 
 HERE = Path(__file__).resolve().parent
 BUS_NAME, OBJ_PATH, IFACE = "org.ujm.Manager1", "/org/ujm/Manager1", "org.ujm.Manager1"
-MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
+MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")  # HID "uniq" may be lower case (DualShock 3)
 
 VENDORS = {"switch-pro": "Nintendo", "joycon": "Nintendo", "joycon-combined": "Nintendo", "switch2": "Nintendo",
            "ps3": "Sony", "dualshock4": "Sony", "dualsense": "Sony",

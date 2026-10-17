@@ -270,6 +270,19 @@ class AllowedTests(unittest.TestCase):
         self.raises("InvalidArgs", self.env.call, "SetHomeLed", ("30:2C:3A:00:00:02", True), "(sb)")  # reported unsupported
         self.assertEqual(len(self.env.service_log()), before + 2)
 
+    def test_a_lower_case_address_still_counts_as_an_address(self):
+        # a DualShock 3 reports its HID uniq in lower case; BlueZ paths are upper case
+        low = json.loads(json.dumps(STATE))
+        low["controllers"][0]["id"] = PRO.lower()
+        self.env.write_state(low)
+        self.assertTrue(pump(lambda: self.env.call("ListControllers")[0][0]["id"] == PRO.lower()))
+        self.assertEqual(self.env.call("GetController", (PRO.lower(),), "(s)")[0]["address"], PRO.lower())
+        before = len(self.env.bluez_log())
+        self.env.call("ConnectBluetooth", (PRO.lower(),), "(s)")
+        self.assertIn("Device.Connect", self.env.bluez_log()[before:])
+        self.env.call("SetControllerAlias", (PRO.lower(), "ds3"), "(ss)")
+        self.assertEqual(self.env.call("GetController", (PRO.lower(),), "(s)")[0]["alias"], "ds3")
+
     def test_the_led_state_is_published(self):
         c = {x["id"]: x for x in self.env.call("ListControllers")[0]}
         self.assertEqual((c[PRO]["home_led"], c[PRO]["player_led_manual"]), ("on", False))
