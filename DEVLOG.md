@@ -26,6 +26,14 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Native QML interface: the Overview screen
+
+- **What changed:** `gui/ujm_gui.py` and `gui/qml/` are the first screen of the native interface: one card per connected controller (player, name or alias, vendor, transport, battery and charging state, player LEDs), in the dark palette of the HTML prototype. It reads the D-Bus bridge and follows its `ControllersChanged` signal; without the bridge it reads `/run/joystickmanager/state.json` directly, read-only, and says which source it is using. `--state-file gui/examples/state.example.json` runs it with no service and no hardware. Read-only: no buttons yet.
+- **Why:** the measurement decided it: about 88 MiB and one process, against 332 MiB and five for the WebEngine shell ([docs/gui-measurements.md](docs/gui-measurements.md)). Nothing polls: updates come from the bus signal or inotify, so it idles at about 0% CPU.
+- **Evidence:** 9 headless tests (offscreen, software rendering) on the example data, live replacement of the file by rename, a battery change updating one row without resetting the list, a broken file, no service at all, the bridge on a private session bus following its signal, and the fallback to the file; the LED test fails when the LED lookup is broken. A rendered screenshot was checked by eye. Measured on the real Wayland session (4 samples).
+- **Also:** the bridge got `GetSnapshotJson`, because QtDBus from Python cannot unpack `a{sv}` replies.
+- **Open questions:** the Basic Qt Quick Controls style is used because the default one stalled at start-up here; no controller photos or icons yet; it was not run against a bridge on the system bus (the bridge is not installed on this machine); PySide6 is not installed in CI, so these tests do not run there yet.
+
 ### D-Bus bridge for the interface (`org.ujm.Manager1`)
 
 - **What changed:** new `bridge/ujm-bridge`, a small Python program (PyGObject/GIO) that republishes `state.json` on the system bus, stores controller aliases, and drives BlueZ for scan, pair, connect and disconnect, asking polkit before every action. Bus-activated, and it exits 30 s after its last client leaves. Details in [docs/bridge.md](docs/bridge.md). `install.sh --with-bridge` and the three packages ship it (its dependencies are optional).

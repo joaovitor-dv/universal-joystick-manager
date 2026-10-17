@@ -10,6 +10,7 @@ Machine: CachyOS (Arch), kernel 7.2.9, Qt 6.12, PySide6 6.12, Wayland session. O
 |---|---|---|---|---|---|
 | QML, `qml6` runtime, no Python | 1 | **93 MiB** | 150 MiB | 0.0% | not measured |
 | QML in a PySide6 script | 1 | **108 MiB** | 171 MiB | 0.0% | 269 ms |
+| **The real QML interface** (`gui/ujm_gui.py`, Overview with 5 controllers, 4 samples) | 1 | **88-89 MiB** | 175 MiB | 0.0-0.1% | 270-310 ms |
 | PySide6 + QtWebEngine around `ui/index.html` | 5 | **332 MiB** | 570 MiB | 0.1% | 613 ms |
 | same, with trimmed Chromium flags | 5 | 310 MiB | 548 MiB | 0.1% | 554 ms |
 
@@ -24,7 +25,9 @@ What it says:
 
 Limits: the page measured is the current static prototype with simulated data, not the final interface with eight controllers and the monitoring views. The QML case is a four-rectangle window, so it is a floor, not a forecast. Everything ran on the GPU path of this machine; software rendering would differ. On this machine the **default** Qt Quick Controls style stalled at start-up inside the test environment, so the QML cases use the `Basic` style (also the lightest).
 
-**Conclusion:** start the native QML interface and keep the WebEngine shell (`gui/ujm_gui_webengine.py`) only as a stop-gap that shows the prototype with real data until the QML one replaces it.
+The real interface came out *below* the four-rectangle baseline (88 against 108 MiB). PSS depends on which libraries other running programs already map, so read the two as the same figure within about 20 MiB, not as QML being cheaper than itself. One extra first sample was discarded: the process had already exited when it was read (0 MiB), the three repeats and the earlier one agree.
+
+**Conclusion:** the native QML interface costs about a quarter of the memory of the WebEngine shell (88 against 332 MiB) with one process instead of five. Keep the WebEngine shell (`gui/ujm_gui_webengine.py`) only as a stop-gap that shows the prototype with real data until the QML one replaces it.
 
 ## Bridge
 
