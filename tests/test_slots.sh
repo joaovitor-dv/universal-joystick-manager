@@ -599,6 +599,45 @@ t_home_led_is_lit_once_per_connection_and_not_kept_alive() {
     check "SetHomeLed still lights it on request" 15 "$(home_of "$pre")"
 }
 
+t_refresh_sends_no_command_while_the_leds_already_match() {
+    cmd_setup; led_refresh=10
+    local pre="0005:057E:2009.$A" calls="$T/calls"; : >"$calls"
+    led_fixture "$pre" home
+    printf '#!/bin/sh\necho helper >>%s\n' "$calls" >"$T/helper"; chmod +x "$T/helper"; switchpro_helper="$T/helper"
+    write_led() { local p=$1 v=$2; [ -e "$p" ] || return 0; echo "write $v" >>"$calls"; printf '%s\n' "$v" >"$p"; }
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    local first; first=$(wc -l <"$calls")
+    check "the first pass sends commands" yes "$([ "$first" -gt 0 ] && echo yes || echo no)"
+    local t; for t in 1010 1020 1030 1040; do now_s() { printf '%s\n' "$t"; }; update_batteries_once; done
+    check "four more refreshes with the LEDs already right send nothing" "$first" "$(wc -l <"$calls")"
+}
+
+t_refresh_corrects_a_pattern_the_driver_changed() {
+    cmd_setup; led_refresh=10
+    local pre="0005:057E:2009.$B" calls="$T/calls"; : >"$calls"
+    led_fixture "$pre" home
+    printf '#!/bin/sh\necho helper >>%s\n' "$calls" >"$T/helper"; chmod +x "$T/helper"; switchpro_helper="$T/helper"
+    connect event1 "$A"; connect event2 "$B"; charging_battery "$B"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    check "the controller in slot 2 gets its pattern" "0 1 0 0" "$(leds_of "$pre")"
+    printf '1\n' >"$sys_leds/$pre:green:player-1/brightness"           # the driver applies its own pattern (LEDs 1 and 2)
+    : >"$calls"
+    now_s() { printf '1010\n'; }; update_batteries_once
+    check "the next refresh puts it back" "0 1 0 0" "$(leds_of "$pre")"
+    check "with a command, because it had changed" yes "$([ -s "$calls" ] && echo yes || echo no)"
+}
+
+t_an_explicit_request_always_writes() {
+    cmd_setup; local pre="0005:057E:2009.$A" calls="$T/calls"; : >"$calls"
+    led_fixture "$pre" home
+    write_led() { local p=$1 v=$2; [ -e "$p" ] || return 0; echo "write $v" >>"$calls"; printf '%s\n' "$v" >"$p"; }
+    connect event1 "$A"
+    : >"$calls"
+    req eeeeeee20 player_leds "$A" 1     # the same pattern the LEDs already have
+    check "SetPlayerLeds writes even when nothing differs" yes "$([ -s "$calls" ] && echo yes || echo no)"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -693,6 +732,8 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_nintendo_leds_wait_until_the_controller_has_settled t_nintendo_leds_with_a_periodic_refresh_also_wait \
          t_other_controllers_still_get_their_leds_at_once \
          t_home_led_is_lit_once_per_connection_and_not_kept_alive \
+         t_refresh_sends_no_command_while_the_leds_already_match t_refresh_corrects_a_pattern_the_driver_changed \
+         t_an_explicit_request_always_writes \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done

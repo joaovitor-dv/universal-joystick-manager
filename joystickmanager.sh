@@ -164,10 +164,28 @@ slot_mask() {
     printf '%s\n' "$mask"
 }
 
+# set_player_leds PREFIX SLOT [ID] [REVERSE] [FORCE]
+# Every LED write is a subcommand the controller must answer, and too many of them drop the
+# link (two Pro Controllers did, with the 10 s refresh rewriting all four LEDs every time). sysfs
+# shows the pattern the driver last applied (it changes when the driver applies its own after the
+# connection), so the LEDs are read first and nothing is sent when they already match: in steady
+# state a refresh costs no command at all. FORCE=1 (an explicit request) always writes.
 set_player_leds() {
-    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} n v mask=''
+    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} force=${5:-0} n v mask='' path cur same=1
     [ -z "$controller_id" ] || mask=${led_manual[$controller_id]:-}
     [ -n "$mask" ] || mask=$(slot_mask "$slot" "$reverse")
+    if [ "$force" -ne 1 ]; then
+        for n in 1 2 3 4; do
+            v=0
+            (( mask & (1 << (n - 1)) )) && v=1
+            for path in "$sys_leds/$prefix:green:player-$n/brightness" "$sys_leds/$prefix::sony$n/brightness"; do
+                [ -r "$path" ] || continue
+                cur=''; IFS= read -r cur <"$path" || true
+                [ "$cur" = "$v" ] || same=0
+            done
+        done
+        [ "$same" -eq 0 ] || return 0
+    fi
     for n in 1 2 3 4; do
         v=0
         (( mask & (1 << (n - 1)) )) && v=1
@@ -263,7 +281,7 @@ led_refresh_due() {
 }
 
 set_battery_led() {
-    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led
+    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led cur
 
     # The current hid-nintendo exposes the blue HOME LED as player-5, but its
     # brightness can change without any physical change. We do not use that
@@ -282,6 +300,8 @@ set_battery_led() {
     led_last_battery[$prefix:$slot]=$v
 
     for led in "$sys_leds/$prefix:green:player-$slot/brightness" "$sys_leds/$prefix::sony$slot/brightness"; do
+        # a forced re-apply does not send a command for an LED that already has the value
+        if [ "$force" -eq 1 ] && [ -r "$led" ]; then cur=''; IFS= read -r cur <"$led" || true; [ "$cur" != "$v" ] || continue; fi
         write_led "$led" "$v"
     done
 }
@@ -561,7 +581,7 @@ cmd_player_leds() { # ID MASK (0-15, or 255 to go back to the automatic pattern)
         led_manual[$id]=$mask
     fi
     name=$(read_file "$sys_input/$c_event/device/name"); [ "$name" = 'Joy-Con (R)' ] && reverse=1
-    set_player_leds "$c_prefix" "$c_slot" "$id" "$reverse"
+    set_player_leds "$c_prefix" "$c_slot" "$id" "$reverse" 1
     cmd_result=ok
 }
 
