@@ -23,7 +23,7 @@ from PySide6.QtQuickControls2 import QQuickStyle
 
 HERE = Path(__file__).resolve().parent
 BUS_NAME, OBJ_PATH, IFACE = "org.ujm.Manager1", "/org/ujm/Manager1", "org.ujm.Manager1"
-MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
+MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")  # HID "uniq" may be lower case (DualShock 3)
 
 VENDORS = {"switch-pro": "Nintendo", "joycon": "Nintendo", "joycon-combined": "Nintendo", "switch2": "Nintendo",
            "ps3": "Sony", "dualshock4": "Sony", "dualsense": "Sony",
@@ -45,8 +45,9 @@ def controllers_from_state(state):
         for key in ("family", "hid", "event", "home_led"):
             if c.get(key):
                 d[key] = c[key]
-        if isinstance(c.get("player_led_manual"), bool):
-            d["player_led_manual"] = c["player_led_manual"]
+        for key in ("player_led_manual", "player_leds"):
+            if isinstance(c.get(key), bool):
+                d[key] = c[key]
         if MAC_RE.match(d["id"]):
             d["address"] = d["id"]
         b = c.get("battery")
@@ -74,7 +75,7 @@ def read_state_file(path):
 class ControllerModel(QAbstractListModel):
     ROLES = ["controllerId", "name", "alias", "displayName", "vendor", "transportText", "transport", "player",
              "address", "hasBattery", "batteryPercent", "batteryStatus", "batteryLevel", "ledMask", "family",
-             "homeLed", "ledManual"]
+             "homeLed", "ledManual", "playerLeds"]
     countChanged = Signal()
 
     def __init__(self):
@@ -125,6 +126,8 @@ class ControllerModel(QAbstractListModel):
             return c.get("family", "")
         if key == "homeLed":  # "on", "off" or "unsupported" ("" when the service is older and does not say)
             return c.get("home_led", "")
+        if key == "playerLeds":  # the controller has player-number LEDs (True when an older service does not say)
+            return c.get("player_leds", True)
         if key == "ledManual":  # the player LEDs were set by hand (SetPlayerLeds), not by the slot
             return c.get("player_led_manual", False)
         return None

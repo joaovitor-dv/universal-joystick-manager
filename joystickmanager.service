@@ -8,8 +8,8 @@ Wants=joycond.service
 ExecStart=/usr/local/bin/joystickmanager.sh
 Restart=always
 RestartSec=3
-Environment=JOYCON_MANAGER_MAX_PLAYERS=8
-Environment=JOYMANAGER_IDLE_TIMEOUT=1800
+Environment=JOYCON_MANAGER_MAX_PLAYERS=10
+Environment=JOYMANAGER_IDLE_TIMEOUT=300
 Environment=JOYMANAGER_LED_REFRESH=10
 
 [Install]

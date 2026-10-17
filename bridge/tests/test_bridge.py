@@ -33,12 +33,12 @@ STATE = {
     "controllers": [
         {"id": PRO, "player": 1, "name": "Pro Controller", "family": "switch-pro", "transport": "bluetooth",
          "hid": "0005:057E:2009.0031", "event": "event30", "player_led_mask": 1, "player_led_manual": False,
-         "home_led": "on", "battery": {"percent": 55, "status": "Charging", "level": "normal"}},
+         "home_led": "on", "player_leds": True, "battery": {"percent": 55, "status": "Charging", "level": "normal"}},
         {"id": "joycond:event5", "player": 2, "name": "Nintendo Switch Combined Joy-Cons", "family": "joycon-combined",
          "transport": "virtual", "hid": None, "event": "event5", "player_led_mask": 3, "battery": None},
         {"id": "30:2C:3A:00:00:02", "player": 3, "name": "Pro Controller", "family": "switch-pro", "transport": "usb",
          "hid": "0003:057E:2009.0040", "event": "event31", "player_led_mask": 4, "home_led": "unsupported",
-         "battery": None},
+         "player_leds": False, "battery": None},
     ],
 }
 
@@ -57,11 +57,15 @@ def pump(cond, timeout=5.0):
 class Env:
     """Runtime dir, state dir, fake BlueZ and the bridge process for one group of tests."""
 
-    def __init__(self, auth="allow", idle_exit="0", service=True, ack_timeout="5"):
+    def __init__(self, auth="allow", idle_exit="0", service=True, ack_timeout="5", aliases_file=None):
         self.tmp = tempfile.TemporaryDirectory()
         t = self.tmp.name
         self.runtime, self.data, self.log = os.path.join(t, "run"), os.path.join(t, "data"), os.path.join(t, "bluez.log")
         os.makedirs(self.runtime)
+        if aliases_file is not None:  # pre-seed what an older bridge left behind
+            os.makedirs(self.data)
+            with open(os.path.join(self.data, "aliases.json"), "w", encoding="utf-8") as fh:
+                fh.write(aliases_file)
         env = dict(os.environ, JOYMANAGER_RUNTIME_DIR=self.runtime, UJM_BRIDGE_STATE_DIR=self.data, UJM_BUS="session",
                    UJM_TEST_AUTH=auth, UJM_BRIDGE_IDLE_EXIT=idle_exit, UJM_ACK_TIMEOUT=ack_timeout, FAKE_BLUEZ_LOG=self.log)
         self.service = None
@@ -199,6 +203,24 @@ class AllowedTests(unittest.TestCase):
         self.env.call("SetControllerAlias", (PRO, ""), "(ss)")
         self.assertNotIn("alias", self.env.call("GetController", (PRO,), "(s)")[0])
 
+    def test_an_alias_follows_the_unit_when_only_the_case_of_its_address_changes(self):
+        """Review finding (Codex): the alias was keyed by the literal spelling of the id."""
+        for first, second in ((PRO, PRO.lower()), (PRO.lower(), PRO)):
+            spelled = json.loads(json.dumps(STATE))
+            spelled["controllers"][0]["id"] = first
+            self.env.write_state(spelled)
+            self.assertTrue(pump(lambda: self.env.call("ListControllers")[0][0]["id"] == first))
+            self.env.call("SetControllerAlias", (first, "Sala"), "(ss)")
+            again = json.loads(json.dumps(STATE))
+            again["controllers"][0]["id"] = second          # the same unit, spelled the other way
+            self.env.write_state(again)
+            self.assertTrue(pump(lambda: self.env.call("ListControllers")[0][0]["id"] == second))
+            self.assertEqual(self.env.call("GetController", (second,), "(s)")[0].get("alias"), "Sala", (first, second))
+            saved = json.load(open(os.path.join(self.env.data, "aliases.json"), encoding="utf-8"))["aliases"]
+            self.assertEqual(list(saved), [PRO], "one canonical key, upper case")
+            self.env.call("SetControllerAlias", (second, ""), "(ss)")        # cleared through the other spelling
+            self.assertNotIn("alias", self.env.call("GetController", (second,), "(s)")[0])
+
     def test_alias_refused_without_a_stable_address_or_for_unknown_ids(self):
         self.raises("InvalidArgs", self.env.call, "SetControllerAlias", ("joycond:event5", "pair"), "(ss)")
         self.raises("UnknownController", self.env.call, "SetControllerAlias", ("AA:AA:AA:AA:AA:AA", "ghost"), "(ss)")
@@ -211,9 +233,17 @@ class AllowedTests(unittest.TestCase):
         self.assertEqual([c for c in calls if c.startswith("Device.")], ["Device.Disconnect", "Device.Connect"])
 
     def test_only_bluetooth_controllers_can_be_connected(self):
-        self.raises("InvalidArgs", self.env.call, "ConnectBluetooth", ("30:2C:3A:00:00:02",), "(s)")  # USB
-        self.raises("InvalidArgs", self.env.call, "DisconnectBluetooth", ("joycond:event5",), "(s)")  # virtual
-        self.raises("UnknownController", self.env.call, "ConnectBluetooth", ("AA:AA:AA:AA:AA:AA",), "(s)")
+        self.raises("InvalidArgs", self.env.call, "DisconnectBluetooth", ("joycond:event5",), "(s)")  # virtual pair
+        self.raises("UnknownController", self.env.call, "ConnectBluetooth", ("nobody",), "(s)")      # neither an id nor an address
+
+    def test_a_controller_that_dropped_can_be_reconnected_by_its_address(self):
+        # it is not in the controller list any more, so its id no longer exists; the address still does
+        self.env.write_state({**STATE, "controllers": []})
+        self.assertTrue(pump(lambda: self.env.call("ListControllers")[0] == []))
+        before = len(self.env.bluez_log())
+        self.env.call("ConnectBluetooth", (PRO.lower(),), "(s)")
+        self.assertIn("Device.Connect", self.env.bluez_log()[before:])
+        self.raises("UnknownController", self.env.call, "ConnectBluetooth", ("AA:BB:CC:DD:EE",), "(s)")  # five bytes: not an address
 
     def test_bluez_errors_are_passed_on(self):
         open(self.env.log + ".fail-connect", "w").close()
@@ -228,7 +258,10 @@ class AllowedTests(unittest.TestCase):
         calls = [c for c in self.env.bluez_log()[before:] if c.startswith("Device.")]
         self.assertEqual(calls, ["Device.Pair", "Device.Set Trusted=True", "Device.Connect"])
         self.raises("InvalidArgs", self.env.call, "PairBluetooth", ("not-an-address",), "(s)")
-        self.raises("Unknown", self.env.call, "PairBluetooth", ("AA:BB:CC:DD:EE:FF",), "(s)")  # BlueZ has no such device
+        with self.assertRaises(GLib.Error) as cm:  # BlueZ has no such device: say so, not "method doesn't exist"
+            self.env.call("PairBluetooth", ("AA:BB:CC:DD:EE:FF",), "(s)")
+        self.assertEqual(Gio.DBusError.get_remote_error(cm.exception), "org.ujm.Manager1.Error.UnknownDevice")
+        self.assertIn("pair it first", cm.exception.message)
 
     def test_scan_starts_and_stops_by_itself(self):
         before = len(self.env.bluez_log())
@@ -259,6 +292,7 @@ class AllowedTests(unittest.TestCase):
         self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", (PRO, 16), "(su)")
         self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", (PRO, 254), "(su)")
         self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", ("joycond:event5", 3), "(su)")  # the virtual pair
+        self.raises("InvalidArgs", self.env.call, "SetPlayerLeds", ("30:2C:3A:00:00:02", 3), "(su)")  # reports no player LEDs
         self.raises("UnknownController", self.env.call, "SetPlayerLeds", ("AA:AA:AA:AA:AA:AA", 3), "(su)")
         self.assertEqual(len(self.env.service_log()), before + 2)
 
@@ -269,6 +303,19 @@ class AllowedTests(unittest.TestCase):
         self.assertEqual(self.env.service_log()[before:], [["home_led", PRO, "off"], ["home_led", PRO, "on"]])
         self.raises("InvalidArgs", self.env.call, "SetHomeLed", ("30:2C:3A:00:00:02", True), "(sb)")  # reported unsupported
         self.assertEqual(len(self.env.service_log()), before + 2)
+
+    def test_a_lower_case_address_still_counts_as_an_address(self):
+        # a DualShock 3 reports its HID uniq in lower case; BlueZ paths are upper case
+        low = json.loads(json.dumps(STATE))
+        low["controllers"][0]["id"] = PRO.lower()
+        self.env.write_state(low)
+        self.assertTrue(pump(lambda: self.env.call("ListControllers")[0][0]["id"] == PRO.lower()))
+        self.assertEqual(self.env.call("GetController", (PRO.lower(),), "(s)")[0]["address"], PRO.lower())
+        before = len(self.env.bluez_log())
+        self.env.call("ConnectBluetooth", (PRO.lower(),), "(s)")
+        self.assertIn("Device.Connect", self.env.bluez_log()[before:])
+        self.env.call("SetControllerAlias", (PRO.lower(), "ds3"), "(ss)")
+        self.assertEqual(self.env.call("GetController", (PRO.lower(),), "(s)")[0]["alias"], "ds3")
 
     def test_the_led_state_is_published(self):
         c = {x["id"]: x for x in self.env.call("ListControllers")[0]}
@@ -392,6 +439,18 @@ class ServiceProblemTests(unittest.TestCase):
         name, message = self.call_error(env)
         self.assertEqual(name, "org.ujm.Manager1.Error.ServiceUnavailable")
         self.assertIn("not reading", message)
+
+
+class OlderAliasFileTests(unittest.TestCase):
+    def test_a_lower_case_key_written_by_an_older_bridge_is_still_found(self):
+        env = Env("allow", aliases_file=json.dumps({"format": "ujm-aliases", "version": 1, "aliases": {PRO.lower(): "Antigo"}}))
+        self.addCleanup(env.close)
+        env.write_state(STATE)
+        self.assertTrue(pump(lambda: len(env.call("ListControllers")[0]) == 3))
+        self.assertEqual(env.call("GetController", (PRO,), "(s)")[0].get("alias"), "Antigo")
+        env.call("SetControllerAlias", (PRO, "Novo"), "(ss)")      # rewriting migrates the key
+        saved = json.load(open(os.path.join(env.data, "aliases.json"), encoding="utf-8"))["aliases"]
+        self.assertEqual(saved, {PRO: "Novo"})
 
 
 class LifetimeTests(unittest.TestCase):

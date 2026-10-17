@@ -49,18 +49,18 @@ Signals: `ControllersChanged`, `BluetoothDevicesChanged` (both without payload: 
 | `GetController(s id) → a{sv}` | none | `UnknownController` if `id` is not connected. |
 | `GetSnapshotJson() → s` | none | The service status and the controllers as one JSON text (`api_version`, `service`, `controllers`), for clients that cannot unpack `a{sv}` easily: QtDBus from Python cannot. |
 | `GetServiceStatus() → a{sv}` | none | `api_version`, `state_available`, `updated`, `idle_timeout`, `led_refresh`, `experimental`. |
-| `SetControllerAlias(s id, s alias)` | `org.ujm.manager.set-alias` | Only for controllers with a stable address (Bluetooth MAC). Up to 40 printable characters; empty clears it. Stored in `/var/lib/ujm/aliases.json`. |
-| `ConnectBluetooth(s id)`, `DisconnectBluetooth(s id)` | `org.ujm.manager.bluetooth` | Only controllers connected over Bluetooth. Calls BlueZ `Device1.Connect`/`Disconnect`. |
+| `SetControllerAlias(s id, s alias)` | `org.ujm.manager.set-alias` | Only for controllers with a stable address (Bluetooth MAC). Up to 40 printable characters; empty clears it. Stored in `/var/lib/ujm/aliases.json`, keyed by the **upper-case** address, so the same unit keeps its alias when a driver reports the address as `20:1c:…` or `20:1C:…` (older files with a lower-case key are still read and migrated on the next write). |
+| `ConnectBluetooth(s id-or-address)`, `DisconnectBluetooth(s id-or-address)` | `org.ujm.manager.bluetooth` | The argument is a Bluetooth address (any device BlueZ knows, which is how a controller that dropped is reconnected: it is no longer in the controller list) or the id of a controller connected over Bluetooth now. Calls BlueZ `Device1.Connect`/`Disconnect`. |
 | `ScanBluetooth(u seconds)` | `org.ujm.manager.bluetooth` | Starts discovery and stops it by itself (1 to 60 s, 15 if 0). |
 | `ListBluetoothDevices() → aa{sv}` | none | `address`, `name`, `paired`, `connected`, `gamepad` (BlueZ icon `input-gaming`). |
 | `PairBluetooth(s address)` | `org.ujm.manager.bluetooth` | Pair, trust, then connect. |
 | `SetIdleTimeout(u seconds)` | `org.ujm.manager.configure` | 0 (never power off) or 60 to 86400. Kept across restarts by the service. |
-| `SetPlayerLeds(s id, u mask)` | `org.ujm.manager.leds` | Mask 0-15 (bit 0 = LED 1) sets a pattern that wins over the slot pattern; **255 goes back to the automatic one**. Not for the `joycond` pair. |
+| `SetPlayerLeds(s id, u mask)` | `org.ujm.manager.leds` | Mask 0-15 (bit 0 = LED 1) sets a pattern that wins over the slot pattern; **255 goes back to the automatic one**. Not for the `joycond` pair, nor for controllers with `player_leds` false. |
 | `SetHomeLed(s id, b enabled)` | `org.ujm.manager.leds` | Only where `home_led` is not `unsupported`. |
 
-A controller (`a{sv}`) has: `id`, `name`, `transport` (`bluetooth`, `usb`, `virtual`, `other`), `player`, `player_led_mask`, `connected`, and when known `family`, `hid`, `event`, `address`, `alias`, `battery_percent`, `battery_status`, `battery_level`, `home_led` (`on`, `off`, `unsupported`) and `player_led_manual` (the player LEDs were set by hand). The field meanings are the ones in [state.md](state.md).
+A controller (`a{sv}`) has: `id`, `name`, `transport` (`bluetooth`, `usb`, `virtual`, `other`), `player`, `player_led_mask`, `connected`, and when known `family`, `hid`, `event`, `address`, `alias`, `battery_percent`, `battery_status`, `battery_level`, `home_led` (`on`, `off`, `unsupported`), `player_leds` (it has player-number LEDs) and `player_led_manual` (the player LEDs were set by hand). The field meanings are the ones in [state.md](state.md).
 
-Errors are standard D-Bus errors: `InvalidArgs` (for example an alias for an id without an address, connecting a USB controller), `AccessDenied` (polkit said no), `org.ujm.Manager1.Error.UnknownController`, `NoAdapter`/`NoBluetooth`, BlueZ's own errors passed through (`org.bluez.Error.Failed`...), and for the three service actions `ServiceUnavailable` (the service is not running, or is an older version without the command channel), `Rejected` (the service refused, with its reason) and `ServiceTimeout`.
+Errors are standard D-Bus errors: `InvalidArgs` (for example an alias for an id without an address, connecting a USB controller), `AccessDenied` (polkit said no), `org.ujm.Manager1.Error.UnknownController`, `UnknownDevice` (BlueZ has no such address: pair it first), `NoAdapter`/`NoBluetooth`, BlueZ's own errors passed through (`org.bluez.Error.Failed`...), and for the three service actions `ServiceUnavailable` (the service is not running, or is an older version without the command channel), `Rejected` (the service refused, with its reason) and `ServiceTimeout`.
 
 ## Authorization
 

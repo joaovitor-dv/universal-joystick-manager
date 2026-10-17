@@ -26,7 +26,7 @@ BUS_NAME = "org.ujm.Manager1"
 OBJ_PATH = "/org/ujm/Manager1"
 IFACE = "org.ujm.Manager1"
 API_VERSION = "1"
-MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
+MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")  # HID "uniq" may be lower case (DualShock 3)
 ALIAS_MAX = 40
 IDLE_EXIT_SECONDS = int(os.environ.get("UJM_BRIDGE_IDLE_EXIT", "30"))
 SCAN_MAX = 60
@@ -81,6 +81,12 @@ def data_dir():
     return os.environ.get("UJM_BRIDGE_STATE_DIR", "/var/lib/ujm")
 
 
+def alias_key(cid):
+    """The key an alias is kept under: a Bluetooth address in upper case (the same unit can be reported as
+    20:1c:... or 20:1C:... by different drivers), anything else as it is."""
+    return cid.upper() if MAC_RE.match(cid) else cid
+
+
 def sanitize_alias(text):
     """Printable, single line, at most ALIAS_MAX characters; empty clears the alias."""
     text = "".join(ch for ch in text if ch.isprintable()).strip()
@@ -132,11 +138,12 @@ class Store:
             for key in ("family", "hid", "event", "home_led"):
                 if c.get(key):
                     d[key] = c[key]
-            if isinstance(c.get("player_led_manual"), bool):
-                d["player_led_manual"] = c["player_led_manual"]
+            for key in ("player_led_manual", "player_leds"):
+                if isinstance(c.get(key), bool):
+                    d[key] = c[key]
             if MAC_RE.match(d["id"]):
                 d["address"] = d["id"]
-            alias = self.aliases.get(d["id"])
+            alias = self.aliases.get(alias_key(d["id"]))
             if alias:
                 d["alias"] = alias
             b = c.get("battery")
@@ -174,7 +181,8 @@ class Store:
         try:
             with open(self._aliases_path(), encoding="utf-8") as fh:
                 data = json.load(fh)
-            self.aliases = {k: sanitize_alias(v) for k, v in data.get("aliases", {}).items() if isinstance(v, str)}
+            # files written before the key was canonical may hold the lower-case spelling: read both
+            self.aliases = {alias_key(k): sanitize_alias(v) for k, v in data.get("aliases", {}).items() if isinstance(v, str)}
         except (OSError, ValueError, AttributeError):
             self.aliases = {}
 
@@ -182,10 +190,11 @@ class Store:
         if not MAC_RE.match(cid):
             raise err_invalid("this controller has no stable address, so an alias cannot be kept for it")
         alias = sanitize_alias(alias)
+        key = alias_key(cid)
         if alias:
-            self.aliases[cid] = alias
+            self.aliases[key] = alias
         else:
-            self.aliases.pop(cid, None)
+            self.aliases.pop(key, None)
         os.makedirs(data_dir(), mode=0o755, exist_ok=True)
         tmp = self._aliases_path() + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
@@ -317,7 +326,8 @@ class BlueZ:
         self.managed(got, lambda e: fail(DBusError("org.ujm.Manager1.Error.NoBluetooth", e.message)))
 
     def device_path(self, address, ok, fail):
-        self.adapter_path(lambda ap: ok(f"{ap}/dev_{address.replace(':', '_')}"), fail)
+        # BlueZ object paths are upper case; a DualShock 3 reports its address in lower case
+        self.adapter_path(lambda ap: ok(f"{ap}/dev_{address.upper().replace(':', '_')}"), fail)
 
     def device_call(self, address, method, ok, fail):
         def go(path):
@@ -328,6 +338,9 @@ class BlueZ:
     def _map(e):
         name = GLib.dbus_error_get_remote_error(e) if hasattr(GLib, "dbus_error_get_remote_error") else ""
         name = Gio.DBusError.get_remote_error(e) or name or "org.ujm.Manager1.Error.Bluetooth"
+        if name in ("org.freedesktop.DBus.Error.UnknownObject", "org.freedesktop.DBus.Error.UnknownMethod"):
+            # BlueZ has no object for that address, which D-Bus words as a missing method
+            return DBusError("org.ujm.Manager1.Error.UnknownDevice", "BlueZ does not know this device: pair it first")
         return DBusError(name, e.message)
 
     def pair(self, address, ok, fail):
@@ -542,10 +555,14 @@ class Bridge:
             self._ret_none(inv)
         self._authorized(sender, inv, ACTION_ALIAS, go)
 
-    def _bt_target(self, cid):
-        c = self.store.controller(cid)
+    def _bt_target(self, ident):
+        """A Bluetooth address (any device BlueZ knows, such as a controller that dropped, which is not in
+        the controller list any more) or the id of a controller that is connected over Bluetooth now."""
+        if MAC_RE.match(ident):
+            return ident.upper()
+        c = self.store.controller(ident)
         if c["transport"] != "bluetooth" or "address" not in c:
-            raise err_invalid("only a controller connected over Bluetooth can be connected or disconnected here")
+            raise err_invalid("only a Bluetooth controller, or a Bluetooth address, can be connected or disconnected here")
         return c["address"]
 
     def do_ConnectBluetooth(self, sender, inv, cid):
@@ -585,6 +602,8 @@ class Bridge:
             raise err_invalid("mask must be 0-15 (bit 0 = LED 1), or 255 to go back to the automatic pattern")
         if c["transport"] == "virtual":
             raise err_invalid("the combined Joy-Con pair has no player LEDs of its own")
+        if c.get("player_leds") is False:
+            raise err_invalid("this controller has no player LEDs (Xbox One/Series have only a HOME LED, DualShock 4 and DualSense only an RGB light)")
         self._authorized(sender, inv, ACTION_LEDS, self._to_service(inv, "player_leds", [cid, mask]))
 
     def do_SetHomeLed(self, sender, inv, cid, enabled):

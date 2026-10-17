@@ -6,6 +6,15 @@ The same list is what a volunteer needs to validate a controller family (see [CO
 
 Needed: the controllers you want to test, `sudo`, and about an hour (step 2 alone takes 30 minutes).
 
+## The idle timeout in effect
+
+A timeout saved at run time (`SetIdleTimeout`, kept in `/var/lib/joystickmanager/settings`) **wins over** `Environment=JOYMANAGER_IDLE_TIMEOUT` in the unit, so `systemctl show` can show a value the service is not using. Before any step that depends on the timeout, read the one in effect, and note it down to restore it at the end:
+
+```bash
+python3 -c 'import json; print(json.load(open("/run/joystickmanager/state.json"))["service"]["idle_timeout"])'
+cat /var/lib/joystickmanager/settings 2>/dev/null || echo "no saved value"
+```
+
 ## 0. Start from the code you mean to test
 
 ```bash
@@ -26,11 +35,15 @@ Connect every controller you have (Bluetooth and USB), wait a minute, then:
 tools/measure-service.sh 60
 ```
 
-Expect a few percent of one core at most. With no controllers the service uses about 0.4%; with controllers the cost has never been measured, so **the number is the result**: write it down with the number of controllers it printed.
+Expect a few percent of one core at most. With no controllers the service uses about 0.4%. First measurement with controllers (a DualShock 3 on Bluetooth and a Pro Controller on USB, 2026-10-17): 6.8% before the per-cycle caching, about 2% after, on a replica of the service with the LEDs faked (the installed service must be reinstalled to get it). **The number you get is the result**: write it down with the number of controllers it printed.
+
+## 1b. Ten players and the LED table
+
+With ten controllers connected (the maximum), check `slots.tsv` numbers them 1 to 10, and that each one lights the pattern in the table of [state.md](state.md): the standard column for everything except the right Joy-Con alone. Put a Joy-Con R alone on player 7 and a Pro Controller on player 9: the two lights they show must be in **different physical places**, which is the point of the mirror. Keep the photo and the `state.json`.
 
 ## 2. Soak: 30 minutes, Pro Controller and Joy-Con R
 
-With the idle timeout at its default of 1800 s (`systemctl show joystickmanager -p Environment`), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.
+With the idle timeout at its default of 300 s (**read the one in effect from `state.json`, see above**: a saved value would win over the unit), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.
 
 ```bash
 journalctl -u joystickmanager -n 200 --no-pager | grep -iE "error|exceeded|fail" || echo "no errors"
@@ -66,7 +79,7 @@ Check it three ways, each time looking at the controller and at the kernel value
 for d in /sys/class/leds/*:blue:player-5; do echo "$d $(cat $d/brightness)/$(cat $d/max_brightness)"; done
 ```
 
-1. **Joy-Con R alone:** the HOME button light should be on (value 15, maximum).
+1. **Joy-Con R alone:** the HOME button light should be on (value 15, maximum) for about 15 s and then **goes dark by itself**: the controller does not keep it lit, and UJM does not keep sending the command (too many commands drop the link). That is expected.
 2. **A `joycond` pair:** the right Joy-Con's light should also be on (this was fixed after an earlier gap: the pair never lit it).
 3. **After turning it off and on again.**
 
@@ -82,22 +95,20 @@ Expect one entry per connected controller with `player`, `transport`, `battery` 
 
 ## 6. Idle power-off
 
+Use a short timeout through the bridge (it works whether or not a value was saved earlier, unlike a unit drop-in):
+
 ```bash
-sudo systemctl edit joystickmanager      # use a short timeout for the test
-```
-```ini
-[Service]
-Environment=JOYMANAGER_IDLE_TIMEOUT=120
-```
-```bash
-sudo systemctl restart joystickmanager
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetIdleTimeout u 120
+python3 -c 'import json; print(json.load(open("/run/joystickmanager/state.json"))["service"]["idle_timeout"])'   # must print 120
 ```
 
 1. Pro Controller on Bluetooth, untouched for 2 minutes: it must disconnect (and reconnect with HOME).
 2. Same, but press a button every minute: it must stay connected.
 3. Pro Controller on USB, untouched for 3 minutes: it must **not** be disconnected.
 
-Remove the drop-in afterwards (`sudo systemctl revert joystickmanager`) and restart. (Older notes mention "original tests 3, 4 and 6" as the condition for returning the default timeout to 300 s; they were never written down. If these three cover what you meant, say so, and the note can be retired.)
+**Restore the value you noted** (`SetIdleTimeout u <value>`; 300 is the default). The service keeps whatever was set last, also across restarts; to go back to "no saved value" so that the unit's `Environment=` applies again, delete the file: `sudo rm /var/lib/joystickmanager/settings`.
+
+These three scenarios are about the idle power-off. They are **not** the "original tests 3, 4 and 6" that gate returning the default timeout to 300 s: those are step 8.
 
 ## 7. The D-Bus bridge on the real system bus
 
@@ -114,7 +125,7 @@ Then the interface and Bluetooth actions:
 ```bash
 python3 gui/ujm_gui.py            # the pill at the top must say "D-Bus bridge", not "state.json, read-only"
 busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 DisconnectBluetooth s "<id>"
-busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ConnectBluetooth s "<id>"
+busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ConnectBluetooth s "<its Bluetooth address>"   # the id is gone once it drops; some controllers (DualShock 3) only reconnect from their own button
 busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 ScanBluetooth u 15
 ```
 
@@ -127,11 +138,23 @@ busctl call org.ujm.Manager1 /org/ujm/Manager1 org.ujm.Manager1 SetIdleTimeout u
 journalctl -u joystickmanager -n 20 --no-pager | grep "command "
 ```
 
+`SetIdleTimeout` is saved: **put back the value you noted** (`SetIdleTimeout u <value>`) and, to remove the saved value altogether, `sudo rm /var/lib/joystickmanager/settings`. Clear a test alias with `SetControllerAlias ss "<id>" ""`.
+
 Expect: each call answers at once; the LEDs follow, and the manual pattern **stays** while the controller charges or its battery is low (no blinking, no periodic rewrite) until you send `255`; `state.json` shows `player_led_manual` and `home_led` accordingly and `service.idle_timeout` 120; after `sudo systemctl restart joystickmanager` the timeout is still 120 (it is kept in `/var/lib/joystickmanager/settings`; delete that file to go back to the unit's value). These are the first calls of the command channel on a real service and a real system bus: keep the exact error text of anything odd (`ServiceUnavailable` means the running service is an older version; reinstall it, step 0).
 
 Expect: the controller disconnects and reconnects, and the card disappears and returns in the window. This is the first time the bridge meets a real BlueZ and a real polkit: anything odd is the result, so keep the exact error text.
 
-## 8. Close the sitting
+## 8. The original tests 3, 4 and 6
+
+Recovered from the first planning notes (2026-10-15). They gated going back from a 1800 s timeout to 300 s: they passed and the maintainer authorized 300 s on 2026-10-17, which is now the default.
+
+- **Test 3, global numbering.** Connect a DualShock 3, a Pro Controller and Joy-Cons in different orders (for example Pro, DS3, Joy-Con; then DS3, Joy-Con, Pro). Players 1 to 8 follow the **connection order**, not the Bluetooth address. Check with `cat /run/joystickmanager/slots.tsv` and the LEDs.
+- **Test 4, Joy-Cons.** Original and third-party Joy-Cons, separate and combined through `joycond`. Expect one slot for the combined pair and the **same LED pattern on both sides** of the virtual controller (the right one also lights its HOME LED, step 4).
+- **Test 6, battery.** Normal, charging, and low or critical, ideally with a partly discharged controller: `grep -H . /sys/class/power_supply/*controller*/{capacity,status}`. Expect the player LED of the slot to stay steady when normal, blink when charging, and show the low pattern when low or critical, and `state.json` to show the same percent and status.
+
+Keep the slot table, `state.json` and a note for each.
+
+## 9. Close the sitting
 
 ```bash
 tools/collect-report.sh
@@ -147,4 +170,5 @@ Send the final report **and** the baseline from step 0, plus your notes below. B
 | 4 Joy-Con R HOME LED | | |
 | 5 `state.json` | | |
 | 6 Idle power-off | | |
-| 7 Bridge on the system bus | | |
+| 8 Original tests 3, 4, 6 | done | Passed, reported by the maintainer on 2026-10-17 (no report file attached, so no numbers). The default idle timeout became 300 s. |
+| 7 Bridge on the system bus | done | Run on 2026-10-17 with a DualShock 3 (Bluetooth) and a Pro Controller (USB): `SetPlayerLeds`, `SetHomeLed`, `SetIdleTimeout`, alias and the refusals all behaved as described, with the real polkit and the unit's sandbox; 8 `command ... ok` lines in the journal. Second run the same day, after the game: Scan saw 10 devices (6 flagged as gamepads); Disconnect of the DualShock 3 by id worked; Connect by address was refused by BlueZ with `br-connection-create-socket` (expected: a DualShock 3 connects only from its own button), and the controller only came back in `state.json` after the maintainer pressed its PS button (it did not reconnect by itself). Pair not run (needs a controller in pairing mode). |

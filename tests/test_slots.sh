@@ -13,6 +13,7 @@ setup() {
     export JOYMANAGER_RUNTIME_DIR="$T/run" JOYMANAGER_SYS_INPUT="$T/input"
     # use the repository table, never one installed on the machine running the tests
     export JOYMANAGER_PROFILES="$here/controllers.tsv"
+    export JOYMANAGER_LED_SETTLE=0           # most tests want the LEDs written at once; the settle tests set it
     export JOYMANAGER_STATE_DIR="$T/state"   # settings saved at run time never go to the machine's /var/lib
     mkdir -p "$T/run" "$T/input" "$T/dev"
     # shellcheck source=../joystickmanager.sh
@@ -305,7 +306,7 @@ t_state_json_describes_controllers() {
     check "player LED masks" "[1, 2, 4]" "$(jget "$f" '[c["player_led_mask"] for c in d["controllers"]]')"
     check "battery of the Bluetooth controller" "{'percent': 55, 'status': 'Charging', 'level': 'normal'}" "$(jget "$f" 'd["controllers"][0]["battery"]')"
     check "no battery reading means null" "None" "$(jget "$f" 'd["controllers"][1]["battery"]')"
-    check "the service settings are included" "{'led_refresh': '10', 'idle_timeout': 1800, 'experimental': False}" "$(jget "$f" 'd["service"]')"
+    check "the service settings are included" "{'led_refresh': '10', 'idle_timeout': 300, 'experimental': False}" "$(jget "$f" 'd["service"]')"
     check "the file is readable by everyone (the interface runs as a user)" 644 "$(stat -c %a "$f")"
 }
 
@@ -397,7 +398,7 @@ t_command_ignores_malformed_requests() {
     req "../../etc" idle_timeout 120; req short idle_timeout 120; handle_command "garbage line" 2>/dev/null
     handle_command "$(printf 'XXX\tccccccc01\tidle_timeout\t120')" 2>/dev/null
     check "no answer file for a bad id, a short id or another tag" 0 "$(ls "$ack_dir" 2>/dev/null | wc -l)"
-    check "and nothing was changed" 1800 "$idle_timeout"
+    check "and nothing was changed" 300 "$idle_timeout"
     req ccccccc02 reboot now;  check "an unknown command is refused" "error|unknown command" "$(ack ccccccc02)"
     req ccccccc03 idle_timeout "120; touch $T/pwned"; check "an argument with shell syntax is just refused" "error" "$(ack ccccccc03 | cut -d'|' -f1)"
     check "and was not executed" no "$([ -e "$T/pwned" ] && echo yes || echo no)"
@@ -436,14 +437,14 @@ t_command_idle_timeout_is_validated_applied_and_kept() {
     done
     check "values outside 0 or 60-86400 and non-numbers are refused" 120 "$idle_timeout"
     check "and the file is unchanged" "idle_timeout=120" "$(cat "$settings_file")"
-    idle_timeout=1800; load_settings
+    idle_timeout=300; load_settings
     check "after a restart the saved value wins over the environment" 120 "$idle_timeout"
-    printf 'idle_timeout=5\nsomething=else\n' >"$settings_file"; idle_timeout=1800; load_settings
-    check "an invalid saved value is ignored" 1800 "$idle_timeout"
-    state_dir=/proc/nonexistent; settings_file="$state_dir/settings"; idle_timeout=1800
+    printf 'idle_timeout=5\nsomething=else\n' >"$settings_file"; idle_timeout=300; load_settings
+    check "an invalid saved value is ignored" 300 "$idle_timeout"
+    state_dir=/proc/nonexistent; settings_file="$state_dir/settings"; idle_timeout=300
     req fffffff20 idle_timeout 300
     check "an unwritable state directory refuses the change" "error|the setting could not be saved" "$(ack fffffff20)"
-    check "and does not apply it" 1800 "$idle_timeout"
+    check "and does not apply it" 300 "$idle_timeout"
 }
 
 t_command_idle_timeout_zero_means_never_and_stops_the_workers() {
@@ -492,6 +493,231 @@ t_command_channel_through_the_fifo_and_the_real_loop() {
     check "the FIFO is removed when the service stops" no "$([ -e "$rt/command.fifo" ] && echo yes || echo no)"
     check "nothing it started is left running (no stray udev monitor)" 0 "$(pgrep -s "$pid" 2>/dev/null | wc -l)"
     kill -TERM -- "-$pid" 2>/dev/null || true
+}
+
+t_battery_is_found_when_the_id_is_not_above_the_battery_device() {
+    # Real kernels: the battery hangs off the HID device and "uniq" is on the input device below it.
+    cmd_setup; connect event1 "$A"
+    local b="$T/power/sony_controller_battery_x" hid="$T/hidonly/0005:057E:2009.$A"
+    mkdir -p "$b" "$hid"; ln -sfn "$hid" "$b/device"; printf 'Discharging\n' >"$b/status"; printf '80\n' >"$b/capacity"
+    update_batteries_once
+    check "the battery is read through the HID prefix" "{'percent': 80, 'status': 'Discharging', 'level': 'normal'}" "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["battery"]')"
+}
+
+t_battery_without_capacity_reports_the_status_only() {
+    cmd_setup; connect event1 "$A"   # a Pro Controller on a cable: Charging, no capacity file
+    local b="$T/power/nintendo_switch_controller_battery_x" hid="$T/hidonly/0005:057E:2009.$A"
+    mkdir -p "$b" "$hid"; ln -sfn "$hid" "$b/device"; printf 'Charging\n' >"$b/status"
+    update_batteries_once
+    check "no percent, but the status" "{'percent': None, 'status': 'Charging', 'level': 'normal'}" "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["battery"]')"
+}
+
+t_scan_does_not_resolve_known_controllers_again() {
+    cmd_setup; plug event5 'Pro Controller' "$A"
+    scan_existing                       # registers it (the first scan also clears the caches)
+    : >"$T/calls"   # a file, not a variable: the functions run in command substitutions
+    controller_id() { echo x >>"$T/calls"; return 1; }; controller_parent() { echo x >>"$T/calls"; return 1; }
+    scan_existing; scan_existing
+    check "a registered controller is not resolved again each cycle" 0 "$(wc -l <"$T/calls")"
+    unset -f controller_id controller_parent
+}
+
+t_scan_registers_a_registered_node_that_was_replaced() {
+    cmd_setup; plug event5 'Pro Controller' "$A"
+    scan_existing; scan_existing
+    rm -rf "${sys_input:?}/event5"; plug event5 'Pro Controller' "$B"
+    scan_existing
+    check "event5 re-created as another controller is picked up" 2 "$(slot_of "$B")"
+}
+
+t_player_leds_capability_follows_the_leds_the_controller_has() {
+    cmd_setup
+    experimental=1   # the Xbox profiles are experimental
+    led_fixture "0005:057E:2009.$A" home                 # Switch controller: numbering LEDs and a HOME LED
+    local hid="0005:045E:02FD.0001" d="$sys_leds/0005:045E:02FD.0001:blue:player-5"
+    mkdir -p "$d"; printf '0\n' >"$d/brightness"; printf '15\n' >"$d/max_brightness"   # an Xbox-like controller: HOME LED only
+    connect event1 "$A"
+    mkdir -p "$T/dev/$hid"; printf '%s\n' "$B" >"$T/dev/$hid/uniq"; printf 'Xbox Wireless Controller\n' >"$T/dev/$hid/name"
+    mkdir -p "$sys_input/event2"; ln -sfn "$T/dev/$hid" "$sys_input/event2/device"; register_event event2
+    update_batteries_once
+    local f="$runtime_dir/state.json"
+    check "a controller with numbering LEDs says so" True "$(jget "$f" 'd["controllers"][0]["player_leds"]')"
+    check "a HOME-LED-only controller has no player LEDs" False "$(jget "$f" 'd["controllers"][1]["player_leds"]')"
+    req iiiiiii10 player_leds "$B" 3
+    check "player LEDs are refused on it" "error|this controller has no player LEDs the service can write" "$(ack iiiiiii10)"
+    check "while its HOME LED is still reported" "['on', 'on']" "$(jget "$f" '[c["home_led"] for c in d["controllers"]]')"
+}
+
+t_nintendo_leds_wait_until_the_controller_has_settled() {
+    cmd_setup; led_settle=6; led_refresh=off
+    local pre="0005:057E:2009.$A"; led_fixture "$pre" home
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"   # no charging blink
+    check "nothing is written when a Nintendo controller registers" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    now_s() { printf '1005\n'; }; update_batteries_once
+    check "nor during its first 5 s" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    now_s() { printf '1006\n'; }; update_batteries_once
+    check "after 6 s the pattern and the HOME LED are written" "1 0 0 0 15" "$(leds_of "$pre") $(home_of "$pre")"
+    printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"
+    now_s() { printf '1030\n'; }; update_batteries_once
+    check "with LED_REFRESH=off they are written once and not again" 0 "$(home_of "$pre")"
+}
+
+t_nintendo_leds_with_a_periodic_refresh_also_wait() {
+    cmd_setup; led_settle=6; led_refresh=10
+    local pre="0005:057E:2009.$A"; led_fixture "$pre" home
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '2000\n'; }; update_batteries_once
+    check "no LED write in the first cycle" "0 0 0 0 0" "$(leds_of "$pre") $(home_of "$pre")"
+    now_s() { printf '2007\n'; }; update_batteries_once
+    check "the first write comes after the settle time" "1 0 0 0 15" "$(leds_of "$pre") $(home_of "$pre")"
+}
+
+t_other_controllers_still_get_their_leds_at_once() {
+    cmd_setup; led_settle=6; led_refresh=off
+    local pre="0005:054C:0268.$A" d="$T/dev/0005:054C:0268.$A" n
+    for n in 1 2 3 4; do mkdir -p "$sys_leds/$pre::sony$n"; printf '0\n' >"$sys_leds/$pre::sony$n/brightness"; done
+    mkdir -p "$d" "$sys_input/event1"; printf '%s\n' "$A" >"$d/uniq"; printf 'PLAYSTATION(R)3 Controller\n' >"$d/name"; ln -sfn "$d" "$sys_input/event1/device"
+    register_event event1
+    check "a DualShock 3 is written on registration, as before" "1000" "$(for n in 1 2 3 4; do printf '%s' "$(cat "$sys_leds/$pre::sony$n/brightness")"; done)"
+}
+
+t_home_led_is_lit_once_per_connection_and_not_kept_alive() {
+    # The controller keeps the HOME LED lit for ~15 s per command; keeping it lit would cost commands
+    # that drop the link, so the periodic refresh must not send it again.
+    cmd_setup; led_refresh=10
+    local pre="0005:057E:2009.$A"; led_fixture "$pre" home
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    check "the HOME LED is lit when the controller connects" 15 "$(home_of "$pre")"
+    printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"        # what the controller did on its own after ~15 s
+    printf '1\n' >"$sys_leds/$pre:green:player-2/brightness"
+    now_s() { printf '1010\n'; }; update_batteries_once
+    check "a periodic refresh rewrites the player LEDs" "1 0 0 0" "$(leds_of "$pre")"
+    check "but does not send the HOME LED again" 0 "$(home_of "$pre")"
+    req hhhhhhh10 home_led "$A" on
+    check "SetHomeLed still lights it on request" 15 "$(home_of "$pre")"
+}
+
+t_refresh_sends_no_command_while_the_leds_already_match() {
+    cmd_setup; led_refresh=10
+    local pre="0005:057E:2009.$A" calls="$T/calls"; : >"$calls"
+    led_fixture "$pre" home
+    printf '#!/bin/sh\necho helper >>%s\n' "$calls" >"$T/helper"; chmod +x "$T/helper"; switchpro_helper="$T/helper"
+    write_led() { local p=$1 v=$2; [ -e "$p" ] || return 0; echo "write $v" >>"$calls"; printf '%s\n' "$v" >"$p"; }
+    connect event1 "$A"; charging_battery "$A"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    local first; first=$(wc -l <"$calls")
+    check "the first pass sends commands" yes "$([ "$first" -gt 0 ] && echo yes || echo no)"
+    local t; for t in 1010 1020 1030 1040; do now_s() { printf '%s\n' "$t"; }; update_batteries_once; done
+    check "four more refreshes with the LEDs already right send nothing" "$first" "$(wc -l <"$calls")"
+}
+
+t_refresh_corrects_a_pattern_the_driver_changed() {
+    cmd_setup; led_refresh=10
+    local pre="0005:057E:2009.$B" calls="$T/calls"; : >"$calls"
+    led_fixture "$pre" home
+    printf '#!/bin/sh\necho helper >>%s\n' "$calls" >"$T/helper"; chmod +x "$T/helper"; switchpro_helper="$T/helper"
+    connect event1 "$A"; connect event2 "$B"; charging_battery "$B"; printf 'Discharging\n' >"$T/power/nintendo_switch_controller_battery_a/status"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    check "the controller in slot 2 gets its pattern" "0 1 0 0" "$(leds_of "$pre")"
+    printf '1\n' >"$sys_leds/$pre:green:player-1/brightness"           # the driver applies its own pattern (LEDs 1 and 2)
+    : >"$calls"
+    now_s() { printf '1010\n'; }; update_batteries_once
+    check "the next refresh puts it back" "0 1 0 0" "$(leds_of "$pre")"
+    check "with a command, because it had changed" yes "$([ -s "$calls" ] && echo yes || echo no)"
+}
+
+t_an_explicit_request_always_writes() {
+    cmd_setup; local pre="0005:057E:2009.$A" calls="$T/calls"; : >"$calls"
+    led_fixture "$pre" home
+    write_led() { local p=$1 v=$2; [ -e "$p" ] || return 0; echo "write $v" >>"$calls"; printf '%s\n' "$v" >"$p"; }
+    connect event1 "$A"
+    : >"$calls"
+    req eeeeeee20 player_leds "$A" 1     # the same pattern the LEDs already have
+    check "SetPlayerLeds writes even when nothing differs" yes "$([ -s "$calls" ] && echo yes || echo no)"
+}
+
+t_slot_masks_for_ten_players_are_distinct_and_the_joycon_r_is_mirrored() {
+    cmd_setup
+    local s std="" inv=""
+    for s in 1 2 3 4 5 6 7 8 9 10; do std+="$(slot_mask "$s") "; inv+="$(slot_mask "$s" 1) "; done
+    check "standard masks for players 1 to 10" "1 2 4 8 9 10 12 13 3 5 " "$std"
+    check "right Joy-Con alone, mirrored masks for players 1 to 10" "8 4 2 1 9 5 3 11 12 10 " "$inv"
+    check "player 11 and beyond get no LED" "0" "$(slot_mask 11)"
+    local uniq; uniq=$(printf '%s' "$std" | tr ' ' '\n' | sort -u | wc -l)
+    check "the ten standard masks are all different" 10 "$uniq"
+    # the mirror is the bit reversal of the standard mask (LED 1 <-> LED 4, LED 2 <-> LED 3)
+    local bad=0 i a b
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        a=$(slot_mask "$i"); b=$(slot_mask "$i" 1); r=0
+        for bit in 0 1 2 3; do (( (a >> bit) & 1 )) && r=$(( r | (1 << (3 - bit)) )); done
+        [ "$r" -eq "$b" ] || bad=$((bad+1))
+    done
+    check "every mirrored mask is the bit reversal of the standard one" 0 "$bad"
+}
+
+t_ten_controllers_get_players_one_to_ten() {
+    cmd_setup; led_fixture "0005:057E:2009.$A" home
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        printf -v mac 'C0:00:00:00:00:%02X' "$i"
+        local d="$T/dev/0005:057E:2009.$mac"; mkdir -p "$d" "$sys_input/event$((100+i))"
+        printf '%s\n' "$mac" >"$d/uniq"; printf 'Nintendo Co., Ltd. Pro Controller\n' >"$d/name"
+        ln -sfn "$d" "$sys_input/event$((100+i))/device"; register_event "event$((100+i))"
+    done
+    local got=""; for i in 1 2 3 4 5 6 7 8 9 10; do printf -v mac 'C0:00:00:00:00:%02X' "$i"; got+="$(slot_of "$mac") "; done
+    check "ten connected controllers are numbered 1 to 10 in connection order" "1 2 3 4 5 6 7 8 9 10 " "$got"
+    printf -v mac 'C0:00:00:00:00:0B'; local d="$T/dev/0005:057E:2009.$mac"; mkdir -p "$d" "$sys_input/event200"
+    printf '%s\n' "$mac" >"$d/uniq"; printf 'Nintendo Co., Ltd. Pro Controller\n' >"$d/name"; ln -sfn "$d" "$sys_input/event200/device"; register_event event200
+    check "an eleventh controller is not numbered" "" "$(slot_of "$mac")"
+}
+
+t_the_right_joycon_battery_led_follows_its_mirrored_pattern() {
+    cmd_setup; led_refresh=10; led_settle=0
+    connect event1 "$A"; connect event2 "$B"; connect event3 "$C"
+    local pre="0005:057E:2009.$D"; led_fixture "$pre" home
+    connect event4 "$D" "Joy-Con (R)"            # slot 4: the right Joy-Con mirrors it to LED 1
+    local b="$T/power/nintendo_switch_controller_battery_d"; mkdir -p "$b"
+    ln -sfn "$T/dev/$pre" "$b/device"; printf 'Discharging\n' >"$b/status"; printf '80\n' >"$b/capacity"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    now_s() { printf '1010\n'; }; update_batteries_once
+    check "the pattern is the mirrored one and the battery LED did not light LED 4" "1 0 0 0" "$(leds_of "$pre")"
+}
+
+# ---- joycond: which Joy-Cons a combined device stands for -----------------------------------
+# joycond makes the event node of every Joy-Con it merged root-only (0600) and leaves a free one open.
+jc_nodes() { dev_input="$T/devinput"; mkdir -p "$dev_input"; local e; for e in event1 event2 event3 event4 event5; do : >"$dev_input/$e"; chmod 666 "$dev_input/$e"; done; }
+
+t_a_combined_pair_collapses_only_the_joycons_joycond_merged() {
+    cmd_setup; jc_nodes
+    connect event1 "$A" "Joy-Con (L)"; connect event2 "$B" "Joy-Con (R)"     # the free pair
+    connect event3 "$C" "Joy-Con (L)"; connect event4 "$D" "Joy-Con (R)"     # the merged pair
+    chmod 600 "$dev_input/event3" "$dev_input/event4"
+    connect event5 "EE:EE:EE:EE:EE:05" "Nintendo Switch Combined Joy-Cons"
+    check "the merged Joy-Cons have no slot of their own" "" "$(slot_of "$C")$(slot_of "$D")"
+    check "the free pair keeps its two slots" "1 2" "$(slot_of "$A") $(slot_of "$B")"
+    check "and the combined device has one" yes "$([ -n "$(slot_of joycond:event5)" ] && echo yes || echo no)"
+    scan_existing; scan_existing
+    check "the next scans do not bring the merged ones back" "" "$(slot_of "$C")$(slot_of "$D")"
+    check "so the table holds the free pair and the combined device only" 3 "$(wc -l <"$slots_file")"
+}
+
+t_a_dissolved_pair_gives_its_joycons_their_slots_back() {
+    cmd_setup; jc_nodes
+    connect event3 "$C" "Joy-Con (L)"; connect event4 "$D" "Joy-Con (R)"
+    chmod 600 "$dev_input/event3" "$dev_input/event4"
+    connect event5 "EE:EE:EE:EE:EE:05" "Nintendo Switch Combined Joy-Cons"
+    check "merged: only the combined device has a slot" 1 "$(wc -l <"$slots_file")"
+    disconnect event5; cleanup_missing; chmod 666 "$dev_input/event3" "$dev_input/event4"
+    scan_existing; scan_existing
+    check "released by joycond: both Joy-Cons are numbered again" 2 "$(wc -l <"$slots_file")"
+}
+
+t_a_locked_joycon_without_a_combined_device_is_a_normal_controller() {
+    cmd_setup; jc_nodes; chmod 600 "$dev_input/event1"
+    connect event1 "$A" "Joy-Con (L)"
+    check "joycond waiting for a partner does not hide the Joy-Con" 1 "$(slot_of "$A")"
 }
 
 t_udev_rule_for_pro_controller() {
@@ -582,6 +808,18 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_command_home_led_can_be_turned_off_and_stays_off t_command_home_led_refuses_controllers_without_one \
          t_command_idle_timeout_is_validated_applied_and_kept t_command_idle_timeout_zero_means_never_and_stops_the_workers \
          t_command_idle_timeout_stops_a_running_worker_and_its_pipeline t_command_channel_through_the_fifo_and_the_real_loop \
+         t_battery_is_found_when_the_id_is_not_above_the_battery_device t_battery_without_capacity_reports_the_status_only \
+         t_scan_does_not_resolve_known_controllers_again t_scan_registers_a_registered_node_that_was_replaced \
+         t_player_leds_capability_follows_the_leds_the_controller_has \
+         t_nintendo_leds_wait_until_the_controller_has_settled t_nintendo_leds_with_a_periodic_refresh_also_wait \
+         t_other_controllers_still_get_their_leds_at_once \
+         t_home_led_is_lit_once_per_connection_and_not_kept_alive \
+         t_refresh_sends_no_command_while_the_leds_already_match t_refresh_corrects_a_pattern_the_driver_changed \
+         t_an_explicit_request_always_writes \
+         t_slot_masks_for_ten_players_are_distinct_and_the_joycon_r_is_mirrored t_ten_controllers_get_players_one_to_ten \
+         t_the_right_joycon_battery_led_follows_its_mirrored_pattern \
+         t_a_combined_pair_collapses_only_the_joycons_joycond_merged t_a_dissolved_pair_gives_its_joycons_their_slots_back \
+         t_a_locked_joycon_without_a_combined_device_is_a_normal_controller \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done

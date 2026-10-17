@@ -12,11 +12,17 @@ sys_power=${JOYMANAGER_SYS_POWER:-/sys/class/power_supply}
 # again); real changes are written immediately. Anything else falls back to 10.
 led_refresh=${JOYMANAGER_LED_REFRESH:-10}
 case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
+# Nintendo controllers finish their own initialisation a few seconds after connecting, and it
+# overwrites the player LEDs and turns the HOME LED off. An earlier write is lost (sysfs keeps the
+# value we wrote, the controller does not) and only adds subcommands to the ones the driver is
+# sending, so for them the first LED write waits this many seconds (0 = write at once).
+led_settle=${JOYMANAGER_LED_SETTLE:-6}
+case "$led_settle" in ''|*[!0-9]*) led_settle=6;; esac
 slots_file="$runtime_dir/slots.tsv"
-max_players=8
-idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
+max_players=10
+idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-300}
 # 0 turns the idle power-off off; anything else must be a whole number of seconds.
-case "$idle_timeout" in ''|*[!0-9]*) idle_timeout=1800;; esac
+case "$idle_timeout" in ''|*[!0-9]*) idle_timeout=300;; esac
 # Settings changed at run time (command channel, docs/command-channel.md) are kept in a small file and
 # win over the unit's Environment= after a restart.
 state_dir=${JOYMANAGER_STATE_DIR:-/var/lib/joystickmanager}
@@ -102,9 +108,9 @@ controller_parent() {
     local p=$1 n
     p=$(readlink -f "$p" 2>/dev/null || true)
     while [ -n "$p" ] && [ "$p" != / ]; do
-        n=$(basename "$p")
+        n=${p##*/}
         case "$n" in 0005:*|0003:*) printf '%s\n' "$n"; return 0;; esac
-        p=$(dirname "$p")
+        p=${p%/*}
     done
     return 1
 }
@@ -114,7 +120,7 @@ controller_id() {
     p=$(readlink -f "$p" 2>/dev/null || true)
     while [ -n "$p" ] && [ "$p" != / ]; do
         if [ -r "$p/uniq" ] && [ -s "$p/uniq" ]; then read_file "$p/uniq"; return 0; fi
-        p=$(dirname "$p")
+        p=${p%/*}
     done
     return 1
 }
@@ -147,21 +153,43 @@ slot_mask() {
     case "$slot" in
         1) mask=1;; 2) mask=2;; 3) mask=4;; 4) mask=8;;
         5) mask=9;; 6) mask=10;; 7) mask=12;; 8) mask=13;;
+        9) mask=3;; 10) mask=5;;
         *) mask=0;;
     esac
+    # The right Joy-Con alone has its LEDs in mirror order (LED 1 on the far side): its patterns are the bit
+    # reversal of the table above, so the same player number lights the LED in the same physical place.
     if [ "$reverse" -eq 1 ]; then
         case "$slot" in
             1) mask=8;; 2) mask=4;; 3) mask=2;; 4) mask=1;;
-            5) mask=9;; 6) mask=5;; 7) mask=3;; 8) mask=7;;
+            5) mask=9;; 6) mask=5;; 7) mask=3;; 8) mask=11;;
+            9) mask=12;; 10) mask=10;;
         esac
     fi
     printf '%s\n' "$mask"
 }
 
+# set_player_leds PREFIX SLOT [ID] [REVERSE] [FORCE]
+# Every LED write is a subcommand the controller must answer, and too many of them drop the
+# link (two Pro Controllers did, with the 10 s refresh rewriting all four LEDs every time). sysfs
+# shows the pattern the driver last applied (it changes when the driver applies its own after the
+# connection), so the LEDs are read first and nothing is sent when they already match: in steady
+# state a refresh costs no command at all. FORCE=1 (an explicit request) always writes.
 set_player_leds() {
-    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} n v mask=''
+    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} force=${5:-0} n v mask='' path cur same=1
     [ -z "$controller_id" ] || mask=${led_manual[$controller_id]:-}
     [ -n "$mask" ] || mask=$(slot_mask "$slot" "$reverse")
+    if [ "$force" -ne 1 ]; then
+        for n in 1 2 3 4; do
+            v=0
+            (( mask & (1 << (n - 1)) )) && v=1
+            for path in "$sys_leds/$prefix:green:player-$n/brightness" "$sys_leds/$prefix::sony$n/brightness"; do
+                [ -r "$path" ] || continue
+                cur=''; IFS= read -r cur <"$path" || true
+                [ "$cur" = "$v" ] || same=0
+            done
+        done
+        [ "$same" -eq 0 ] || return 0
+    fi
     for n in 1 2 3 4; do
         v=0
         (( mask & (1 << (n - 1)) )) && v=1
@@ -175,6 +203,16 @@ set_player_leds() {
             "$switchpro_helper" --prefix "$prefix" --mask "$mask" >/dev/null 2>&1 || true
         fi
     fi
+}
+
+# The controller keeps the HOME LED lit for only about 15 s per command (measured on a Pro
+# Controller). Keeping it lit would mean one more command per controller every few seconds, and
+# too many commands drop the link, so the service lights it once per connection (a short glow
+# that says "connected") and leaves it. SetHomeLed (set_home_led) is the explicit command.
+set_home_led_once() { # KEY [PREFIX]: once per key (the key is the prefix unless another one is given)
+    local key=$1 prefix=${2:-$1}
+    [ -z "${home_sent[$key]:-}" ] || return 0
+    home_sent[$key]=1; set_home_led "$prefix"
 }
 
 set_home_led() {
@@ -196,32 +234,54 @@ sync_combined_joycon_leds() {
             'Joy-Con (L)'|'Joy-Con (R)')
                 prefix=$(controller_parent "$p/device" || true)
                 # set_home_led does nothing on the left Joy-Con, which has no HOME LED
-                [ -n "$prefix" ] && { set_player_leds "$prefix" "$slot"; set_home_led "$prefix"; }
+                [ -n "$prefix" ] && { set_player_leds "$prefix" "$slot"; set_home_led_once "pair:$prefix" "$prefix"; }
                 ;;
         esac
     done
 }
 
+# joycond locks the event node of every Joy-Con it has merged into a combined device (mode 0600,
+# root only) and leaves a free one with its group/other access: the only outward sign of which
+# physical Joy-Cons a "Nintendo Switch Combined Joy-Cons" device stands for (it has no uniq/phys).
+# Seen with a pair merged next to two free Joy-Cons: the merged two were 0600, the free two 0666.
+dev_input=${JOYMANAGER_DEV_INPUT:-/dev/input}
+joycon_merged() { # EVENT: success when joycond holds this Joy-Con's node
+    local m
+    m=$(stat -c %a "$dev_input/$1" 2>/dev/null) || return 1
+    [[ $m == *00 ]]
+}
+
+# collapse_physical_joycons: drop the rows of the Joy-Cons that joycond merged (they are the
+# combined device's slot); a free Joy-Con keeps its own row.
 collapse_physical_joycons() {
     local id slot prefix event name
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
         name=$(read_file "$sys_input/$event/device/name")
         case "$name" in
-            'Joy-Con (L)'|'Joy-Con (R)') continue;;
+            'Joy-Con (L)'|'Joy-Con (R)') if joycon_merged "$event"; then unset "registered_events[$event]"; continue; fi;;
         esac
         printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"
     done <"$slots_file" >"$slots_file.tmp"
     mv "$slots_file.tmp" "$slots_file"
 }
 
-now_s() { date +%s; }
+now_s() { printf '%(%s)T\n' -1; }
 
 # led_refresh_due PREFIX -> success if led_refresh seconds have passed since the last re-apply.
 declare -gA led_last_refresh=() led_last_battery=()
 # led_manual[ID]=mask: a pattern set by hand (SetPlayerLeds) that wins over the slot pattern.
 # home_off[PREFIX]=1: the HOME LED was turned off by hand (SetHomeLed).
-declare -gA led_manual=() home_off=()
+declare -gA led_manual=() home_off=() led_first_seen=() home_sent=()
+# nintendo_prefix PREFIX: a HID device of vendor 057E (Bluetooth 0005 or USB 0003)
+nintendo_prefix() { case "$1" in *:057E:*) return 0;; esac; return 1; }
+# led_settled PREFIX: a Nintendo controller has been connected for led_settle seconds
+led_settled() {
+    local k=$1 now
+    [ "$led_settle" -gt 0 ] || return 0
+    now=$(now_s); [ -n "${led_first_seen[$k]:-}" ] || led_first_seen[$k]=$now
+    [ $((now - led_first_seen[$k])) -ge "$led_settle" ]
+}
 led_refresh_due() {
     local k=$1 now last
     now=$(now_s); last=${led_last_refresh[$k]:--1}
@@ -237,8 +297,15 @@ led_refresh_due() {
     return 1
 }
 
+# battery_led_slot SLOT REVERSE: the LED that is on for that slot. The right Joy-Con shows its
+# pattern mirrored (slot 4 lights LED 1), so its battery indication must use the mirrored LED too,
+# or it would light a LED the pattern keeps off. Slots 5-8 light several LEDs: no single one.
+battery_led_slot() {
+    if [ "$2" -eq 1 ] && [ "$1" -ge 1 ] && [ "$1" -le 4 ]; then printf '%s\n' $((5 - $1)); else printf '%s\n' "$1"; fi
+}
+
 set_battery_led() {
-    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led
+    local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led cur
 
     # The current hid-nintendo exposes the blue HOME LED as player-5, but its
     # brightness can change without any physical change. We do not use that
@@ -257,6 +324,8 @@ set_battery_led() {
     led_last_battery[$prefix:$slot]=$v
 
     for led in "$sys_leds/$prefix:green:player-$slot/brightness" "$sys_leds/$prefix::sony$slot/brightness"; do
+        # a forced re-apply does not send a command for an LED that already has the value
+        if [ "$force" -eq 1 ] && [ -r "$led" ]; then cur=''; IFS= read -r cur <"$led" || true; [ "$cur" != "$v" ] || continue; fi
         write_led "$led" "$v"
     done
 }
@@ -276,6 +345,11 @@ register_event() {
     is_supported_controller "$event" "$name" || { ignored_events[$event]=1; return; }
     unset "ignored_events[$event]"
     path="$sys_input/$event/device"
+    case "$name" in
+        'Joy-Con (L)'|'Joy-Con (R)')
+            # merged by joycond into a combined device that already has its slot: not a slot of its own
+            if joycon_merged "$event" && grep -q '^joycond:' "$slots_file" 2>/dev/null; then return; fi;;
+    esac
     if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
         collapse_physical_joycons
         id="joycond:$event"
@@ -297,12 +371,17 @@ register_event() {
     tmp="$slots_file.tmp"
     awk -F '\t' -v i="$id" -v p="$prefix" -v e="$event" 'BEGIN{OFS="\t"}$1==i{$3=p;$4=e}{print}' "$slots_file" >"$tmp"
     mv "$tmp" "$slots_file"
+    registered_events[$event]=1; event_name[$event]=$name
+    event_family[$event]=$(profile_for_event "$event" 2>/dev/null | cut -f1)
     [ "$known" -eq 1 ] && return
     if [ "$prefix" != - ]; then
         reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
-        set_player_leds "$prefix" "$slot" "$id" "$reverse"
-        set_home_led "$prefix"
+        # Nintendo controllers get their LEDs from the battery loop, once they have settled
+        if [ "$led_settle" -gt 0 ] && nintendo_prefix "$prefix"; then :; else
+            set_player_leds "$prefix" "$slot" "$id" "$reverse"
+            set_home_led_once "$prefix"
+        fi
     else
         sync_combined_joycon_leds "$slot"
     fi
@@ -329,7 +408,7 @@ cleanup_missing() {
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
         if [ "$event" != - ] && [ ! -e "$sys_input/$event" ]; then
-            stop_idle_worker "$runtime_dir/idle.$slot.pid"; unset "led_manual[$id]"
+            stop_idle_worker "$runtime_dir/idle.$slot.pid"; unset "led_manual[$id]" "registered_events[$event]" "event_name[$event]" "event_family[$event]"
         else printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"; fi
     done <"$slots_file" >"$slots_file.tmp"
     mv "$slots_file.tmp" "$slots_file"
@@ -367,16 +446,18 @@ start_idle_workers() {
 # cycle and match it against the profile table: about 1000 processes every 2 s, ~10% of a core
 # on an idle desktop. Nodes already examined and not a supported controller are skipped
 # until they are re-created (newer than the previous scan) or every rescan_every scans.
-declare -gA ignored_events=()
+declare -gA ignored_events=() registered_events=() event_name=() event_family=()
 scan_count=0
 rescan_every=30
 scan_existing() {
     local p e stamp="$runtime_dir/scan.stamp"
-    (( scan_count++ % rescan_every == 0 )) && ignored_events=()
+    (( scan_count++ % rescan_every == 0 )) && { ignored_events=(); registered_events=(); }
     for p in "$sys_input"/event*; do
         [ -e "$p" ] || continue
         e=${p##*/}
-        if [ -n "${ignored_events[$e]:-}" ] && ! [ "$p" -nt "$stamp" ]; then continue; fi
+        # a node seen before (a controller already registered, or one that is not a controller) and not
+        # re-created since the previous scan has nothing new to tell
+        if [ -n "${ignored_events[$e]:-}${registered_events[$e]:-}" ] && ! [ "$p" -nt "$stamp" ]; then continue; fi
         register_event "$e"
     done
     : >"$stamp"
@@ -408,27 +489,34 @@ update_batteries_once() {
     battery_by_prefix=()
     for b in "$sys_power"/*controller_battery_*; do
         [ -e "$b" ] || continue
-        prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
-        id=$(controller_id "$b/device" || true); [ -n "$prefix" ] && [ -n "$id" ] || continue
-        row=$(row_for_id "$id")
+        prefix=$(readlink -f "$b/device" 2>/dev/null || true); prefix=${prefix##*/}
+        [ -n "$prefix" ] || continue
+        # The battery's device is the HID device, and "uniq" lives on its input device, so on current
+        # kernels the id cannot be found from here: the HID prefix identifies the row just as well.
+        id=$(controller_id "$b/device" || true); row=''
+        [ -z "$id" ] || row=$(row_for_id "$id")
         [ -n "$row" ] || row=$(row_for_prefix "$prefix")
         if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
         [ -n "$row" ] || continue
-        slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
+        [ -n "$id" ] || IFS=$'\t' read -r id _ <<<"$row"
+        IFS=$'\t' read -r _ slot _ event <<<"$row"; name=${event_name[$event]:-}; [ -n "$name" ] || name=$(read_file "$sys_input/$event/device/name"); reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
         cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
-        battery_by_prefix[$prefix]="$cap"$'\t'"$status"$'\t'"$state"
+        # ";" and not a tab: tabs are IFS whitespace, so an empty capacity would be swallowed when read back
+        battery_by_prefix[$prefix]="$cap;$status;$state"
         # A pattern set by hand (SetPlayerLeds) is left alone: no re-apply, no battery blinking.
         [ -z "${led_manual[$id]:-}" ] || continue
+        # A Nintendo controller that has only just connected is left alone until it has settled.
+        ! nintendo_prefix "$prefix" || led_settled "$prefix" || continue
         # Every led_refresh s, re-apply the player identification before the battery
         # state; this also restores the LEDs if the controller firmware has updated them.
         refresh=0
         if led_refresh_due "$prefix"; then
             refresh=1
             set_player_leds "$prefix" "$slot" "$id" "$reverse"
-            set_home_led "$prefix"
+            set_home_led_once "$prefix"
         fi
-        set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
+        set_battery_led "$prefix" "$(battery_led_slot "$slot" "$reverse")" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
         if [ "$refresh" -eq 1 ]; then case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac; fi
     done
     write_state
@@ -447,12 +535,12 @@ json_str() {
 json_int() { if [[ $1 =~ ^[0-9]+$ ]]; then printf '%s' "$1"; else printf 'null'; fi; }
 
 write_state() {
-    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp mask manual home
+    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp mask manual home pleds
     body='"format":"ujm-state","version":1,"service":{"led_refresh":'"$(json_str "$led_refresh")"',"idle_timeout":'"$(json_int "$idle_timeout")"',"experimental":'"$([ "$experimental" = 1 ] && printf true || printf false)"'},"controllers":['
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
-        name=$(read_file "$sys_input/$event/device/name")
-        family=$(profile_for_event "$event" 2>/dev/null | cut -f1)
+        name=${event_name[$event]:-}; [ -n "$name" ] || name=$(read_file "$sys_input/$event/device/name")
+        if [ -n "${event_family[$event]+x}" ]; then family=${event_family[$event]}; else family=$(profile_for_event "$event" 2>/dev/null | cut -f1); fi
         case "$id:$prefix" in
             joycond:*) transport=virtual; family=${family:-joycon-combined};;
             *:0005:*) transport=bluetooth;;
@@ -461,15 +549,16 @@ write_state() {
         esac
         reverse=0; [ "$name" = 'Joy-Con (R)' ] && reverse=1
         mask=${led_manual[$id]:-}; manual=true; [ -n "$mask" ] || { manual=false; mask=$(slot_mask "$slot" "$reverse"); }
+        pleds=false; ! has_player_leds "$prefix" || pleds=true
         home=unsupported
         if [ "$prefix" != - ] && [ -e "$sys_leds/$prefix:blue:player-5/brightness" ]; then home=on; [ -z "${home_off[$prefix]:-}" ] || home=off; fi
         battery=null
         if [ "$prefix" != - ] && [ -n "${battery_by_prefix[$prefix]:-}" ]; then
-            IFS=$'\t' read -r cap status state <<<"${battery_by_prefix[$prefix]}"
+            IFS=';' read -r cap status state <<<"${battery_by_prefix[$prefix]}"
             battery='{"percent":'"$(json_int "$cap")"',"status":'"$(json_str "$status")"',"level":'"$(json_str "$state")"'}'
         fi
         [ "$first" -eq 1 ] || body+=','; first=0
-        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$mask"',"player_led_manual":'"$manual"',"home_led":"'"$home"'","battery":'"$battery"'}'
+        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$mask"',"player_leds":'"$pleds"',"player_led_manual":'"$manual"',"home_led":"'"$home"'","battery":'"$battery"'}'
     done < <(sort -t $'\t' -k2,2n "$slots_file")
     body+=']'
     [ "$body" = "$state_body_last" ] && return 0
@@ -502,8 +591,10 @@ controller_row() {
     IFS=$'\t' read -r _ c_slot c_prefix c_event <<<"$row"
 }
 
+# Player-number LEDs exist on the Switch controllers and the DualShock 3 only. The Xbox One/Series
+# controllers have just a HOME LED, and the DualShock 4 and DualSense just an RGB light: no numbering.
 has_player_leds() {
-    [ "$1" != - ] && { [ -e "$sys_leds/$1:green:player-1/brightness" ] || [ -e "$sys_leds/$1::sony1/brightness" ] || [ -e "$sys_leds/$1:blue:player-5/brightness" ]; }
+    [ "$1" != - ] && { [ -e "$sys_leds/$1:green:player-1/brightness" ] || [ -e "$sys_leds/$1::sony1/brightness" ]; }
 }
 
 cmd_player_leds() { # ID MASK (0-15, or 255 to go back to the automatic pattern)
@@ -513,13 +604,13 @@ cmd_player_leds() { # ID MASK (0-15, or 255 to go back to the automatic pattern)
     fi
     controller_row "$id" || { cmd_result=$'error\tno connected controller with that id'; return; }
     has_player_leds "$c_prefix" || { cmd_result=$'error\tthis controller has no player LEDs the service can write'; return; }
+    name=$(read_file "$sys_input/$c_event/device/name"); [ "$name" = 'Joy-Con (R)' ] && reverse=1
     if [ "$mask" -eq 255 ]; then
-        unset "led_manual[$id]" "led_last_refresh[$c_prefix]" "led_last_battery[$c_prefix:$c_slot]"
+        unset "led_manual[$id]" "led_last_refresh[$c_prefix]" "led_last_battery[$c_prefix:$(battery_led_slot "$c_slot" "$reverse")]"
     else
         led_manual[$id]=$mask
     fi
-    name=$(read_file "$sys_input/$c_event/device/name"); [ "$name" = 'Joy-Con (R)' ] && reverse=1
-    set_player_leds "$c_prefix" "$c_slot" "$id" "$reverse"
+    set_player_leds "$c_prefix" "$c_slot" "$id" "$reverse" 1
     cmd_result=ok
 }
 
