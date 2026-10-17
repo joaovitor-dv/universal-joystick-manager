@@ -26,6 +26,25 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### D-Bus bridge for the interface (`org.ujm.Manager1`)
+
+- **What changed:** new `bridge/ujm-bridge`, a small Python program (PyGObject/GIO) that republishes `state.json` on the system bus, stores controller aliases, and drives BlueZ for scan, pair, connect and disconnect, asking polkit before every action. Bus-activated, and it exits 30 s after its last client leaves. Details in [docs/bridge.md](docs/bridge.md). `install.sh --with-bridge` and the three packages ship it (its dependencies are optional).
+- **Why:** the interface must not run `bluetoothctl`, `sudo` or read `/dev/input`, and the shell service cannot speak D-Bus. GIO was chosen over `dbus-fast`/`jeepney`: one dependency that every Linux desktop already has, an idle main loop that costs nothing, and inotify built in.
+- **Evidence:** 19 tests on a private session bus with a fake BlueZ and a fake polkit (the real `CheckAuthorization` call is exercised); measured 0.00% CPU and 19.6 MiB while running, nothing when stopped. The `.deb`, `.rpm` and Arch packages were built with the bridge and inspected.
+- **Open questions:** `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` return `NotSupported` until the shell service has a command channel. Not tested: a real BlueZ, a real polkit, the system bus policy on an installed system.
+
+### Interface measurements: Chromium against QML
+
+- **What changed:** `gui/` has a PySide6 + QtWebEngine shell around `ui/index.html` (stop-gap), a QML baseline and the measuring scripts. Report: [docs/gui-measurements.md](docs/gui-measurements.md).
+- **Why:** to decide whether the interface may depend on Chromium. Measured on one machine: plain QML 108 MiB (PSS) and one process; the WebEngine shell 332 MiB and five processes, 340 ms slower to start, plus a 283 MiB dependency. CPU is about 0% in both. The decision is to build the native QML interface.
+- **Open questions:** single samples; the final interface with eight controllers and the monitoring views will use more than the baseline.
+
+### Debian package no longer enables or starts the service
+
+- **What changed:** `debian/rules` runs `dh_installsystemd --no-enable --no-start`.
+- **Why:** reading the maintainer scripts of the built package showed that `dh_installsystemd` enabled and started `joystickmanager.service` on install, against what the docs and the Arch and Fedora packages do.
+- **Evidence:** the `postinst` of the rebuilt package has the "dont-enable" snippet and no start/restart. Not tested by installing it on Debian.
+
 ### The service no longer burns ~10% of a core while idle
 
 - **What changed:** the periodic scan (every 2 s) skips input nodes it has already found not to be supported controllers. A node is looked at again when it is re-created (newer than the previous scan) and every 30 scans, so a controller is never missed. `read_file` also uses the shell's `read` instead of starting `cat`.

@@ -11,11 +11,13 @@ UJM has two very different parts, and they need different formats:
 |---|---|---|---|
 | Source tarball + `install.sh` | service | `git archive`, attached to each release | works on any systemd distribution |
 | Arch Linux `.pkg.tar.zst` | service | `packaging/arch/PKGBUILD` (builds from the checkout: run `makepkg` in that folder) | builds; checked with `namcap` |
-| **AUR** | service | `packaging/aur/PKGBUILD` + `.SRCINFO`, from the release tarball; `packaging/aur/update.sh <version>` points it at a new release | recipe builds from the v0.8.0 tarball; **not published** (needs the maintainer's AUR account). Publish from the first release after v0.8.0, which carries the LED-helper path fix |
+| **AUR** | service | `packaging/aur/PKGBUILD` + `.SRCINFO`, from the release tarball; `packaging/aur/update.sh <version>` points it at a new release | recipe builds from the v0.8.0 tarball; **not published** (needs the maintainer's AUR account). Publish from the first release after v0.8.0, which carries the LED-helper path fix. **When the first release that has `bridge/` is out, add the bridge lines of `packaging/arch/PKGBUILD` to `packaging/aur/PKGBUILD` too** (the v0.8.0 tarball has no bridge) |
 | Debian/Ubuntu `.deb` | service | `packaging/debian/` (copied to `debian/` for `dpkg-buildpackage`) | built and checked in CI on every push (files in place, `ExecStart` in `/usr/bin`); not yet installed on a real Debian/Ubuntu system |
 | Fedora `.rpm` | service | `packaging/fedora/universal-joystick-manager.spec` | built and checked in CI on every push; not yet installed on a real Fedora system |
 | Flatpak | interface | not yet | planned for the GUI app; a Flatpak cannot install a system service or udev rules, so it will talk to the service over D-Bus |
 | AppImage | interface | not yet | same as Flatpak: GUI only |
+
+The packages also carry the optional D-Bus bridge for the interface ([bridge.md](bridge.md)). Its dependencies (PyGObject, polkit) are optional, so a headless install does not pull them.
 
 Every published release gets its `.deb`, `.rpm`, Arch package, source tarball and `SHA256SUMS` attached automatically by `.github/workflows/release.yml`. It can also be run by hand for an existing tag (**Actions → Release packages → Run workflow**).
 
@@ -28,9 +30,10 @@ Every published release gets its `.deb`, `.rpm`, Arch package, source tarball an
 | Pro Controller LED helper | `/usr/local/libexec/joystickmanager-switchpro-leds` | Arch/Debian `/usr/lib/joystickmanager/switchpro-leds`, Fedora `/usr/libexec/joystickmanager-switchpro-leds` |
 | Profile table | `/usr/local/share/joystickmanager/controllers.tsv` | `/usr/share/joystickmanager/controllers.tsv` |
 | systemd unit | `/etc/systemd/system/joystickmanager.service` | `/usr/lib/systemd/system/joystickmanager.service` (`ExecStart` rewritten to `/usr/bin`) |
+| D-Bus bridge | `/usr/local/libexec/ujm-bridge` only with `--with-bridge`; policy files in `/etc/dbus-1/system.d`, `/usr/share/dbus-1/system-services`, `/usr/share/polkit-1/actions` | `/usr/lib/joystickmanager/ujm-bridge` (Fedora `/usr/libexec/ujm-bridge`), policy files in `/usr/share` |
 | Optional udev rule | installed only with `--pro-charge-only` | shipped in `/usr/share/joystickmanager/udev/`, **not active**; copy it to `/etc/udev/rules.d/` to enable |
 
-The service finds the LED helper next to wherever it is installed (`JOYMANAGER_SWITCHPRO_HELPER` overrides it), so both layouts work. Packages do not enable or start the service by themselves: run `sudo systemctl enable --now joystickmanager` after installing.
+The service finds the LED helper next to wherever it is installed (`JOYMANAGER_SWITCHPRO_HELPER` overrides it), so both layouts work. Packages do not enable or start the service by themselves (the Debian package is built with `dh_installsystemd --no-enable --no-start` to guarantee it): run `sudo systemctl enable --now joystickmanager` after installing.
 
 ## Later
 

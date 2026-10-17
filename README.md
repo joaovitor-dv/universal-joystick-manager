@@ -87,6 +87,7 @@ sudo systemctl start joystickmanager
 - **`joycond` (Joy-Con pairs, and it also affects Pro Controllers):** install [`joycond`](https://github.com/DanielOgorchock/joycond) yourself (on Arch, the AUR package `joycond-git`) and enable `joycond.service`. UJM does not install it for you. Be aware that `joycond` is not only for Joy-Cons: it manages **Pro Controllers too**. While it is running, a Pro Controller shows blinking player LEDs until you press **L + R** on it to complete the logical pairing; in our tests the LEDs only settled on the steady player number after that step. If you do not want that extra step, leave `joycond` disabled.
 - **External drivers** such as `xone` and `xpadneo` are third-party code built through DKMS. UJM does not install or package them.
 - **Charge the Pro Controller without losing Bluetooth:** `sudo ./install.sh --pro-charge-only` adds a udev rule. Read [the caveats](#the-pro-controller-and-usb-cables) first.
+- **D-Bus bridge for the graphical interface (in development):** `sudo ./install.sh --with-bridge`. Nothing uses it yet, so you only need it when you try the interface. It starts when something calls it and stops by itself. See [docs/bridge.md](docs/bridge.md).
 
 **Check that it works**
 
