@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Development tools: one check script, a hardware checklist
+
+- **What changed:** `tools/check.sh` runs what CI runs (unit tests, syntax, the udev rule, the profile table, the bridge XML and tests, ShellCheck) and, on request, the interface tests, the QML tests and the package builds (`.deb` and `.rpm` in Docker, Arch with `makepkg`). CI's Tests job now calls the same script. `tools/collect-report.sh` writes one diagnostic file with Bluetooth addresses masked; `tools/measure-service.sh` measures the running service's CPU from its cgroup. [docs/hardware-checklist.md](docs/hardware-checklist.md) turns every check that needs a real controller into one ordered session with expected results.
+- **Why:** two CI failures in one day (a missing build dependency and a tool used before it was installed) were both cheap to catch locally, and the hardware checks were scattered across notes, one of them ("original tests 3, 4 and 6") never written down.
+- **Evidence:** `tools/check.sh` passes here and fails (exit status 1, with the parser error) when a bridge XML file is broken; `--gui` and `--packages` pass; the address masking has a self-test that `check.sh` runs. On this machine ShellCheck is not installed, and the script says so instead of passing.
+- **Open questions:** nothing here has been used on a second machine; the checklist itself has not been run.
+
 ### Native QML interface: the Overview screen
 
 - **What changed:** `gui/ujm_gui.py` and `gui/qml/` are the first screen of the native interface: one card per connected controller (player, name or alias, vendor, transport, battery and charging state, player LEDs), in the dark palette of the HTML prototype. It reads the D-Bus bridge and follows its `ControllersChanged` signal; without the bridge it reads `/run/joystickmanager/state.json` directly, read-only, and says which source it is using. `--state-file gui/examples/state.example.json` runs it with no service and no hardware. Read-only: no buttons yet.

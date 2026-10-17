@@ -30,8 +30,18 @@ Useful while developing:
 
 - `udevadm verify udev/99-joystickmanager-procontroller-charge-only.rules` checks the udev rule.
 - `shellcheck -S warning joystickmanager.sh joystickmanager-doctor install.sh tests/test_slots.sh` must pass: CI blocks on it.
+- **`tools/check.sh` runs what CI runs** (unit tests, syntax, the udev rule, the profile table, the bridge XML and tests, ShellCheck): run it before every push. `--ui`, `--gui` and `--packages` add the interface tests, the QML tests and building the packages. It tells you plainly what it skipped and why.
+- `tools/collect-report.sh` writes one masked diagnostic file; `tools/measure-service.sh` measures the running service's CPU. [docs/hardware-checklist.md](docs/hardware-checklist.md) is the list of checks that need a real controller.
 - `ui/tests/run.sh` runs the interface tests in headless Chromium (Node.js 22+; set `CHROME` if the browser is not called `chromium`).
 - The service reads `/sys` through variables (`JOYMANAGER_SYS_INPUT`, `JOYMANAGER_SYS_LEDS`, `JOYMANAGER_SYS_POWER`), which is how the tests fake hardware.
+
+## How changes get in
+
+- **Run `tools/check.sh` first.** CI runs the same script, so a green run here means a green run there. It reports what it had to skip (for example ShellCheck when it is not installed); a skip is not a pass.
+- **Keep the documentation in the same commit** as the behavior it describes (README, `docs/`, [DEVLOG](DEVLOG.md)). `tools/check.sh` warns when the code changed since the last tag and the devlog or the bridge, `state.json` or packaging docs did not.
+- **Outside contributors:** fork, branch, open a Pull Request; CI runs on it and the template lists what to confirm.
+- **Maintainers:** small, finished changes may go straight to `main` after `tools/check.sh`; use a branch and a Pull Request, with CI green before the merge, when a change is large, touches an area another maintainer is working on, or two people are publishing in the same period. Watch CI after every push and fix a red run before anything else.
+- **Hardware checks** are batched into one sitting with [docs/hardware-checklist.md](docs/hardware-checklist.md); a change that needs a real controller says so and links the result.
 
 ## Commit messages
 
@@ -57,6 +67,8 @@ SemVer 0.x while the validated hardware matrix is incomplete:
 `1.0.0` is reserved for when the validated matrix in the README is complete.
 
 ## Cutting a release (maintainers)
+
+0. **Gate:** CI is green on the commit, and at least the soak (step 2) and `state.json` (step 5) of the [hardware checklist](docs/hardware-checklist.md) have a recorded result. Confirm with the maintainer before publishing anything.
 
 1. Tag the commit with an **annotated** tag: `git tag -a vX.Y.Z -m "vX.Y.Z - <title>"`, with the classification in the message.
 2. Add its entry to the [devlog](DEVLOG.md).
