@@ -173,7 +173,8 @@ sync_combined_joycon_leds() {
         case "$name" in
             'Joy-Con (L)'|'Joy-Con (R)')
                 prefix=$(controller_parent "$p/device" || true)
-                [ -n "$prefix" ] && set_player_leds "$prefix" "$slot"
+                # set_home_led does nothing on the left Joy-Con, which has no HOME LED
+                [ -n "$prefix" ] && { set_player_leds "$prefix" "$slot"; set_home_led "$prefix"; }
                 ;;
         esac
     done

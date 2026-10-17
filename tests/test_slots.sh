@@ -321,6 +321,22 @@ t_state_json_escapes_and_is_only_rewritten_on_change() {
     check "a disconnection rewrites it" "[] 1020" "$(jget "$f" 'd["controllers"]') $(jget "$f" 'd["updated"]')"
 }
 
+t_combined_pair_lights_the_right_joycon_home_led() {
+    sys_leds="$T/leds"; start_idle_workers() { :; }
+    local mac n pre
+    for side in L R; do
+        [ "$side" = L ] && mac=$C || mac=$D
+        pre="0005:057E:2009.$mac"   # the prefix connect() creates
+        for n in 1 2 3 4; do mkdir -p "$sys_leds/$pre:green:player-$n"; : >"$sys_leds/$pre:green:player-$n/brightness"; done
+        connect "event$([ "$side" = L ] && echo 1 || echo 2)" "$mac" "Joy-Con ($side)"
+    done
+    # only the right Joy-Con has a HOME LED (as hid-nintendo exposes it), off at connection
+    pre="0005:057E:2009.$D"; mkdir -p "$sys_leds/$pre:blue:player-5"; printf '0\n' >"$sys_leds/$pre:blue:player-5/brightness"; printf '15\n' >"$sys_leds/$pre:blue:player-5/max_brightness"
+    connect event3 "$A" "Nintendo Switch Combined Joy-Cons"
+    check "combined pair: the right Joy-Con HOME LED is turned on" 15 "$(cat "$sys_leds/$pre:blue:player-5/brightness")"
+    check "combined pair: the left Joy-Con gets no HOME LED file" 0 "$(find "$sys_leds" -name "*2009.$C:blue*" | wc -l)"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -343,7 +359,7 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_idle_worker_disconnects_after_a_full_timeout t_idle_worker_never_disconnects_when_evtest_fails \
          t_idle_workers_only_for_bluetooth t_switchpro_helper_found_next_to_the_install \
          t_state_json_describes_controllers t_state_json_escapes_and_is_only_rewritten_on_change \
-         t_udev_rule_for_pro_controller; do
+         t_combined_pair_lights_the_right_joycon_home_led t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s failure(s)\n' "$fails"

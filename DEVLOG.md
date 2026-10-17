@@ -26,6 +26,12 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### The right Joy-Con HOME LED in a combined pair
+
+- **What changed:** when two Joy-Cons are combined by `joycond`, the service now also turns on the HOME LED of the right Joy-Con, as it already did for a Joy-Con R on its own and for the Pro Controller.
+- **Why:** reading the kernel driver (`drivers/hid/hid-nintendo.c`, current mainline): the HOME LED is exposed as `<hid>:blue:player-5` only for the right Joy-Con and the Pro Controller, with brightness 0-15, and it is set to **0 (off) when the controller connects**; every write is HID subcommand `0x38`. In a combined pair the physical Joy-Cons leave the slot table and the pair sync only wrote the player LEDs, so the right Joy-Con HOME LED stayed off.
+- **Evidence:** a unit check with a fake LED tree (fails on the old code, passes now). **Not seen on hardware yet.** One more hypothesis to check on hardware: an old comment says the HOME LED brightness "can change without any physical change"; since every write sends a subcommand, that was probably subcommands failing under the LED write storm fixed in v0.6.1.
+
 ### The service publishes its state (`state.json`)
 
 - **What changed:** the service writes `/run/joystickmanager/state.json` (format `ujm-state`, version 1): each connected controller with player, name, profile family, transport, HID device, player LED mask and battery, plus the service settings. It is rewritten atomically and only when something changed. Documented in [docs/state.md](docs/state.md).
