@@ -1,0 +1,21 @@
+{
+  "updated": 1792198928,
+  "format": "ujm-state",
+  "version": 1,
+  "service": { "led_refresh": "10", "idle_timeout": 1800, "experimental": false },
+  "controllers": [
+    { "id": "20:1C:3A:AA:00:01", "player": 1, "name": "Pro Controller", "family": "switch-pro", "transport": "bluetooth",
+      "hid": "0005:057E:2009.0031", "event": "event30", "player_led_mask": 1,
+      "battery": { "percent": 55, "status": "Charging", "level": "normal" } },
+    { "id": "joycond:event5", "player": 2, "name": "Nintendo Switch Combined Joy-Cons", "family": "joycon-combined",
+      "transport": "virtual", "hid": null, "event": "event5", "player_led_mask": 3, "battery": null },
+    { "id": "30:2C:3A:AA:00:03", "player": 3, "name": "Wireless Controller", "family": "dualshock4", "transport": "bluetooth",
+      "hid": "0005:054C:09CC.0040", "event": "event31", "player_led_mask": 4,
+      "battery": { "percent": 12, "status": "Discharging", "level": "low" } },
+    { "id": "A4:11:62:AA:00:04", "player": 4, "name": "PLAYSTATION(R)3 Controller", "family": "ps3", "transport": "bluetooth",
+      "hid": "0005:054C:0268.0041", "event": "event32", "player_led_mask": 8,
+      "battery": { "percent": 80, "status": "Discharging", "level": "normal" } },
+    { "id": "phys:usb-0000:00:14.0-2/input0", "player": 5, "name": "Microsoft X-Box 360 pad", "family": "xbox360", "transport": "other",
+      "hid": null, "event": "event33", "player_led_mask": 0, "battery": null }
+  ]
+}
