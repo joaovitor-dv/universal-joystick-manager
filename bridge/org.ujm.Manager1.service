@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.ujm.Manager1
+Exec=/bin/false
+User=root
+SystemdService=ujm-bridge.service

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>UJM - Universal Joystick Manager</vendor>
+  <vendor_url>https://github.com/joaovitor-dv/universal-joystick-manager</vendor_url>
+
+  <action id="org.ujm.manager.set-alias">
+    <description>Rename a game controller in UJM</description>
+    <message>Authentication is required to rename a game controller</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ujm.manager.bluetooth">
+    <description>Scan, pair, connect or disconnect game controllers</description>
+    <message>Authentication is required to manage Bluetooth game controllers</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ujm.manager.configure">
+    <description>Change the UJM service settings</description>
+    <message>Authentication is required to change the UJM service settings</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

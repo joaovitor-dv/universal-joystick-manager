@@ -1,0 +1,25 @@
+[Unit]
+Description=UJM D-Bus bridge (controller state, aliases and Bluetooth actions for the interface)
+Documentation=https://github.com/joaovitor-dv/universal-joystick-manager/blob/main/docs/bridge.md
+After=dbus.service bluetooth.service
+
+# Started by the bus on first use (org.ujm.Manager1.service) and stopped by itself when no
+# client is left, so there is nothing to enable. It is not part of any target.
+[Service]
+Type=dbus
+BusName=org.ujm.Manager1
+ExecStart=/usr/local/libexec/ujm-bridge
+StateDirectory=ujm
+StateDirectoryMode=0755
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native

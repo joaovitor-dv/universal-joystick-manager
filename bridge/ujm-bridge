@@ -1,0 +1,530 @@
+#!/usr/bin/env python3
+"""UJM bridge: exposes the joystickmanager state and a few actions on D-Bus (org.ujm.Manager1).
+
+The shell service (joystickmanager.sh) stays the only authority over LEDs and numbering. This
+bridge only (1) republishes /run/joystickmanager/state.json, (2) stores aliases, and (3) drives
+BlueZ (scan, pair, connect, disconnect) on behalf of the interface, with polkit authorization.
+
+It is activated by the bus on first use and exits when no client that called it is left, so it
+costs nothing while the interface is closed. See docs/bridge.md.
+"""
+import json
+import os
+import re
+import sys
+
+import gi
+
+gi.require_version("Gio", "2.0")
+gi.require_version("GLib", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+BUS_NAME = "org.ujm.Manager1"
+OBJ_PATH = "/org/ujm/Manager1"
+IFACE = "org.ujm.Manager1"
+API_VERSION = "1"
+MAC_RE = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
+ALIAS_MAX = 40
+IDLE_EXIT_SECONDS = int(os.environ.get("UJM_BRIDGE_IDLE_EXIT", "30"))
+SCAN_MAX = 60
+
+XML = """
+<node>
+  <interface name="org.ujm.Manager1">
+    <property name="Version" type="s" access="read"/>
+    <property name="StateAvailable" type="b" access="read"/>
+    <property name="Controllers" type="aa{sv}" access="read"/>
+    <method name="ListControllers"><arg direction="out" type="aa{sv}"/></method>
+    <method name="GetController"><arg direction="in" type="s" name="id"/><arg direction="out" type="a{sv}"/></method>
+    <method name="GetServiceStatus"><arg direction="out" type="a{sv}"/></method>
+    <method name="SetControllerAlias"><arg direction="in" type="s" name="id"/><arg direction="in" type="s" name="alias"/></method>
+    <method name="ConnectBluetooth"><arg direction="in" type="s" name="id"/></method>
+    <method name="DisconnectBluetooth"><arg direction="in" type="s" name="id"/></method>
+    <method name="ScanBluetooth"><arg direction="in" type="u" name="seconds"/></method>
+    <method name="ListBluetoothDevices"><arg direction="out" type="aa{sv}"/></method>
+    <method name="PairBluetooth"><arg direction="in" type="s" name="address"/></method>
+    <method name="SetIdleTimeout"><arg direction="in" type="u" name="seconds"/></method>
+    <method name="SetPlayerLeds"><arg direction="in" type="s" name="id"/><arg direction="in" type="u" name="mask"/></method>
+    <method name="SetHomeLed"><arg direction="in" type="s" name="id"/><arg direction="in" type="b" name="enabled"/></method>
+    <signal name="ControllersChanged"/>
+    <signal name="BluetoothDevicesChanged"/>
+  </interface>
+</node>
+"""
+
+ACTION_ALIAS = "org.ujm.manager.set-alias"
+ACTION_BLUETOOTH = "org.ujm.manager.bluetooth"
+ACTION_CONFIGURE = "org.ujm.manager.configure"
+
+
+class DBusError(Exception):
+    def __init__(self, name, message):
+        super().__init__(message)
+        self.name, self.message = name, message
+
+
+def err_invalid(msg):
+    return DBusError("org.freedesktop.DBus.Error.InvalidArgs", msg)
+
+
+def runtime_dir():
+    return os.environ.get("JOYMANAGER_RUNTIME_DIR", "/run/joystickmanager")
+
+
+def data_dir():
+    return os.environ.get("UJM_BRIDGE_STATE_DIR", "/var/lib/ujm")
+
+
+def sanitize_alias(text):
+    """Printable, single line, at most ALIAS_MAX characters; empty clears the alias."""
+    text = "".join(ch for ch in text if ch.isprintable()).strip()
+    return text[:ALIAS_MAX]
+
+
+def to_variant(value):
+    if isinstance(value, bool):
+        return GLib.Variant("b", value)
+    if isinstance(value, int):
+        return GLib.Variant("i", value)
+    return GLib.Variant("s", str(value))
+
+
+class Store:
+    """The service snapshot (read-only) plus the aliases (the bridge's own small file)."""
+
+    def __init__(self):
+        self.state = None
+        self.aliases = {}
+        self._load_aliases()
+
+    # ---- snapshot
+    def reload_state(self):
+        path = os.path.join(runtime_dir(), "state.json")
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+            if data.get("format") != "ujm-state" or data.get("version") != 1:
+                raise ValueError("unsupported state format")
+            new = data
+        except (OSError, ValueError):
+            new = None
+        changed = new != self.state
+        self.state = new
+        return changed
+
+    def controllers(self):
+        out = []
+        for c in (self.state or {}).get("controllers", []):
+            d = {
+                "id": c.get("id", ""),
+                "name": c.get("name") or "",
+                "transport": c.get("transport") or "other",
+                "player": c.get("player") if isinstance(c.get("player"), int) else 0,
+                "player_led_mask": c.get("player_led_mask") if isinstance(c.get("player_led_mask"), int) else 0,
+                "connected": True,
+            }
+            for key in ("family", "hid", "event"):
+                if c.get(key):
+                    d[key] = c[key]
+            if MAC_RE.match(d["id"]):
+                d["address"] = d["id"]
+            alias = self.aliases.get(d["id"])
+            if alias:
+                d["alias"] = alias
+            b = c.get("battery")
+            if isinstance(b, dict):
+                if isinstance(b.get("percent"), int):
+                    d["battery_percent"] = b["percent"]
+                if b.get("status"):
+                    d["battery_status"] = b["status"]
+                if b.get("level"):
+                    d["battery_level"] = b["level"]
+            out.append(d)
+        return out
+
+    def controller(self, cid):
+        for c in self.controllers():
+            if c["id"] == cid:
+                return c
+        raise DBusError("org.ujm.Manager1.Error.UnknownController", f"no connected controller with id {cid!r}")
+
+    def service_status(self):
+        s = (self.state or {}).get("service", {})
+        out = {"api_version": API_VERSION, "state_available": self.state is not None}
+        if self.state:
+            out["updated"] = self.state.get("updated", 0)
+            out["idle_timeout"] = s.get("idle_timeout", 0)
+            out["led_refresh"] = str(s.get("led_refresh", ""))
+            out["experimental"] = bool(s.get("experimental", False))
+        return out
+
+    # ---- aliases
+    def _aliases_path(self):
+        return os.path.join(data_dir(), "aliases.json")
+
+    def _load_aliases(self):
+        try:
+            with open(self._aliases_path(), encoding="utf-8") as fh:
+                data = json.load(fh)
+            self.aliases = {k: sanitize_alias(v) for k, v in data.get("aliases", {}).items() if isinstance(v, str)}
+        except (OSError, ValueError, AttributeError):
+            self.aliases = {}
+
+    def set_alias(self, cid, alias):
+        if not MAC_RE.match(cid):
+            raise err_invalid("this controller has no stable address, so an alias cannot be kept for it")
+        alias = sanitize_alias(alias)
+        if alias:
+            self.aliases[cid] = alias
+        else:
+            self.aliases.pop(cid, None)
+        os.makedirs(data_dir(), mode=0o755, exist_ok=True)
+        tmp = self._aliases_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"format": "ujm-aliases", "version": 1, "aliases": self.aliases}, fh, ensure_ascii=False)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, self._aliases_path())
+
+
+class Authorizer:
+    """polkit CheckAuthorization for the bus name that made the call."""
+
+    def __init__(self, conn):
+        self.conn = conn
+        mode = os.environ.get("UJM_TEST_AUTH", "")
+        # The test authorizers exist only for a private session bus; never on the system bus.
+        self.mode = mode if mode in ("allow", "deny") and os.environ.get("UJM_BUS") == "session" else ""
+
+    def check(self, sender, action, callback):
+        """callback(authorized: bool, error: str|None)"""
+        if self.mode:
+            GLib.idle_add(lambda: callback(self.mode == "allow", None) or False)
+            return
+        subject = GLib.Variant("(sa{sv})", ("system-bus-name", {"name": GLib.Variant("s", sender)}))
+        params = GLib.Variant.new_tuple(subject, GLib.Variant("s", action), GLib.Variant("a{ss}", {}),
+                                        GLib.Variant("u", 1), GLib.Variant("s", ""))
+
+        def done(conn, res):
+            try:
+                result = conn.call_finish(res)
+                is_auth = result.unpack()[0][0]
+                callback(bool(is_auth), None)
+            except GLib.Error as e:
+                callback(False, e.message)
+
+        self.conn.call("org.freedesktop.PolicyKit1", "/org/freedesktop/PolicyKit1/Authority",
+                       "org.freedesktop.PolicyKit1.Authority", "CheckAuthorization", params,
+                       GLib.VariantType("((bba{ss}))"), Gio.DBusCallFlags.ALLOW_INTERACTIVE_AUTHORIZATION,
+                       120000, None, done)
+
+
+class BlueZ:
+    """The few BlueZ calls the interface needs, over its own D-Bus API (no bluetoothctl parsing)."""
+
+    NAME = "org.bluez"
+
+    def __init__(self, conn, on_change):
+        self.conn = conn
+        self.on_change = on_change
+        self.scan_timer = 0
+        self.scanning_adapter = None
+        for member_iface in ("org.freedesktop.DBus.ObjectManager", "org.freedesktop.DBus.Properties"):
+            conn.signal_subscribe(self.NAME, member_iface, None, None, None, Gio.DBusSignalFlags.NONE,
+                                  lambda *a: self.on_change())
+
+    def _call(self, path, iface, method, params, ok, fail, reply_type=None, timeout=60000):
+        def done(conn, res):
+            try:
+                ok(conn.call_finish(res))
+            except GLib.Error as e:
+                fail(e)
+        self.conn.call(self.NAME, path, iface, method, params, reply_type, Gio.DBusCallFlags.NONE, timeout, None, done)
+
+    def managed(self, ok, fail):
+        self._call("/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects", None,
+                   lambda r: ok(r.unpack()[0]), fail, GLib.VariantType("(a{oa{sa{sv}}})"))
+
+    def adapter_path(self, ok, fail):
+        def got(objs):
+            for path, ifaces in sorted(objs.items()):
+                if "org.bluez.Adapter1" in ifaces:
+                    return ok(path)
+            fail(DBusError("org.ujm.Manager1.Error.NoAdapter", "no Bluetooth adapter found"))
+        self.managed(got, lambda e: fail(DBusError("org.ujm.Manager1.Error.NoBluetooth", e.message)))
+
+    def device_path(self, address, ok, fail):
+        self.adapter_path(lambda ap: ok(f"{ap}/dev_{address.replace(':', '_')}"), fail)
+
+    def device_call(self, address, method, ok, fail):
+        def go(path):
+            self._call(path, "org.bluez.Device1", method, None, lambda r: ok(), lambda e: fail(self._map(e)))
+        self.device_path(address, go, fail)
+
+    @staticmethod
+    def _map(e):
+        name = GLib.dbus_error_get_remote_error(e) if hasattr(GLib, "dbus_error_get_remote_error") else ""
+        name = Gio.DBusError.get_remote_error(e) or name or "org.ujm.Manager1.Error.Bluetooth"
+        return DBusError(name, e.message)
+
+    def pair(self, address, ok, fail):
+        def go(path):
+            def trust(_):
+                value = GLib.Variant.new_tuple(GLib.Variant("s", "org.bluez.Device1"), GLib.Variant("s", "Trusted"),
+                                               GLib.Variant("v", GLib.Variant("b", True)))
+                self._call(path, "org.freedesktop.DBus.Properties", "Set", value, connect, lambda e: fail(self._map(e)))
+
+            def connect(_):
+                self._call(path, "org.bluez.Device1", "Connect", None, lambda r: ok(), lambda e: fail(self._map(e)))
+            self._call(path, "org.bluez.Device1", "Pair", None, trust, lambda e: fail(self._map(e)), timeout=90000)
+        self.device_path(address, go, fail)
+
+    def scan(self, seconds, ok, fail):
+        def go(ap):
+            def started(_):
+                self.scanning_adapter = ap
+                if self.scan_timer:
+                    GLib.source_remove(self.scan_timer)
+                self.scan_timer = GLib.timeout_add_seconds(seconds, self.stop_scan)
+                ok()
+            self._call(ap, "org.bluez.Adapter1", "StartDiscovery", None, started, lambda e: fail(self._map(e)))
+        self.adapter_path(go, fail)
+
+    def stop_scan(self):
+        ap, self.scanning_adapter, self.scan_timer = self.scanning_adapter, None, 0
+        if ap:
+            self._call(ap, "org.bluez.Adapter1", "StopDiscovery", None, lambda r: None, lambda e: None)
+        return False
+
+    def devices(self, ok, fail):
+        def got(objs):
+            out = []
+            for path, ifaces in sorted(objs.items()):
+                d = ifaces.get("org.bluez.Device1")
+                if not d:
+                    continue
+                item = {"address": GLib.Variant("s", d.get("Address", "")),
+                        "name": GLib.Variant("s", d.get("Alias") or d.get("Name") or ""),
+                        "paired": GLib.Variant("b", bool(d.get("Paired", False))),
+                        "connected": GLib.Variant("b", bool(d.get("Connected", False))),
+                        "gamepad": GLib.Variant("b", d.get("Icon") == "input-gaming")}
+                out.append(item)
+            ok(out)
+        self.managed(got, lambda e: fail(DBusError("org.ujm.Manager1.Error.NoBluetooth", e.message)))
+
+
+class Bridge:
+    def __init__(self, conn, loop):
+        self.conn, self.loop = conn, loop
+        self.store = Store()
+        self.store.reload_state()
+        self.auth = Authorizer(conn)
+        self.bluez = BlueZ(conn, self._bluez_changed)
+        self.clients = {}
+        self.exit_timer = 0
+        self._bt_pending = False
+        self._monitor = None
+        self._watch_state()
+        self._arm_exit_timer()
+
+    # ---- state watching: the service replaces state.json by rename, so watch the directory
+    def _watch_state(self):
+        d = Gio.File.new_for_path(runtime_dir())
+        try:
+            self._monitor = d.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, None)
+            self._monitor.connect("changed", self._state_event)
+        except GLib.Error:
+            self._monitor = None  # directory not there yet: reloaded on each call instead
+
+    def _state_event(self, _mon, f, other, event):
+        names = [x.get_basename() for x in (f, other) if x is not None]
+        if "state.json" in names and event in (Gio.FileMonitorEvent.CHANGES_DONE_HINT, Gio.FileMonitorEvent.MOVED_IN,
+                                               Gio.FileMonitorEvent.CREATED, Gio.FileMonitorEvent.DELETED,
+                                               Gio.FileMonitorEvent.MOVED_OUT, Gio.FileMonitorEvent.RENAMED):
+            self.refresh()
+
+    def refresh(self):
+        if self.store.reload_state():
+            self._emit_controllers_changed()
+
+    def _emit_controllers_changed(self):
+        self.conn.emit_signal(None, OBJ_PATH, IFACE, "ControllersChanged", None)
+        props = {"Controllers": self._controllers_variant(), "StateAvailable": GLib.Variant("b", self.store.state is not None)}
+        self.conn.emit_signal(None, OBJ_PATH, "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                              GLib.Variant("(sa{sv}as)", (IFACE, props, [])))
+
+    def _bluez_changed(self):
+        if self._bt_pending:
+            return
+        self._bt_pending = True
+
+        def fire():
+            self._bt_pending = False
+            self.conn.emit_signal(None, OBJ_PATH, IFACE, "BluetoothDevicesChanged", None)
+            return False
+        GLib.timeout_add(300, fire)
+
+    # ---- lifetime: stay while a client that called us is still on the bus
+    def _arm_exit_timer(self):
+        if self.exit_timer:
+            GLib.source_remove(self.exit_timer)
+        self.exit_timer = GLib.timeout_add_seconds(IDLE_EXIT_SECONDS, self._exit_now) if IDLE_EXIT_SECONDS > 0 else 0
+
+    def _exit_now(self):
+        if self.clients:
+            return False
+        self.loop.quit()
+        return False
+
+    def _track(self, sender):
+        if sender in self.clients:
+            return
+        self.clients[sender] = Gio.bus_watch_name_on_connection(
+            self.conn, sender, Gio.BusNameWatcherFlags.NONE, None, lambda c, n: self._client_gone(n))
+        if self.exit_timer:
+            GLib.source_remove(self.exit_timer)
+            self.exit_timer = 0
+
+    def _client_gone(self, name):
+        wid = self.clients.pop(name, None)
+        if wid is not None:
+            Gio.bus_unwatch_name(wid)
+        if not self.clients:
+            self._arm_exit_timer()
+
+    # ---- D-Bus plumbing
+    def _controllers_variant(self):
+        return GLib.Variant("aa{sv}", [{k: to_variant(v) for k, v in c.items()} for c in self.store.controllers()])
+
+    def get_property(self, conn, sender, path, iface, name):
+        if name == "Version":
+            return GLib.Variant("s", API_VERSION)
+        if name == "StateAvailable":
+            return GLib.Variant("b", self.store.state is not None)
+        if name == "Controllers":
+            return self._controllers_variant()
+        return None
+
+    def method_call(self, conn, sender, path, iface, method, params, invocation):
+        self._track(sender)
+        args = params.unpack()
+        try:
+            handler = getattr(self, "do_" + method)
+        except AttributeError:
+            return invocation.return_dbus_error("org.freedesktop.DBus.Error.UnknownMethod", method)
+        try:
+            handler(sender, invocation, *args)
+        except DBusError as e:
+            invocation.return_dbus_error(e.name, e.message)
+        except Exception as e:  # never let a bug kill the bridge
+            invocation.return_dbus_error("org.ujm.Manager1.Error.Internal", f"{type(e).__name__}: {e}")
+
+    def _authorized(self, sender, invocation, action, then):
+        def result(ok, error):
+            if error:
+                return invocation.return_dbus_error("org.freedesktop.DBus.Error.AccessDenied", f"authorization failed: {error}")
+            if not ok:
+                return invocation.return_dbus_error("org.freedesktop.DBus.Error.AccessDenied", "not authorized")
+            try:
+                then()
+            except DBusError as e:
+                invocation.return_dbus_error(e.name, e.message)
+        self.auth.check(sender, action, result)
+
+    @staticmethod
+    def _ret_none(invocation):
+        invocation.return_value(None)
+
+    @staticmethod
+    def _failer(invocation):
+        return lambda e: invocation.return_dbus_error(e.name, e.message)
+
+    # ---- reads
+    def do_ListControllers(self, sender, inv):
+        if self._monitor is None:
+            self.store.reload_state()
+        inv.return_value(GLib.Variant.new_tuple(self._controllers_variant()))
+
+    def do_GetController(self, sender, inv, cid):
+        c = self.store.controller(cid)
+        inv.return_value(GLib.Variant.new_tuple(GLib.Variant("a{sv}", {k: to_variant(v) for k, v in c.items()})))
+
+    def do_GetServiceStatus(self, sender, inv):
+        s = self.store.service_status()
+        inv.return_value(GLib.Variant.new_tuple(GLib.Variant("a{sv}", {k: to_variant(v) for k, v in s.items()})))
+
+    def do_ListBluetoothDevices(self, sender, inv):
+        self.bluez.devices(lambda out: inv.return_value(GLib.Variant.new_tuple(GLib.Variant("aa{sv}", out))),
+                           self._failer(inv))
+
+    # ---- actions
+    def do_SetControllerAlias(self, sender, inv, cid, alias):
+        self.store.controller(cid)  # must be a currently connected controller
+        if not MAC_RE.match(cid):
+            raise err_invalid("this controller has no stable address, so an alias cannot be kept for it")
+
+        def go():
+            self.store.set_alias(cid, alias)
+            self._emit_controllers_changed()
+            self._ret_none(inv)
+        self._authorized(sender, inv, ACTION_ALIAS, go)
+
+    def _bt_target(self, cid):
+        c = self.store.controller(cid)
+        if c["transport"] != "bluetooth" or "address" not in c:
+            raise err_invalid("only a controller connected over Bluetooth can be connected or disconnected here")
+        return c["address"]
+
+    def do_ConnectBluetooth(self, sender, inv, cid):
+        addr = self._bt_target(cid)
+        self._authorized(sender, inv, ACTION_BLUETOOTH,
+                         lambda: self.bluez.device_call(addr, "Connect", lambda: self._ret_none(inv), self._failer(inv)))
+
+    def do_DisconnectBluetooth(self, sender, inv, cid):
+        addr = self._bt_target(cid)
+        self._authorized(sender, inv, ACTION_BLUETOOTH,
+                         lambda: self.bluez.device_call(addr, "Disconnect", lambda: self._ret_none(inv), self._failer(inv)))
+
+    def do_ScanBluetooth(self, sender, inv, seconds):
+        seconds = max(1, min(int(seconds) or 15, SCAN_MAX))
+        self._authorized(sender, inv, ACTION_BLUETOOTH,
+                         lambda: self.bluez.scan(seconds, lambda: self._ret_none(inv), self._failer(inv)))
+
+    def do_PairBluetooth(self, sender, inv, address):
+        address = address.upper()
+        if not MAC_RE.match(address):
+            raise err_invalid("not a Bluetooth address (expected AA:BB:CC:DD:EE:FF)")
+        self._authorized(sender, inv, ACTION_BLUETOOTH,
+                         lambda: self.bluez.pair(address, lambda: self._ret_none(inv), self._failer(inv)))
+
+    # Needs a command channel into the shell service, which does not exist yet.
+    def _not_yet(self, what):
+        raise DBusError("org.freedesktop.DBus.Error.NotSupported", f"{what} is not available yet: the service has no command channel")
+
+    def do_SetIdleTimeout(self, sender, inv, seconds):
+        self._not_yet("changing the idle timeout")
+
+    def do_SetPlayerLeds(self, sender, inv, cid, mask):
+        self._not_yet("setting the player LEDs")
+
+    def do_SetHomeLed(self, sender, inv, cid, enabled):
+        self._not_yet("setting the HOME LED")
+
+
+def main():
+    bus = Gio.BusType.SESSION if os.environ.get("UJM_BUS") == "session" else Gio.BusType.SYSTEM
+    loop = GLib.MainLoop()
+    conn = Gio.bus_get_sync(bus, None)
+    bridge = Bridge(conn, loop)
+    node = Gio.DBusNodeInfo.new_for_xml(XML)
+    conn.register_object(OBJ_PATH, node.interfaces[0], bridge.method_call, bridge.get_property, None)
+    Gio.bus_own_name_on_connection(conn, BUS_NAME, Gio.BusNameOwnerFlags.NONE, None,
+                                   lambda c, n: (print(f"lost {n}", file=sys.stderr), loop.quit()))
+    print("READY", flush=True)
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()
