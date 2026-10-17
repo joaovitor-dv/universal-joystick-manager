@@ -25,6 +25,16 @@
     .identity { display:flex; align-items:center; gap:8px; } .player { width:26px; height:26px; display:grid; place-items:center; border:1px solid #47704e; background:#101a12; color:#dff5e1; font-weight:700; }
     .status { color:var(--green); font-size:12px; } .transport { color:var(--blue); font-size:12px; } .battery { color:var(--orange); }
     .leds { display:flex; gap:5px; margin-top:8px; } .led { width:9px; height:9px; border:1px solid #52735a; border-radius:50%; background:#26372a; } .led.on { background:#2670c2; border-color:#174a83; }
+    .player-light { display:flex; align-items:center; gap:7px; min-height:15px; margin-top:7px; color:var(--muted); font-size:11px; }
+    .light-swatch { flex:none; width:12px; height:12px; border:1px solid #e3f6e5; border-radius:50%; background:var(--light-color,transparent); }
+    .player-indicator { display:inline-flex; gap:3px; align-items:center; height:14px; }
+    .player-indicator i { width:6px; height:9px; border:1px solid #7a8f7d; border-radius:2px; background:transparent; }
+    .player-indicator i.on { background:#f4fff5; border-color:#f4fff5; }
+    .xbox-ring { position:relative; flex:none; width:18px; height:18px; border:1px solid #e3f6e5; border-radius:50%; }
+    .xbox-ring i { position:absolute; width:5px; height:5px; border:1px solid #647965; border-radius:1px; }
+    .xbox-ring i:nth-child(1) { top:3px; left:3px; } .xbox-ring i:nth-child(2) { top:3px; right:3px; }
+    .xbox-ring i:nth-child(3) { bottom:3px; right:3px; } .xbox-ring i:nth-child(4) { bottom:3px; left:3px; }
+    .xbox-ring i.on { background:#71f08e; border-color:#71f08e; }
     .bar { height:8px; border:1px solid #37543c; background:#101911; overflow:hidden; margin-top:5px; } .bar span { display:block; height:100%; background:#61d77c; width:82%; }
     .diag { display:grid; gap:10px; } .section { border:1px solid var(--line); padding:8px; background:var(--panel-2); } .section-title { display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:5px; margin-bottom:8px; }
     .stick-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; } .stick-grid.is-single { grid-template-columns:1fr; } .stick-grid [hidden] { display:none; } .stick { width:145px; height:145px; margin:5px auto 0; border:1px solid #55735b; border-radius:50%; position:relative; background:radial-gradient(circle,#55735b 0 1px,transparent 2px); background-size:18px 18px; }
@@ -176,7 +186,7 @@
   <div class="window">
   <header><div><h1>UJM — Universal Joystick Manager</h1><p class="subtitle">Game controllers</p></div><button id="header-help" type="button">Help</button></header>
     <nav class="menubar" id="menubar">
-      <span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span>
+      <span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="update">Update UJM…</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span>
       <span class="menu" data-menu="view"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">View</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="theme">Theme…</button></div></span>
       <span class="menu" data-menu="controller"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Controller</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="pair">Pair new controller…</button><button type="button" role="menuitem" data-action="connect">Connect known…</button><button type="button" role="menuitem" data-action="disconnect">Disconnect selected</button><hr><button type="button" role="menuitem" data-action="service-toggle" id="menu-service">Stop service</button></div></span>
       <span class="menu" data-menu="tools"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Tools</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="create-alias">Create controller alias…</button><button type="button" role="menuitem" data-action="diagram-preview">Preview controller diagram…</button><button type="button" role="menuitem" data-action="preview-ten" id="preview-ten-action">Preview 10-player layout</button></div></span>
@@ -816,6 +826,25 @@
       function setDetail(c, transport) { var p = $('.muted', c); p.textContent = p.textContent.split(' · ')[0] + ' · ' + transport; }
       function isConnected(c) { return $('.status', c).textContent.trim() === 'Connected'; }
       var SLOT_LED_MASKS = [0,1,2,4,8,9,10,12,13,14,15];
+      var DS4_COLORS = [null, ['Blue','#286de8'], ['Red','#e54848'], ['Green','#36ba6c'], ['Pink','#ed8fca']];
+      var DUALSENSE_INDICATORS = [0,4,10,21,27,31];
+      function playerLightPreview(type, player) {
+        if (type === 'ds4') {
+          var color = DS4_COLORS[player];
+          return color ? '<span class="light-swatch" style="--light-color:' + color[1] + '"></span><span>Slot ' + player + ' · ' + color[0] + ' (PS4 reference; not live)</span>'
+            : '<span class="light-swatch"></span><span>Slot ' + player + ' · light-bar color unknown (not live)</span>';
+        }
+        if (type === 'dualsense') {
+          var mask = DUALSENSE_INDICATORS[player] || 0;
+          var bars = [0,1,2,3,4].map(function (i) { return '<i class="' + ((mask & (1 << i)) ? 'on' : '') + '"></i>'; }).join('');
+          return '<span class="player-indicator" aria-hidden="true">' + bars + '</span><span>Slot ' + player + (mask ? ' · white player-indicator reference' : ' · player indicator unknown') + '; RGB color unknown (not live)</span>';
+        }
+        if (type === 'xbox360') {
+          var ring = [0,1,2,3].map(function (i) { return '<i class="' + (player === i + 1 ? 'on' : '') + '"></i>'; }).join('');
+          return '<span class="xbox-ring" aria-hidden="true">' + ring + '</span><span>Slot ' + player + (player <= 4 ? ' · quadrant reference' : ' · ring pattern unknown') + ' (not live)</span>';
+        }
+        return '';
+      }
       function renderConnectedCards() {
         var connected = cards().filter(isConnected);
         cards().forEach(function (c) {
@@ -833,6 +862,9 @@
             var mask = SLOT_LED_MASKS[Number(c.getAttribute('data-player'))] || 0;
             $$('.led', leds).forEach(function (led, i) { led.classList.toggle('on', !!(mask & (1 << i))); });
           }
+          var preview = $('.player-light', c), lightHtml = playerLightPreview(type, Number(c.getAttribute('data-player')));
+          if (lightHtml && !preview) { preview = document.createElement('div'); preview.className = 'player-light'; c.appendChild(preview); }
+          if (preview) { preview.hidden = !lightHtml || c.hidden; if (lightHtml) { preview.innerHTML = lightHtml; preview.setAttribute('aria-label', preview.textContent.trim()); } }
         });
         $('#device-count').textContent = 'Connected: ' + connected.length + ' / 10';
         $('#no-controllers').hidden = connected.length !== 0;
@@ -1081,6 +1113,11 @@
       pairModal.addEventListener('click', function (e) { if (e.target === pairModal) closePair(); });
 
       /* ---------------- exit ---------------- */
+      function doUpdate() {
+        confirmDialog('Update UJM', 'This prototype cannot install updates. Open the official releases page to download a release or follow the instructions for your installation method. The service will not be changed by this action.', 'Open releases').then(function (ok) {
+          if (ok) window.open('https://github.com/joaovitor-dv/universal-joystick-manager/releases', '_blank', 'noopener');
+        });
+      }
       function doExit() {
         confirmDialog('Exit UJM?', 'This closes the interface. The UJM service keeps running in the background and keeps numbering your controllers.', 'Exit').then(function (ok) {
           if (!ok) return;
@@ -1097,7 +1134,7 @@
         'import-controllers': function () { pickFile('controllers'); },
         'export-settings': function () { download('ujm-app-settings-' + stamp() + '.json', buildAppSettings()); toast('App settings exported.'); },
         'import-settings': function () { pickFile('settings'); },
-        exit: doExit, pair: function () { openPair('pair'); },
+        update: doUpdate, exit: doExit, pair: function () { openPair('pair'); },
         connect: function () { openPair('connect'); }, disconnect: function () { doConnect(false); },
         'service-toggle': toggleService
       };

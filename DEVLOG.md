@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Player-light slot references and Update entry (visual preview)
+
+- **What changed:** the HTML roster and native QML show a four-color DUALSHOCK 4 light-bar reference for slots 1–4, the DualSense white five-LED player-indicator reference, and the Xbox 360 four-quadrant ring reference. Undefined slots stay unknown; these are clearly marked as not live. The File menu offers Update UJM, which takes users to official releases instead of running a package manager or claiming to install software.
+- **Why:** those three controllers use different kinds of lights; a generic four-dot row misrepresents PlayStation RGB colors and the Xbox 360 ring. Updates must honor the installation method and must not mutate the service from a browser prototype.
+- **Evidence:** Sony's DUALSHOCK 4 manual defines the blue/red/green/pink order; Sony's DualSense documentation distinguishes the light bar from the player indicator; Linux `hid-playstation` defines the centered five-LED pattern; Microsoft documents the Xbox 360's four ring quadrants. The HTML script passes a syntax check and 12 file-backed QML tests pass. Browser UI tests and hardware LED readings were not available in this restricted session.
+- **Open questions:** the service/bridge currently publishes neither live RGB values nor Xbox 360 LED state. A true update installer must detect how UJM was installed and perform a privileged, verified package upgrade; the menu currently opens the release page only.
+
 ### Ten-slot controller roster and model-name preview (stage 6, awaiting visual review)
 
 - **What changed:** the HTML prototype now shows only connected controllers in a two-column roster with capacity for ten slots. It uses manufacturers' model names, adds Tools actions for a selected controller's temporary alias, a separate diagram gallery and an explicitly marked ten-player layout preview, and provides a Connect known picker since disconnected controllers no longer appear in the roster. The layout preview shows player LED masks 14 (LEDs 2–4) and 15 (LEDs 1–4) for slots 9 and 10. The combined Joy-Con face-button strip uses legible four-color disks.

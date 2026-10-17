@@ -23,6 +23,21 @@ t.ok('cards use model names rather than color nicknames or series-as-product nam
   officialNames[0] === 'Nintendo Switch Pro Controller' && officialNames[2] === 'DUALSHOCK 3 Wireless Controller' &&
   officialNames[7] === 'Xbox Wireless Controller (Series X|S)' && officialNames[8] === 'Joy-Con (L)' && officialNames[9] === 'Joy-Con (R)',
   JSON.stringify(officialNames));
+const lights = await ev(`(() => {
+  const card = type => document.querySelector('.card[data-controller="' + type + '"]');
+  return {
+    ds4:card('ds4').querySelector('.player-light').textContent,
+    ds4Color:card('ds4').querySelector('.light-swatch').style.getPropertyValue('--light-color'),
+    dualsense:card('dualsense').querySelector('.player-light').textContent,
+    dualsenseBars:card('dualsense').querySelectorAll('.player-indicator i.on').length,
+    xbox360:card('xbox360').querySelector('.player-light').textContent,
+    xbox360Quadrants:card('xbox360').querySelectorAll('.xbox-ring i.on').length,
+    xboxone:!!card('xboxone').querySelector('.player-light')
+  };
+})()`);
+t.ok('DualSense shows a white slot-indicator preview, not an invented RGB color', lights.dualsense.includes('RGB color unknown') && lights.dualsenseBars === 4, JSON.stringify(lights));
+t.ok('DualShock 4 does not invent a fifth standard PS4 color', lights.ds4.includes('color unknown') && lights.ds4Color === '', JSON.stringify(lights));
+t.ok('Xbox 360 has a ring preview without inventing a quadrant for slot six', lights.xbox360.includes('ring pattern unknown') && lights.xbox360Quadrants === 0 && !lights.xboxone, JSON.stringify(lights));
 for (const [ctrl, player] of cards) {
   const sel = player ? `.card[data-controller="${ctrl}"][data-player="${player}"]` : `.card[data-controller="${ctrl}"]`;
   const before = page.errors.length;

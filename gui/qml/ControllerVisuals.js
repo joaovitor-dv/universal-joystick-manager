@@ -38,6 +38,25 @@ function artwork(type) {
     return refs[type] ? base + "controller-references/" + refs[type] : "";
 }
 
+// Slot references are not live LED readings. The service currently has no
+// RGB light-bar telemetry and does not drive these families' lights.
+function playerLights(type, player) {
+    if (type === "ds4") {
+        var colors = ["", "#286de8", "#e54848", "#36ba6c", "#ed8fca"];
+        var names = ["", "Blue", "Red", "Green", "Pink"];
+        return {kind:"color", color:colors[player] || "transparent", mask:0,
+                text:player >= 1 && player <= 4 ? "Slot " + player + " · " + names[player] + " (PS4 reference)" : "Slot " + player + " · color unknown"};
+    }
+    if (type === "dualsense") {
+        var patterns = [0, 4, 10, 21, 27, 31];
+        return {kind:"indicator", color:"", mask:patterns[player] || 0,
+                text:player >= 1 && player <= 5 ? "Slot " + player + " · white player-indicator reference; RGB color unknown" : "Slot " + player + " · player indicator and RGB color unknown"};
+    }
+    if (type === "xbox360") return {kind:"ring", color:"", mask:player >= 1 && player <= 4 ? 1 << (player - 1) : 0,
+                                  text:player >= 1 && player <= 4 ? "Slot " + player + " · ring quadrant reference" : "Slot " + player + " · ring pattern unknown"};
+    return {kind:"none", color:"", mask:0, text:""};
+}
+
 function button(label, icon, color) {
     return { label: label, icon: icon || "", color: color || "" };
 }

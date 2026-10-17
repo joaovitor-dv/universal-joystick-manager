@@ -17,6 +17,7 @@ Rectangle {
     required property string homeLed
     required property bool ledManual
     readonly property string visualType: Visuals.kind(family, name)
+    readonly property var lightPreview: Visuals.playerLights(visualType, player)
     readonly property var buttonGroups: Visuals.groups(visualType)
     readonly property var faceOverlays: Visuals.faceOverlays(visualType)
     color: Theme.panel
@@ -84,6 +85,34 @@ Rectangle {
                     visible: detail.ledManual
                     text: "Player LEDs · manual"
                     dot: Theme.warn
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: 8
+                visible: detail.lightPreview.kind !== "none"
+                Rectangle {
+                    visible: detail.lightPreview.kind === "color"
+                    width: 16; height: 16; radius: 8
+                    color: detail.lightPreview.color
+                    border.color: Theme.text
+                }
+                Repeater {
+                    model: detail.lightPreview.kind === "indicator" ? 5 : (detail.lightPreview.kind === "ring" ? 4 : 0)
+                    Rectangle {
+                        required property int index
+                        width: 10; height: 14; radius: detail.lightPreview.kind === "ring" ? 5 : 2
+                        color: detail.lightPreview.mask & (1 << index) ? Theme.text : "transparent"
+                        border.color: Theme.muted
+                    }
+                }
+                Text {
+                    objectName: "playerLightPreview"
+                    text: detail.lightPreview.text + " · not live"
+                    color: Theme.muted; font.pixelSize: 12
+                    width: parent.width - x
+                    elide: Text.ElideRight
                 }
             }
 

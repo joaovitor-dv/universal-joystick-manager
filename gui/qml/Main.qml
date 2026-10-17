@@ -21,6 +21,16 @@ ApplicationWindow {
     palette.highlight: Theme.selected
     palette.highlightedText: Theme.text
 
+    menuBar: MenuBar {
+        Menu {
+            title: "File"
+            MenuItem {
+                text: "Update UJM…"
+                onTriggered: Qt.openUrlExternally("https://github.com/joaovitor-dv/universal-joystick-manager/releases")
+            }
+        }
+    }
+
     property string selectedId: ""
 
     header: Rectangle {

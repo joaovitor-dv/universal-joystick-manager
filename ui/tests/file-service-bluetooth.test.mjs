@@ -17,7 +17,15 @@ await ev(`(() => { window.__dl = []; window.__blobs = []; const co = URL.createO
 
 // --- File menu and controller profiles
 const actions = await ev(`[...document.querySelectorAll('.menu[data-menu=file] [data-action]')].map(b => b.dataset.action).join(',')`);
-t.ok('File has export/import of profiles and settings, and Exit', actions === 'export-controllers,import-controllers,export-settings,import-settings,exit', actions);
+t.ok('File has profiles, settings, Update, and Exit', actions === 'export-controllers,import-controllers,export-settings,import-settings,update,exit', actions);
+await menu('file', 'update');
+t.ok('Update explains that this prototype cannot install software', !(await hidden('#confirm-modal')) && (await text('#confirm-text')).includes('cannot install updates'));
+await click('#confirm-cancel');
+t.ok('cancel leaves the app running', await hidden('#confirm-modal') && await hidden('#exit-screen'));
+await ev('window.__opened = []; window.open = (url, target, features) => { window.__opened.push({url, target, features}); return null; }');
+await menu('file', 'update'); await click('#confirm-ok'); await sleep(50);
+t.ok('Update opens only the official releases page, without installing anything',
+  await ev(`window.__opened.length === 1 && window.__opened[0].url === 'https://github.com/joaovitor-dv/universal-joystick-manager/releases' && window.__opened[0].features === 'noopener'`));
 const prof = JSON.parse(await ev(`JSON.stringify(window.UJMTools.buildControllerProfiles())`));
 t.ok('profiles: format, version and the simulated flag', prof.format === 'ujm-controller-profiles' && prof.version === 1 && prof.simulated === true);
 t.ok('profiles: 10 controllers with unique ids, no combined pair', prof.controllers.length === 10 && new Set(prof.controllers.map(c => c.id)).size === 10);

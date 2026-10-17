@@ -108,10 +108,23 @@ class FileSourceTests(Base):
 
     def test_player_leds_are_drawn_from_the_mask(self):
         self.start(state_file=self.file)
-        leds = lambda: sorted(o.objectName() for o in self.visual_items() if o.objectName().startswith("led") and o.objectName().endswith("on"))
-        # masks: Pro Controller 1 (LED 1), joy-con pair 3 (LEDs 1 and 2), DualShock 4 4 (LED 3), PS3 8 (LED 4), Xbox 360 0 (none)
-        expected = ["led0on", "led0on", "led1on", "led2on", "led3on"]
+        leds = lambda: sorted(o.objectName() for o in self.visual_items()
+                              if o.isVisible() and o.objectName().startswith("led") and o.objectName().endswith("on"))
+        # Only families using the four-dot number LEDs: Pro 1, Joy-Con pair 3, PS3 8.
+        # DS4 uses an RGB light bar; Xbox 360 has a ring, not a row.
+        expected = ["led0on", "led0on", "led1on", "led3on"]
         self.assertTrue(pump(lambda: leds() == expected), leds())
+
+    def test_player_light_references_are_not_reported_as_live(self):
+        self.start(state_file=self.file)
+        visible = lambda name: next((o for o in self.visual_items() if o.objectName() == name and o.isVisible()), None)
+        self.win.setProperty("selectedId", "30:2C:3A:AA:00:03")
+        self.assertTrue(pump(lambda: visible("playerLightPreview") is not None))
+        self.assertIn("Slot 3 · Green (PS4 reference) · not live", visible("playerLightPreview").property("text"))
+        self.win.setProperty("selectedId", "phys:usb-0000:00:14.0-2/input0")
+        self.assertTrue(pump(lambda: visible("playerLightPreview") is not None
+                             and "ring pattern unknown" in visible("playerLightPreview").property("text")))
+        self.assertIn("not live", visible("playerLightPreview").property("text"))
 
     def test_native_details_reuse_controller_diagrams_and_button_icons(self):
         self.start(state_file=self.file)

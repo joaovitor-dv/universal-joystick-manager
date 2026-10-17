@@ -1,4 +1,5 @@
 import QtQuick
+import "ControllerVisuals.js" as Visuals
 
 // One connected controller. Read-only: the data comes from the service through the bridge.
 Rectangle {
@@ -7,6 +8,7 @@ Rectangle {
     required property string controllerId
     required property string displayName
     required property string name
+    required property string family
     required property string alias
     required property string vendor
     required property string transportText
@@ -27,6 +29,8 @@ Rectangle {
     border.width: 1
 
     readonly property string subtitle: [vendor, transportText].filter(function (s) { return s.length > 0 }).join(" · ")
+    readonly property string visualType: Visuals.kind(family, name)
+    readonly property var lightPreview: Visuals.playerLights(visualType, player)
     readonly property color batteryColor: batteryStatus === "Charging" ? Theme.ok
         : (batteryLevel === "critical" ? Theme.danger : (batteryLevel === "low" ? Theme.warn : Theme.text))
 
@@ -63,6 +67,7 @@ Rectangle {
     Row {
         anchors { right: parent.right; rightMargin: 10; bottom: parent.bottom; bottomMargin: 12 }
         spacing: 5
+        visible: ["pro", "dualshock", "joyconl", "joyconr", "joyconpair"].indexOf(card.visualType) !== -1
         Repeater {
             model: 4
             Rectangle {
@@ -72,6 +77,26 @@ Rectangle {
                 color: on ? Theme.ledOn : Theme.ledOff
                 border.color: on ? Theme.ledOnLine : Theme.ledOffLine
                 objectName: "led" + index + (on ? "on" : "off")
+            }
+        }
+    }
+    Row {
+        anchors { right: parent.right; rightMargin: 10; bottom: parent.bottom; bottomMargin: 11 }
+        spacing: 4
+        visible: card.lightPreview.kind !== "none"
+        Rectangle {
+            visible: card.lightPreview.kind === "color"
+            width: 12; height: 12; radius: 6
+            color: card.lightPreview.color
+            border.color: Theme.text
+        }
+        Repeater {
+            model: card.lightPreview.kind === "indicator" ? 5 : (card.lightPreview.kind === "ring" ? 4 : 0)
+            Rectangle {
+                required property int index
+                width: 7; height: 9; radius: card.lightPreview.kind === "ring" ? 4 : 1
+                color: card.lightPreview.mask & (1 << index) ? Theme.text : "transparent"
+                border.color: Theme.muted
             }
         }
     }
