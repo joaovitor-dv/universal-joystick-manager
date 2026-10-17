@@ -59,9 +59,8 @@ jobs:
         run: ui/tests/run.sh
 
   shellcheck:
-    name: ShellCheck (informational)
+    name: ShellCheck
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck

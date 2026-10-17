@@ -26,7 +26,10 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
-*Nothing yet.*
+### ShellCheck becomes a required check
+
+- **What changed:** the ShellCheck job no longer runs as informational: a new warning in the service scripts now fails CI, like the tests and the interface job.
+- **Why:** v0.8.0 brought it to zero warnings (confirmed on the release commit), so keeping it informational would only hide regressions.
 
 ---
 
