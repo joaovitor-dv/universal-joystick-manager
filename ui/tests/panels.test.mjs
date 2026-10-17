@@ -25,6 +25,22 @@ for (const [ctrl, player] of cards) {
   t.ok(`${label}: no JavaScript errors`, page.errors.length === before, page.errors.slice(before).join(' | '));
 }
 
+// The Xbox 360 XCF's lower backdrop must not return through a second image or
+// label overlay. The single, cropped vector export includes its own colors/text.
+await click('.card[data-controller="xbox360"]'); await sleep(500);
+const xbox360 = await ev(`(() => {
+  const art = document.querySelector('#controller-diagram .controller-art--xbox360');
+  const image = art?.querySelector('img');
+  if (!image || !image.complete || !image.naturalWidth) return {loaded:false};
+  const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+  canvas.getContext('2d').drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
+  return {loaded:true, src:image.getAttribute('src'), images:art.querySelectorAll('img').length,
+    overlays:art.querySelectorAll('svg, .diagram-face').length, filter:getComputedStyle(image).filter,
+    cornerAlpha:canvas.getContext('2d').getImageData(0, 0, 1, 1).data[3]};
+})()`);
+t.ok('Xbox 360 uses only the new XCF-derived vector diagram', xbox360.loaded && xbox360.src === 'assets/controller-references/xbox-360-xcf-ui.svg' && xbox360.images === 1 && xbox360.overlays === 0, JSON.stringify(xbox360));
+t.ok('Xbox 360 diagram has a transparent background and no color filter', xbox360.cornerAlpha === 0 && xbox360.filter === 'none', JSON.stringify(xbox360));
+
 // Face overlays are percentages of the picture; on the Joy-Con diagrams the picture sits below a band
 // for the shoulder miniatures, so the overlays must be rescaled. Expected deviation: about 0 px.
 const faces = {
@@ -61,6 +77,32 @@ for (const [type, expected] of Object.entries(shoulders)) {
   t.ok(`${type}: exactly four separately outlined L/R shoulder and trigger buttons`, JSON.stringify(found.labels) === JSON.stringify(expected) && separated, JSON.stringify(found));
   t.ok(`${type}: controller detail lines render in a light palette`, found.light, JSON.stringify(found));
 }
+
+await click('.card[data-controller="xboxseries"]'); await sleep(500);
+const seriesShare = await ev(`(() => {
+  const art = document.querySelector('#controller-diagram svg');
+  const share = art?.querySelector('[data-share-control="xbox-series"]');
+  const transform = share?.getAttribute('transform') || '';
+  const coords = transform.startsWith('translate(') ? transform.slice(10, -1).split(' ').map(Number) : [];
+  return { count: art?.querySelectorAll('[data-share-control]').length || 0,
+    x: coords[0] ?? null, y: coords[1] ?? null,
+    transparent: share?.getAttribute('fill') === 'none' };
+})()`);
+t.ok('Xbox Series Share sits on the center bridge above the sticks', seriesShare.count === 1 && seriesShare.x === 500 && seriesShare.y >= 370 && seriesShare.y <= 430 && seriesShare.transparent, JSON.stringify(seriesShare));
+
+await click('.card[data-controller="ds4"]'); await sleep(500);
+const ds4System = await ev(`(() => ['SHARE', 'OPTIONS'].map(label => {
+  const tile = [...document.querySelectorAll('.keys[data-controller="ds4"] .key')].find(el => el.getAttribute('aria-label') === label);
+  const frame = tile?.getBoundingClientRect();
+  const img = tile?.querySelector('img');
+  const bounds = img?.getBoundingClientRect();
+  return { label, frameWidth:frame?.width, frameHeight:frame?.height,
+    iconWidth:bounds?.width, iconHeight:bounds?.height,
+    topGap:frame && bounds ? bounds.top-frame.top : null,
+    bottomGap:frame && bounds ? frame.bottom-bounds.bottom : null,
+    loaded:!!img?.complete && img.naturalWidth > 0 };
+}))()`);
+t.ok('DualShock 4 Share/Options use legible icons centered in standard 42×38 frames', ds4System.every(s => s.loaded && s.frameWidth === 42 && s.frameHeight === 38 && s.iconWidth === 34 && s.iconHeight === 24 && Math.abs(s.topGap-s.bottomGap) <= 0.5), JSON.stringify(ds4System));
 
 const assetFailures = page.failed.filter(f => !/favicon\.ico/.test(f));
 t.ok('no asset request failed', assetFailures.length === 0, assetFailures.join(' | '));
