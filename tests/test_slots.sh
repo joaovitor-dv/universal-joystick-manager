@@ -638,6 +638,41 @@ t_an_explicit_request_always_writes() {
     check "SetPlayerLeds writes even when nothing differs" yes "$([ -s "$calls" ] && echo yes || echo no)"
 }
 
+t_slot_masks_for_ten_players_are_distinct_and_the_joycon_r_is_mirrored() {
+    cmd_setup
+    local s std="" inv=""
+    for s in 1 2 3 4 5 6 7 8 9 10; do std+="$(slot_mask "$s") "; inv+="$(slot_mask "$s" 1) "; done
+    check "standard masks for players 1 to 10" "1 2 4 8 9 10 12 13 3 5 " "$std"
+    check "right Joy-Con alone, mirrored masks for players 1 to 10" "8 4 2 1 9 5 3 11 12 10 " "$inv"
+    check "player 11 and beyond get no LED" "0" "$(slot_mask 11)"
+    local uniq; uniq=$(printf '%s' "$std" | tr ' ' '\n' | sort -u | wc -l)
+    check "the ten standard masks are all different" 10 "$uniq"
+    # the mirror is the bit reversal of the standard mask (LED 1 <-> LED 4, LED 2 <-> LED 3)
+    local bad=0 i a b
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        a=$(slot_mask "$i"); b=$(slot_mask "$i" 1); r=0
+        for bit in 0 1 2 3; do (( (a >> bit) & 1 )) && r=$(( r | (1 << (3 - bit)) )); done
+        [ "$r" -eq "$b" ] || bad=$((bad+1))
+    done
+    check "every mirrored mask is the bit reversal of the standard one" 0 "$bad"
+}
+
+t_ten_controllers_get_players_one_to_ten() {
+    cmd_setup; led_fixture "0005:057E:2009.$A" home
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        printf -v mac 'C0:00:00:00:00:%02X' "$i"
+        local d="$T/dev/0005:057E:2009.$mac"; mkdir -p "$d" "$sys_input/event$((100+i))"
+        printf '%s\n' "$mac" >"$d/uniq"; printf 'Nintendo Co., Ltd. Pro Controller\n' >"$d/name"
+        ln -sfn "$d" "$sys_input/event$((100+i))/device"; register_event "event$((100+i))"
+    done
+    local got=""; for i in 1 2 3 4 5 6 7 8 9 10; do printf -v mac 'C0:00:00:00:00:%02X' "$i"; got+="$(slot_of "$mac") "; done
+    check "ten connected controllers are numbered 1 to 10 in connection order" "1 2 3 4 5 6 7 8 9 10 " "$got"
+    printf -v mac 'C0:00:00:00:00:0B'; local d="$T/dev/0005:057E:2009.$mac"; mkdir -p "$d" "$sys_input/event200"
+    printf '%s\n' "$mac" >"$d/uniq"; printf 'Nintendo Co., Ltd. Pro Controller\n' >"$d/name"; ln -sfn "$d" "$sys_input/event200/device"; register_event event200
+    check "an eleventh controller is not numbered" "" "$(slot_of "$mac")"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -734,6 +769,7 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_home_led_is_lit_once_per_connection_and_not_kept_alive \
          t_refresh_sends_no_command_while_the_leds_already_match t_refresh_corrects_a_pattern_the_driver_changed \
          t_an_explicit_request_always_writes \
+         t_slot_masks_for_ten_players_are_distinct_and_the_joycon_r_is_mirrored t_ten_controllers_get_players_one_to_ten \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done

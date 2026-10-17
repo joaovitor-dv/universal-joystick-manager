@@ -56,6 +56,25 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
 | `home_led` | string | `on` or `off` (what the service last asked of the HOME LED) or `unsupported` when the controller has none **that the service can drive**. The controller itself lights it for only about 15 s per command, so `on` does not mean it is lit now. |
 | `battery` | object or null | `percent` (integer or null: a Pro Controller on a cable reports its status but no percentage), `status` (`Charging`, `Discharging`, `Full`, ...) and `level` (`normal`, `low`, `critical`). `null` when the driver exposes no battery. The joycond virtual pair has none: its Joy-Cons report their own. |
 
+## Player LED patterns
+
+The player number is shown with the LEDs below (LED 1 is the first LED of the controller). The Pro Controller, DualShock 3, Xbox 360, the left Joy-Con, and the combined Joy-Con pair all use the **standard** column. The right Joy-Con on its own uses the **mirrored** column, which is the bit reversal of the standard one, because its LEDs run in the opposite direction. The same pattern can therefore look the same on different controllers; only the physical position of the lit LED tells them apart.
+
+| Player | Standard (`player_led_mask`) | LEDs | Right Joy-Con alone (mirrored) | LEDs |
+|---|---|---|---|---|
+| 1 | 1 | 1 | 8 | 4 |
+| 2 | 2 | 2 | 4 | 3 |
+| 3 | 4 | 3 | 2 | 2 |
+| 4 | 8 | 4 | 1 | 1 |
+| 5 | 9 | 1+4 | 9 | 1+4 |
+| 6 | 10 | 2+4 | 5 | 1+3 |
+| 7 | 12 | 3+4 | 3 | 1+2 |
+| 8 | 13 | 1+3+4 | 11 | 1+2+4 |
+| 9 | 3 | 1+2 | 12 | 3+4 |
+| 10 | 5 | 1+3 | 10 | 2+4 |
+
+The service numbers up to 10 players. An eleventh controller is connected but gets no number and no LED.
+
 ## What each controller has
 
 Hardware facts reported by the maintainer; whether the kernel exposes a light as something the service can drive is what `player_leds` and `home_led` report.

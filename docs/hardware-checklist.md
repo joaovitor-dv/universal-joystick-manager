@@ -37,6 +37,10 @@ tools/measure-service.sh 60
 
 Expect a few percent of one core at most. With no controllers the service uses about 0.4%. First measurement with controllers (a DualShock 3 on Bluetooth and a Pro Controller on USB, 2026-10-17): 6.8% before the per-cycle caching, about 2% after, on a replica of the service with the LEDs faked (the installed service must be reinstalled to get it). **The number you get is the result**: write it down with the number of controllers it printed.
 
+## 1b. Ten players and the LED table
+
+With ten controllers connected (the maximum), check `slots.tsv` numbers them 1 to 10, and that each one lights the pattern in the table of [state.md](state.md): the standard column for everything except the right Joy-Con alone. Put a Joy-Con R alone on player 7 and a Pro Controller on player 9: the two lights they show must be in **different physical places**, which is the point of the mirror. Keep the photo and the `state.json`.
+
 ## 2. Soak: 30 minutes, Pro Controller and Joy-Con R
 
 With the idle timeout at its default of 300 s (**read the one in effect from `state.json`, see above**: a saved value would win over the unit), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.

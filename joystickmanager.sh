@@ -19,7 +19,7 @@ case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
 led_settle=${JOYMANAGER_LED_SETTLE:-6}
 case "$led_settle" in ''|*[!0-9]*) led_settle=6;; esac
 slots_file="$runtime_dir/slots.tsv"
-max_players=8
+max_players=10
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-300}
 # 0 turns the idle power-off off; anything else must be a whole number of seconds.
 case "$idle_timeout" in ''|*[!0-9]*) idle_timeout=300;; esac
@@ -153,12 +153,16 @@ slot_mask() {
     case "$slot" in
         1) mask=1;; 2) mask=2;; 3) mask=4;; 4) mask=8;;
         5) mask=9;; 6) mask=10;; 7) mask=12;; 8) mask=13;;
+        9) mask=3;; 10) mask=5;;
         *) mask=0;;
     esac
+    # The right Joy-Con alone has its LEDs in mirror order (LED 1 on the far side): its patterns are the bit
+    # reversal of the table above, so the same player number lights the LED in the same physical place.
     if [ "$reverse" -eq 1 ]; then
         case "$slot" in
             1) mask=8;; 2) mask=4;; 3) mask=2;; 4) mask=1;;
-            5) mask=9;; 6) mask=5;; 7) mask=3;; 8) mask=7;;
+            5) mask=9;; 6) mask=5;; 7) mask=3;; 8) mask=11;;
+            9) mask=12;; 10) mask=10;;
         esac
     fi
     printf '%s\n' "$mask"
