@@ -49,6 +49,7 @@ profile_for_event() {
     pid=$(read_file "$sys_input/$ev/device/id/product")
     while IFS=$'\t' read -r fam match status rest; do
         case "$fam" in ''|'#'*) continue;; esac
+        # shellcheck disable=SC2254  # the "name:" rule is a glob on purpose (e.g. "Microsoft X-Box 360 pad*")
         case "$match" in
             name:*) case "$name" in ${match#name:}) ;; *) continue;; esac;;
             vid:*) [ "${match#vid:}" = "$vid" ] && has_js "$ev" || continue;;

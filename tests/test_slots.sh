@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Player numbering (connection order), controller profile and LED tests, using a fake sysfs.
 # Usage: tests/test_slots.sh   (exit status = number of failures)
+# shellcheck disable=SC2154,SC2034  # variables come from the sourced joystickmanager.sh and are read by its functions
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 

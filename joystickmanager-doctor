@@ -41,7 +41,7 @@ printf 'Experimental: %s\n\n' "$([ "$user_experimental" = 1 ] && printf enabled 
 
 printf '%-18s %-13s %s\n' FAMILY STATE 'KERNEL MODULES / EXTERNAL DRIVER'
 seen=
-while IFS=$'\t' read -r fam match status bus mods ext notes; do
+while IFS=$'\t' read -r fam match status _ mods ext _; do
     case "$fam" in ''|'#'*) continue;; esac
     case " $seen " in *" $fam "*) continue;; esac
     seen="$seen $fam"
