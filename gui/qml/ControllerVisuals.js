@@ -23,10 +23,9 @@ function kind(family, name) {
     return "unknown";
 }
 
-// `player_leds` is not yet a QML model role on this branch. Keep the known
-// family capability here until the backend exposes it, matching docs/state.md.
-// Unknown/older service data stays compatible; only known no-numbering families
-// are hidden (their separate light-bar/HOME previews remain available).
+// Keep the documented family capability as a conservative fallback for older
+// service states that omit `player_leds`; the model's explicit false also hides
+// the row. Separate light-bar/HOME previews remain available either way.
 function hasPlayerLeds(type) {
     return ["ds4", "dualsense", "xboxone", "xboxseries"].indexOf(type) === -1;
 }

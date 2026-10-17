@@ -19,6 +19,7 @@ Rectangle {
     required property string batteryStatus
     required property string batteryLevel
     required property int ledMask
+    required property bool playerLeds
     property bool selected: false
     signal clicked()
 
@@ -74,7 +75,7 @@ Rectangle {
         objectName: "playerLedIndicators-" + card.player
         anchors { right: parent.right; rightMargin: 10; bottom: parent.bottom; bottomMargin: 12 }
         spacing: 5
-        visible: Visuals.hasPlayerLeds(card.visualType)
+        visible: card.playerLeds && Visuals.hasPlayerLeds(card.visualType)
         Repeater {
             model: 4
             Rectangle {

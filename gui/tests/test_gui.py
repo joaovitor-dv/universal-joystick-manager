@@ -134,6 +134,12 @@ class FileSourceTests(Base):
         expected = ["led0on", "led0on", "led1on", "led3on"]
         self.assertTrue(pump(lambda: leds() == expected), leds())
 
+    def test_player_led_row_respects_explicit_service_capability(self):
+        rewrite(self.file, lambda state: state["controllers"][0].update(player_leds=False))
+        self.start(state_file=self.file)
+        row = next(o for o in self.visual_items() if o.objectName() == "playerLedIndicators-1")
+        self.assertFalse(row.isVisible(), "an explicit player_leds=false must hide the numbered-LED row")
+
     def test_player_led_rows_follow_known_family_capabilities(self):
         def add_families(state):
             for controller_id, player, family, name in [
