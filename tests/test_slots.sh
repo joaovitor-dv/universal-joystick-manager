@@ -673,6 +673,18 @@ t_ten_controllers_get_players_one_to_ten() {
     check "an eleventh controller is not numbered" "" "$(slot_of "$mac")"
 }
 
+t_the_right_joycon_battery_led_follows_its_mirrored_pattern() {
+    cmd_setup; led_refresh=10; led_settle=0
+    connect event1 "$A"; connect event2 "$B"; connect event3 "$C"
+    local pre="0005:057E:2009.$D"; led_fixture "$pre" home
+    connect event4 "$D" "Joy-Con (R)"            # slot 4: the right Joy-Con mirrors it to LED 1
+    local b="$T/power/nintendo_switch_controller_battery_d"; mkdir -p "$b"
+    ln -sfn "$T/dev/$pre" "$b/device"; printf 'Discharging\n' >"$b/status"; printf '80\n' >"$b/capacity"
+    now_s() { printf '1000\n'; }; update_batteries_once
+    now_s() { printf '1010\n'; }; update_batteries_once
+    check "the pattern is the mirrored one and the battery LED did not light LED 4" "1 0 0 0" "$(leds_of "$pre")"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -770,6 +782,7 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_refresh_sends_no_command_while_the_leds_already_match t_refresh_corrects_a_pattern_the_driver_changed \
          t_an_explicit_request_always_writes \
          t_slot_masks_for_ten_players_are_distinct_and_the_joycon_r_is_mirrored t_ten_controllers_get_players_one_to_ten \
+         t_the_right_joycon_battery_led_follows_its_mirrored_pattern \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done

@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### The right Joy-Con's battery LED follows its mirrored pattern
+
+- **What changed:** the battery indication (steady, blinking while charging or when low) now uses the LED that is on for the slot, which for the right Joy-Con is the mirrored one (slot 4 lights LED 1), instead of the LED with the slot's number.
+- **Why:** on a right Joy-Con in slot 4 the service lit LED 1 as the pattern and then lit LED 4 as the battery LED, so the maintainer saw LED 4 flash on and off at every refresh. Found on hardware with a third-party right Joy-Con.
+- **Evidence:** a unit test with the right Joy-Con in slot 4 (the old code leaves LED 4 lit); removing the change makes it fail. Not yet re-checked on the controller.
+- **Also recorded:** third-party Joy-Cons keep an LED pattern for only a few seconds and their right Joy-Con never lights its HOME LED ([docs/state.md](docs/state.md)); the left one drops many IMU reports (about 1.5 a second) without failing.
+
 ### Nintendo LEDs wait for the controller; the HOME LED is lit once and not kept alive
 
 - **What changed:** (1) for Nintendo controllers (HID vendor 057E) the first LED write happens `JOYMANAGER_LED_SETTLE` seconds after connecting (6; `0` for the old behavior) instead of at once. (2) The HOME LED is no longer re-sent with every refresh: it is lit once per connection (once per pair for a `joycond` pair) and left; `SetHomeLed` still lights it on request.

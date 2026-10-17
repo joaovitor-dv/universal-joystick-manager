@@ -284,6 +284,13 @@ led_refresh_due() {
     return 1
 }
 
+# battery_led_slot SLOT REVERSE: the LED that is on for that slot. The right Joy-Con shows its
+# pattern mirrored (slot 4 lights LED 1), so its battery indication must use the mirrored LED too,
+# or it would light a LED the pattern keeps off. Slots 5-8 light several LEDs: no single one.
+battery_led_slot() {
+    if [ "$2" -eq 1 ] && [ "$1" -ge 1 ] && [ "$1" -le 4 ]; then printf '%s\n' $((5 - $1)); else printf '%s\n' "$1"; fi
+}
+
 set_battery_led() {
     local prefix=$1 slot=$2 state=$3 charging=$4 phase=$5 force=${6:-1} v led cur
 
@@ -491,7 +498,7 @@ update_batteries_once() {
             set_player_leds "$prefix" "$slot" "$id" "$reverse"
             set_home_led_once "$prefix"
         fi
-        set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
+        set_battery_led "$prefix" "$(battery_led_slot "$slot" "$reverse")" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
         if [ "$refresh" -eq 1 ]; then case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac; fi
     done
     write_state
@@ -579,12 +586,12 @@ cmd_player_leds() { # ID MASK (0-15, or 255 to go back to the automatic pattern)
     fi
     controller_row "$id" || { cmd_result=$'error\tno connected controller with that id'; return; }
     has_player_leds "$c_prefix" || { cmd_result=$'error\tthis controller has no player LEDs the service can write'; return; }
+    name=$(read_file "$sys_input/$c_event/device/name"); [ "$name" = 'Joy-Con (R)' ] && reverse=1
     if [ "$mask" -eq 255 ]; then
-        unset "led_manual[$id]" "led_last_refresh[$c_prefix]" "led_last_battery[$c_prefix:$c_slot]"
+        unset "led_manual[$id]" "led_last_refresh[$c_prefix]" "led_last_battery[$c_prefix:$(battery_led_slot "$c_slot" "$reverse")]"
     else
         led_manual[$id]=$mask
     fi
-    name=$(read_file "$sys_input/$c_event/device/name"); [ "$name" = 'Joy-Con (R)' ] && reverse=1
     set_player_leds "$c_prefix" "$c_slot" "$id" "$reverse" 1
     cmd_result=ok
 }
