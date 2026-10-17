@@ -1,3 +1,5 @@
 singleton Theme 1.0 Theme.qml
 ControllerCard 1.0 ControllerCard.qml
 StatusPill 1.0 StatusPill.qml
+ControllerDetail 1.0 ControllerDetail.qml
+ButtonSector 1.0 ButtonSector.qml

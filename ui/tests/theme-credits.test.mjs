@@ -57,8 +57,12 @@ await menu('view', 'theme'); await click('#theme-reset');
 t.ok('reset restores the default and clears the recolored stylesheet', (await ev(`document.querySelector('#ujm-theme-override').textContent.length`)) === 0);
 await click('#theme-close');
 
-// --- the controller list still works
-t.ok('controller cards still switch the panel', (await ev(`(() => { document.querySelector('.card[data-controller=xbox360]').click(); return document.querySelector('#selected-name').textContent; })()`)) === 'Player 6 — Xbox 360 Controller');
+// --- disconnected examples remain available as diagram previews, not roster entries
+await menu('tools', 'diagram-preview');
+await ev(`document.querySelector('#preview-model').value = 'xbox360'`);
+await click('#preview-show');
+t.ok('the diagram gallery shows Xbox 360 without exposing a disconnected roster card',
+  (await text('#selected-name')) === 'Xbox 360 Wireless Controller — diagram preview' && (await hidden('.card[data-controller=xbox360]')));
 t.ok('there is no tab strip', (await ev(`document.querySelectorAll('[role=tab]').length`)) === 0);
 t.ok('no JavaScript errors', page.errors.length === 0, page.errors.join(' | '));
 const failures = t.finish(); page.close(); process.exit(failures ? 1 : 0);

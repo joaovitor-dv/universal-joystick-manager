@@ -7,7 +7,64 @@ const t = reporter('panels');
 const { ev, click } = page;
 
 const cards = await ev(`[...document.querySelectorAll('.card[data-controller]')].map(c => [c.dataset.controller, c.dataset.player || ''])`);
-t.ok('the list has 11 controller panels (10 controllers and the combined Joy-Cons)', cards.length === 11, String(cards.length));
+t.ok('the prototype retains 10 slots and a separate Joy-Con pair diagram for review', cards.length === 11, String(cards.length));
+const initialRoster = await ev(`(() => ({
+  connected:[...document.querySelectorAll('.card[data-player]')].filter(c => !c.hidden).map(c => c.dataset.player),
+  disconnectedVisible:[...document.querySelectorAll('.card[data-player]')].filter(c => c.querySelector('.status').textContent === 'Not connected' && !c.hidden).length,
+  pairHidden:document.querySelector('.card[data-controller="joyconpair"]').hidden,
+  columns:getComputedStyle(document.querySelector('.cards')).gridTemplateColumns.split(' ').length,
+  count:document.querySelector('#device-count').textContent
+}))()`);
+t.ok('only connected controllers appear in the two-column roster',
+  JSON.stringify(initialRoster.connected) === JSON.stringify(['1','2','3']) && initialRoster.disconnectedVisible === 0 &&
+  initialRoster.pairHidden && initialRoster.columns === 2 && initialRoster.count === 'Connected: 3 / 10', JSON.stringify(initialRoster));
+const officialNames = await ev(`[...document.querySelectorAll('.card[data-player] h3')].map(el => el.textContent)`);
+t.ok('cards use model names rather than color nicknames or series-as-product names',
+  officialNames[0] === 'Nintendo Switch Pro Controller' && officialNames[2] === 'DUALSHOCK 3 Wireless Controller' &&
+  officialNames[7] === 'Xbox Wireless Controller (Series X|S)' && officialNames[8] === 'Joy-Con (L)' && officialNames[9] === 'Joy-Con (R)',
+  JSON.stringify(officialNames));
+const lights = await ev(`(() => {
+  const card = type => document.querySelector('.card[data-controller="' + type + '"]');
+  return {
+    ds4:card('ds4').querySelector('.player-light').textContent,
+    ds4Color:card('ds4').querySelector('.light-swatch').style.getPropertyValue('--light-color'),
+    dualsense:card('dualsense').querySelector('.player-light').textContent,
+    dualsenseBars:card('dualsense').querySelectorAll('.player-indicator i.on').length,
+    xbox360:card('xbox360').querySelector('.player-light').textContent,
+    xbox360Quadrants:card('xbox360').querySelectorAll('.xbox-ring i.on').length,
+    xboxone:!!card('xboxone').querySelector('.player-light')
+  };
+})()`);
+t.ok('DualSense shows a white slot-indicator preview, not an invented RGB color', lights.dualsense.includes('RGB color unknown') && lights.dualsenseBars === 4, JSON.stringify(lights));
+t.ok('DualShock 4 does not invent a fifth standard PS4 color', lights.ds4.includes('color unknown') && lights.ds4Color === '', JSON.stringify(lights));
+t.ok('Xbox 360 has a ring preview without inventing a quadrant for slot six', lights.xbox360.includes('ring pattern unknown') && lights.xbox360Quadrants === 0 && !lights.xboxone, JSON.stringify(lights));
+
+await click('.menu[data-menu=tools] .menu-label');
+await click('#preview-ten-action');
+const playerLedPreview = await ev(`(() => {
+  const card = (type, player) => document.querySelector('.card[data-controller="' + type + '"][data-player="' + player + '"]');
+  const lit = (type, player) => [...(card(type, player)?.querySelectorAll('.led') || [])]
+    .flatMap((led, i) => led.classList.contains('on') ? [i + 1] : []);
+  const hasDots = type => { const row = document.querySelector('.card[data-controller="' + type + '"] .leds'); return !!row && !row.hidden; };
+  return {
+    slot9:lit('joyconl', 9), slot10:lit('joyconr', 10),
+    slot9Title:card('joyconl', 9).querySelector('.leds').title,
+    slot10Title:card('joyconr', 10).querySelector('.leds').title,
+    standardSlotNote:document.querySelector('#roster-preview-note').textContent,
+    noNumbering:['xboxone','xboxseries','ds4','dualsense'].every(type => !hasDots(type)),
+    xbox360HasNumbering:hasDots('xbox360')
+  };
+})()`);
+t.ok('players 9 and 10 show the standard and mirrored right Joy-Con LED patterns',
+  JSON.stringify(playerLedPreview.slot9) === JSON.stringify([1,2]) &&
+  JSON.stringify(playerLedPreview.slot10) === JSON.stringify([2,4]) &&
+  playerLedPreview.slot9Title.includes('1 + 2') && playerLedPreview.slot10Title.includes('2 + 4') &&
+  playerLedPreview.standardSlotNote.includes('1+2 / 1+3'), JSON.stringify(playerLedPreview));
+t.ok('numbering dots follow player-LED capability, while Xbox 360 keeps its player LEDs',
+  playerLedPreview.noNumbering && playerLedPreview.xbox360HasNumbering, JSON.stringify(playerLedPreview));
+await click('.menu[data-menu=tools] .menu-label');
+await click('#preview-ten-action');
+
 for (const [ctrl, player] of cards) {
   const sel = player ? `.card[data-controller="${ctrl}"][data-player="${player}"]` : `.card[data-controller="${ctrl}"]`;
   const before = page.errors.length;
@@ -25,6 +82,22 @@ for (const [ctrl, player] of cards) {
   t.ok(`${label}: no JavaScript errors`, page.errors.length === before, page.errors.slice(before).join(' | '));
 }
 
+// The Xbox 360 XCF's lower backdrop must not return through a second image or
+// label overlay. The single, cropped vector export includes its own colors/text.
+await click('.card[data-controller="xbox360"]'); await sleep(500);
+const xbox360 = await ev(`(() => {
+  const art = document.querySelector('#controller-diagram .controller-art--xbox360');
+  const image = art?.querySelector('img');
+  if (!image || !image.complete || !image.naturalWidth) return {loaded:false};
+  const canvas = document.createElement('canvas'); canvas.width = 1; canvas.height = 1;
+  canvas.getContext('2d').drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
+  return {loaded:true, src:image.getAttribute('src'), images:art.querySelectorAll('img').length,
+    overlays:art.querySelectorAll('svg, .diagram-face').length, filter:getComputedStyle(image).filter,
+    cornerAlpha:canvas.getContext('2d').getImageData(0, 0, 1, 1).data[3]};
+})()`);
+t.ok('Xbox 360 uses only the new XCF-derived vector diagram', xbox360.loaded && xbox360.src === 'assets/controller-references/xbox-360-xcf-ui.svg' && xbox360.images === 1 && xbox360.overlays === 0, JSON.stringify(xbox360));
+t.ok('Xbox 360 diagram has a transparent background and no color filter', xbox360.cornerAlpha === 0 && xbox360.filter === 'none', JSON.stringify(xbox360));
+
 // Face overlays are percentages of the picture; on the Joy-Con diagrams the picture sits below a band
 // for the shoulder miniatures, so the overlays must be rescaled. Expected deviation: about 0 px.
 const faces = {
@@ -41,6 +114,64 @@ for (const [type, list] of Object.entries(faces)) {
   })()`);
   t.ok(`${type}: colored A/B/X/Y sit on the drawn circles (max ${Math.max(...dev).toFixed(1)} px)`, Math.max(...dev) <= 2);
 }
+
+await click('.card[data-controller="joyconl"]'); await sleep(500);
+const joyconL = await ev(`(() => {
+  const buttons = [...document.querySelectorAll('#controller-diagram [data-joycon-shoulder]')];
+  const rail = [...document.querySelectorAll('.keys[data-controller="joyconl"] .key--rail img')];
+  return { labels:buttons.map(button => button.dataset.joyconShoulder),
+    boxes:buttons.map(button => { const b = button.getBBox(); return {left:b.x,right:b.x+b.width}; }),
+    railCount:rail.length, railTransforms:rail.map(icon => getComputedStyle(icon).transform) };
+})()`);
+t.ok('Joy-Con L has four distinct shoulder and rail miniatures',
+  JSON.stringify(joyconL.labels) === JSON.stringify(['L','SL','SR','ZL']) &&
+  joyconL.boxes.every((box,index) => index === 0 || joyconL.boxes[index-1].right < box.left),
+  JSON.stringify(joyconL));
+t.ok('Joy-Con L rail icons are upright in the horizontal layout',
+  joyconL.railCount === 2 && joyconL.railTransforms.every(value => /^matrix\(0, -1, 1, 0,/.test(value)),
+  JSON.stringify(joyconL.railTransforms));
+
+await click('.card[data-controller="joyconr"]'); await sleep(500);
+const joyconR = await ev(`(() => {
+  const buttons = [...document.querySelectorAll('#controller-diagram [data-joycon-shoulder]')];
+  const rail = [...document.querySelectorAll('.keys[data-controller="joyconr"] .key--rail img')];
+  const faces = ['A','B','X','Y'].map(label => {
+    const symbol = document.querySelector('.keys[data-controller="joyconr"] .key--nintendo-' + label.toLowerCase() + ' .key-symbol');
+    const style = getComputedStyle(symbol);
+    return {label, width:symbol.getBoundingClientRect().width, color:style.color, background:style.backgroundColor};
+  });
+  return {labels:buttons.map(button => button.dataset.joyconShoulder),
+    boxes:buttons.map(button => { const b = button.getBBox(); return {left:b.x,right:b.x+b.width}; }),
+    railCount:rail.length, railTransforms:rail.map(icon => getComputedStyle(icon).transform), faces};
+})()`);
+t.ok('Joy-Con R has four distinct shoulder and rail miniatures',
+  JSON.stringify(joyconR.labels) === JSON.stringify(['R','SL','SR','ZR']) &&
+  joyconR.boxes.every((box,index) => index === 0 || joyconR.boxes[index-1].right < box.left),
+  JSON.stringify(joyconR));
+t.ok('Joy-Con R rail icons are upright in the horizontal layout',
+  joyconR.railCount === 2 && joyconR.railTransforms.every(value => /^matrix\(0, 1, -1, 0,/.test(value)),
+  JSON.stringify(joyconR.railTransforms));
+t.ok('Joy-Con R face buttons use visible SNES-color disks like the Pro Controller',
+  joyconR.faces.length === 4 && joyconR.faces.every(face => face.width === 30 && face.color === 'rgb(255, 255, 255)' && face.background !== 'rgba(0, 0, 0, 0)'),
+  JSON.stringify(joyconR.faces));
+
+await click('.card[data-controller="joyconpair"]'); await sleep(500);
+const joyconPairFaces = await ev(`(() => ['A','B','X','Y'].map(label => {
+  const key = document.querySelector('.keys[data-controller="joyconpair"] .key--nintendo-' + label.toLowerCase());
+  const symbol = key?.querySelector('.key-symbol');
+  const frame = key?.getBoundingClientRect(), face = symbol?.getBoundingClientRect();
+  const style = symbol && getComputedStyle(symbol);
+  return {label, width:face?.width, height:face?.height, color:style?.color, background:style?.backgroundColor,
+    topGap:frame && face ? face.top-frame.top : null, bottomGap:frame && face ? frame.bottom-face.bottom : null,
+    leftGap:frame && face ? face.left-frame.left : null, rightGap:frame && face ? frame.right-face.right : null};
+}))()`);
+const joyconPairColors = {A:'rgb(226, 52, 65)', B:'rgb(237, 185, 41)', X:'rgb(40, 121, 223)', Y:'rgb(29, 174, 114)'};
+t.ok('Combined Joy-Cons A/B/X/Y use centered, readable SNES-color disks',
+  joyconPairFaces.length === 4 && joyconPairFaces.every(face =>
+    face.width === 30 && face.height === 30 && face.color === 'rgb(255, 255, 255)' &&
+    face.background === joyconPairColors[face.label] &&
+    Math.abs(face.topGap-face.bottomGap) <= 0.5 && Math.abs(face.leftGap-face.rightGap) <= 0.5),
+  JSON.stringify(joyconPairFaces));
 
 // Perspective diagrams must expose four distinct, separated shoulder/trigger shapes,
 // and the filtered source linework must be mapped to a visible cool-white rather than shell black.
@@ -61,6 +192,60 @@ for (const [type, expected] of Object.entries(shoulders)) {
   t.ok(`${type}: exactly four separately outlined L/R shoulder and trigger buttons`, JSON.stringify(found.labels) === JSON.stringify(expected) && separated, JSON.stringify(found));
   t.ok(`${type}: controller detail lines render in a light palette`, found.light, JSON.stringify(found));
 }
+
+await click('.card[data-controller="xboxseries"]'); await sleep(500);
+const seriesShare = await ev(`(() => {
+  const art = document.querySelector('#controller-diagram svg');
+  const share = art?.querySelector('[data-share-control="xbox-series"]');
+  const transform = share?.getAttribute('transform') || '';
+  const coords = transform.startsWith('translate(') ? transform.slice(10, -1).split(' ').map(Number) : [];
+  return { count: art?.querySelectorAll('[data-share-control]').length || 0,
+    x: coords[0] ?? null, y: coords[1] ?? null,
+    transparent: share?.getAttribute('fill') === 'none' };
+})()`);
+t.ok('Xbox Series Share sits on the center bridge above the sticks', seriesShare.count === 1 && seriesShare.x === 500 && seriesShare.y >= 370 && seriesShare.y <= 430 && seriesShare.transparent, JSON.stringify(seriesShare));
+
+await click('.card[data-controller="ds4"]'); await sleep(500);
+const ds4System = await ev(`(() => ['SHARE', 'OPTIONS'].map(label => {
+  const tile = [...document.querySelectorAll('.keys[data-controller="ds4"] .key')].find(el => el.getAttribute('aria-label') === label);
+  const frame = tile?.getBoundingClientRect();
+  const img = tile?.querySelector('img');
+  const bounds = img?.getBoundingClientRect();
+  return { label, frameWidth:frame?.width, frameHeight:frame?.height,
+    iconWidth:bounds?.width, iconHeight:bounds?.height,
+    topGap:frame && bounds ? bounds.top-frame.top : null,
+    bottomGap:frame && bounds ? frame.bottom-bounds.bottom : null,
+    loaded:!!img?.complete && img.naturalWidth > 0 };
+}))()`);
+t.ok('DualShock 4 Share/Options use legible icons centered in standard 42×38 frames', ds4System.every(s => s.loaded && s.frameWidth === 42 && s.frameHeight === 38 && s.iconWidth === 34 && s.iconHeight === 24 && Math.abs(s.topGap-s.bottomGap) <= 0.5), JSON.stringify(ds4System));
+
+await click('.card[data-controller="pro"][data-player="1"]');
+await page.menu('tools', 'create-alias');
+const aliasOpen = await ev(`!document.querySelector('#alias-modal').hidden && document.querySelector('#alias-device').textContent.includes('Nintendo Switch Pro Controller')`);
+await ev(`document.querySelector('#alias-input').value = 'Living room controller'; document.querySelector('#alias-form').requestSubmit()`);
+const aliasResult = await ev(`({name:document.querySelector('.card[data-player="1"] h3').textContent, selected:document.querySelector('#selected-name').textContent, exported:window.UJMTools.buildControllerProfiles().controllers[0].alias})`);
+t.ok('Tools creates an alias for the selected connected controller without changing its official model',
+  aliasOpen && aliasResult.name === 'Living room controller' && aliasResult.selected.includes('Living room controller') && aliasResult.exported === 'Living room controller', JSON.stringify(aliasResult));
+await page.menu('tools', 'diagram-preview');
+const previewOptions = await ev(`({open:!document.querySelector('#preview-modal').hidden, models:[...document.querySelector('#preview-model').options].map(o=>o.value)})`);
+await ev(`document.querySelector('#preview-model').value = 'joyconpair'`);
+await click('#preview-show');
+const previewResult = await ev(`({selected:document.querySelector('#selected-name').textContent, active:document.querySelectorAll('.card.selected').length, status:document.querySelector('#diagnostic-panel > .row .status').textContent})`);
+t.ok('Tools diagram gallery keeps disconnected models out of the live roster', previewOptions.open && previewOptions.models.includes('joyconpair') && previewResult.selected.includes('diagram preview') && previewResult.active === 0 && previewResult.status === 'Preview only', JSON.stringify({previewOptions,previewResult}));
+await page.menu('tools', 'preview-ten');
+const highSlots = await ev(`(() => [9,10].map(player => { const c=document.querySelector('.card[data-player="'+player+'"]'); return {player,visible:!c.hidden,mask:[...c.querySelectorAll('.led')].map(l=>l.classList.contains('on'))}; }))()`);
+t.ok('ten-player preview shows standard player 9 and mirrored right Joy-Con player 10 patterns',
+  highSlots[0].visible && highSlots[1].visible &&
+  JSON.stringify(highSlots[0].mask) === JSON.stringify([true,true,false,false]) &&
+  JSON.stringify(highSlots[1].mask) === JSON.stringify([false,true,false,true]), JSON.stringify(highSlots));
+const tenGrid = await ev(`({count:document.querySelector('#device-count').textContent, rows:getComputedStyle(document.querySelector('.cards')).gridTemplateRows.split(' ').length, preview:!document.querySelector('#roster-preview-note').hidden})`);
+t.ok('the explicit layout preview uses two columns and five rows for ten simulated controllers', tenGrid.count === 'Connected: 10 / 10' && tenGrid.rows === 5 && tenGrid.preview, JSON.stringify(tenGrid));
+await page.menu('tools', 'preview-ten');
+const restored = await ev(`({count:document.querySelector('#device-count').textContent, hidden:document.querySelector('.card[data-player="9"]').hidden, preview:document.querySelector('#roster-preview-note').hidden})`);
+t.ok('leaving the layout preview restores the original connected roster', restored.count === 'Connected: 3 / 10' && restored.hidden && restored.preview, JSON.stringify(restored));
+await ev(`window.UJMTools.simulateConnection(1,false)`);
+const disconnected = await ev(`({hidden:document.querySelector('.card[data-player="1"]').hidden, count:document.querySelector('#device-count').textContent, alias:document.querySelector('.card[data-player="1"] h3').textContent})`);
+t.ok('disconnecting removes a card from the roster without losing its alias', disconnected.hidden && disconnected.count === 'Connected: 2 / 10' && disconnected.alias === 'Living room controller', JSON.stringify(disconnected));
 
 const assetFailures = page.failed.filter(f => !/favicon\.ico/.test(f));
 t.ok('no asset request failed', assetFailures.length === 0, assetFailures.join(' | '));
