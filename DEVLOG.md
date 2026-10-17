@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### The service publishes its state (`state.json`)
+
+- **What changed:** the service writes `/run/joystickmanager/state.json` (format `ujm-state`, version 1): each connected controller with player, name, profile family, transport, HID device, player LED mask and battery, plus the service settings. It is rewritten atomically and only when something changed. Documented in [docs/state.md](docs/state.md).
+- **Why:** it is the first, read-only step of the local API the interface needs to stop showing simulated data, and it does not depend on choosing D-Bus or another transport yet.
+- **Evidence:** 13 unit checks (Bluetooth, USB and the joycond pair, battery, LED masks, escaping of quotes and backslashes, no rewrite when nothing changed, rewrite on disconnection), the JSON parsed by Python. Run against this machine's real devices in read-only mode it produced a valid file; no controller was connected at the time, so it has **not been seen with real controllers yet**.
+- **Also:** the tests now always use the repository's `controllers.tsv`; before, they silently read a table installed on the machine (here an older one), which CI could not notice.
+
 ### The idle power-off could disconnect every Bluetooth controller
 
 - **What changed:** the idle worker now disconnects only after a **full** idle timeout without input, and only Bluetooth devices get one. `evtest`, which it relies on, is a required dependency of every package.

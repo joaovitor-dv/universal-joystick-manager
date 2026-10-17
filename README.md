@@ -96,7 +96,7 @@ cat /run/joystickmanager/slots.tsv      # one line per connected controller
 joystickmanager-doctor                  # drivers and profile matches
 ```
 
-`slots.tsv` columns: controller id (Bluetooth address), player slot, HID device, input event.
+`slots.tsv` columns: controller id (Bluetooth address), player slot, HID device, input event. A fuller, machine-readable snapshot is in `/run/joystickmanager/state.json` (see [docs/state.md](docs/state.md)).
 
 **Uninstall**
 

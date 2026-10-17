@@ -11,6 +11,8 @@ fails=0
 setup() {
     T=$(mktemp -d)
     export JOYMANAGER_RUNTIME_DIR="$T/run" JOYMANAGER_SYS_INPUT="$T/input"
+    # use the repository table, never one installed on the machine running the tests
+    export JOYMANAGER_PROFILES="$here/controllers.tsv"
     mkdir -p "$T/run" "$T/input" "$T/dev"
     # shellcheck source=../joystickmanager.sh
     source "$here/joystickmanager.sh"
@@ -280,6 +282,45 @@ t_switchpro_helper_found_next_to_the_install() {
     check "JOYMANAGER_SWITCHPRO_HELPER overrides the search" /custom/helper "$switchpro_helper"
 }
 
+# jq-free JSON reader for the state tests: jget FILE PYTHON-EXPRESSION (d = parsed document)
+jget() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2]))' "$1" "$2"; }
+
+t_state_json_describes_controllers() {
+    write_led() { :; }; start_idle_workers() { :; }; now_s() { printf '1000\n'; }
+    connect event1 "$A"                                   # Pro Controller over Bluetooth
+    local usb="$T/dev/0003:057E:2009.0016"                 # Pro Controller over USB
+    mkdir -p "$usb" "$sys_input/event2"; printf '%s\n' "$B" >"$usb/uniq"; printf 'Nintendo Co., Ltd. Pro Controller\n' >"$usb/name"
+    ln -sfn "$usb" "$sys_input/event2/device"; register_event event2
+    connect event3 "$C" "Nintendo Switch Combined Joy-Cons" # joycond virtual pair
+    sys_power="$T/power"; local b="$T/power/nintendo_switch_controller_battery_a"; mkdir -p "$b"
+    ln -sfn "$T/dev/0005:057E:2009.$A" "$b/device"; printf 'Charging\n' >"$b/status"; printf '55\n' >"$b/capacity"
+    update_batteries_once
+    local f="$runtime_dir/state.json"
+    jget "$f" 'd["format"], d["version"]' >/dev/null 2>&1; check "state.json is valid JSON" 0 $?
+    check "format and version" "('ujm-state', 1)" "$(jget "$f" 'd["format"], d["version"]')"
+    check "controllers are listed by player" "[1, 2, 3]" "$(jget "$f" '[c["player"] for c in d["controllers"]]')"
+    check "transports" "['bluetooth', 'usb', 'virtual']" "$(jget "$f" '[c["transport"] for c in d["controllers"]]')"
+    check "families from the profile table" "['switch-pro', 'switch-pro', 'joycon-combined']" "$(jget "$f" '[c["family"] for c in d["controllers"]]')"
+    check "player LED masks" "[1, 2, 4]" "$(jget "$f" '[c["player_led_mask"] for c in d["controllers"]]')"
+    check "battery of the Bluetooth controller" "{'percent': 55, 'status': 'Charging', 'level': 'normal'}" "$(jget "$f" 'd["controllers"][0]["battery"]')"
+    check "no battery reading means null" "None" "$(jget "$f" 'd["controllers"][1]["battery"]')"
+    check "the service settings are included" "{'led_refresh': '10', 'idle_timeout': 1800, 'experimental': False}" "$(jget "$f" 'd["service"]')"
+    check "the file is readable by everyone (the interface runs as a user)" 644 "$(stat -c %a "$f")"
+}
+
+t_state_json_escapes_and_is_only_rewritten_on_change() {
+    write_led() { :; }; start_idle_workers() { :; }; now_s() { printf '%s\n' "$NOW"; }
+    experimental=1; NOW=1000
+    fake_input event1 '8BitDo "Pro" 2 \ edition' 2dc8 6003 js
+    register_event event1; update_batteries_once
+    local f="$runtime_dir/state.json" ino
+    check "quotes and backslashes in names are escaped" '8BitDo "Pro" 2 \ edition' "$(jget "$f" 'd["controllers"][0]["name"]')"
+    ino=$(stat -c %i "$f"); NOW=1010; update_batteries_once
+    check "nothing changed: the file is not rewritten (same inode, same timestamp)" "$ino 1000" "$(stat -c %i "$f") $(jget "$f" 'd["updated"]')"
+    disconnect event1; NOW=1020; update_batteries_once
+    check "a disconnection rewrites it" "[] 1020" "$(jget "$f" 'd["controllers"]') $(jget "$f" 'd["updated"]')"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -301,6 +342,7 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_refresh_off_new_connection_gets_leds t_invalid_led_refresh_falls_back_to_10 \
          t_idle_worker_disconnects_after_a_full_timeout t_idle_worker_never_disconnects_when_evtest_fails \
          t_idle_workers_only_for_bluetooth t_switchpro_helper_found_next_to_the_install \
+         t_state_json_describes_controllers t_state_json_escapes_and_is_only_rewritten_on_change \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done

@@ -121,8 +121,9 @@ assign_slot() {
     printf '0\n'
 }
 
-set_player_leds() {
-    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} n v mask
+# slot_mask SLOT [REVERSE] -> the 4-bit player LED mask (bit 0 = LED 1); REVERSE=1 mirrors it (right Joy-Con).
+slot_mask() {
+    local slot=$1 reverse=${2:-0} mask
     case "$slot" in
         1) mask=1;; 2) mask=2;; 3) mask=4;; 4) mask=8;;
         5) mask=9;; 6) mask=10;; 7) mask=12;; 8) mask=13;;
@@ -134,6 +135,12 @@ set_player_leds() {
             5) mask=9;; 6) mask=5;; 7) mask=3;; 8) mask=7;;
         esac
     fi
+    printf '%s\n' "$mask"
+}
+
+set_player_leds() {
+    local prefix=$1 slot=$2 controller_id=${3:-} reverse=${4:-0} n v mask
+    mask=$(slot_mask "$slot" "$reverse")
     for n in 1 2 3 4; do
         v=0
         (( mask & (1 << (n - 1)) )) && v=1
@@ -337,6 +344,7 @@ ensure_connectable() {
 update_batteries_once() {
     local b prefix id row slot event name reverse cap level status state phase refresh
     phase=$(( $(now_s) % 4 )); cleanup_missing; scan_existing; start_idle_workers
+    battery_by_prefix=()
     for b in "$sys_power"/*controller_battery_*; do
         [ -e "$b" ] || continue
         prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
@@ -348,6 +356,7 @@ update_batteries_once() {
         slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
         cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
+        battery_by_prefix[$prefix]="$cap"$'\t'"$status"$'\t'"$state"
         # Every led_refresh s, re-apply the player identification before the battery
         # state; this also restores the LEDs if the controller firmware has updated them.
         refresh=0
@@ -359,6 +368,48 @@ update_batteries_once() {
         set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
         if [ "$refresh" -eq 1 ]; then case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac; fi
     done
+    write_state
+}
+
+# ---- state snapshot for clients (the interface) --------------------------------------------
+# $runtime_dir/state.json, format "ujm-state" version 1 (documented in docs/state.md). It is
+# rewritten atomically and only when something other than the timestamp changed.
+declare -gA battery_by_prefix=()
+state_body_last=''
+json_str() {
+    local s=$1
+    s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\t'/\\t}; s=${s//$'\n'/\\n}; s=${s//$'\r'/}
+    printf '"%s"' "$s"
+}
+json_int() { if [[ $1 =~ ^[0-9]+$ ]]; then printf '%s' "$1"; else printf 'null'; fi; }
+
+write_state() {
+    local id slot prefix event name family transport reverse battery cap status state first=1 body out tmp
+    body='"format":"ujm-state","version":1,"service":{"led_refresh":'"$(json_str "$led_refresh")"',"idle_timeout":'"$(json_int "$idle_timeout")"',"experimental":'"$([ "$experimental" = 1 ] && printf true || printf false)"'},"controllers":['
+    while IFS=$'\t' read -r id slot prefix event; do
+        [ -n "$id" ] || continue
+        name=$(read_file "$sys_input/$event/device/name")
+        family=$(profile_for_event "$event" 2>/dev/null | cut -f1)
+        case "$id:$prefix" in
+            joycond:*) transport=virtual; family=${family:-joycon-combined};;
+            *:0005:*) transport=bluetooth;;
+            *:0003:*) transport=usb;;
+            *) transport=other;;
+        esac
+        reverse=0; [ "$name" = 'Joy-Con (R)' ] && reverse=1
+        battery=null
+        if [ "$prefix" != - ] && [ -n "${battery_by_prefix[$prefix]:-}" ]; then
+            IFS=$'\t' read -r cap status state <<<"${battery_by_prefix[$prefix]}"
+            battery='{"percent":'"$(json_int "$cap")"',"status":'"$(json_str "$status")"',"level":'"$(json_str "$state")"'}'
+        fi
+        [ "$first" -eq 1 ] || body+=','; first=0
+        body+='{"id":'"$(json_str "$id")"',"player":'"$(json_int "$slot")"',"name":'"$(json_str "$name")"',"family":'"$(if [ -n "$family" ]; then json_str "$family"; else printf null; fi)"',"transport":"'"$transport"'","hid":'"$(if [ "$prefix" = - ]; then printf null; else json_str "$prefix"; fi)"',"event":'"$(json_str "$event")"',"player_led_mask":'"$(slot_mask "$slot" "$reverse")"',"battery":'"$battery"'}'
+    done < <(sort -t $'\t' -k2,2n "$slots_file")
+    body+=']'
+    [ "$body" = "$state_body_last" ] && return 0
+    out='{"updated":'"$(now_s)"','"$body"'}'
+    tmp="$runtime_dir/state.json.tmp"
+    printf '%s\n' "$out" >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$runtime_dir/state.json" && state_body_last=$body
 }
 
 update_batteries() {
