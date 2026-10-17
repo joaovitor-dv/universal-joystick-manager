@@ -85,9 +85,9 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ### Xbox 360 diagram from the editable 4K source
 
-- **What changed:** the HTML preview now displays one SVG traced from the upper layer of `ui/assets/controller-references/xbox-360-original-color-transparent-uhd-3840x2160.xcf`. The lower layer is excluded; the source XCF is unchanged. The cropped UI SVG is accompanied by a full-canvas SVG, transparent PNG, editable VectorCraft file, PDF and rendered preview under `ui/assets/controller-references/`. The previous stack of outline, dark raster and text overlays is no longer used for the Xbox 360 panel.
+- **What changed:** the HTML and QML previews display one SVG traced from the upper layer of the 4K XCF reference supplied by the project owner. The lower layer is excluded. Only the runtime SVG is included in the published branch; the editable XCF and unused exports remain in the owner's local working files. The previous stack of outline, dark raster and text overlays is no longer used for the Xbox 360 panel.
 - **Why:** those overlapping layers produced doubled labels and irregular edges; a single transparent diagram preserves the source artwork and scales in the interactive preview.
-- **Evidence:** VectorCraft reported no trace warnings; both SVGs parse as XML, the PDF contains no embedded raster images, and the transparent PNG preview has alpha 0 in empty areas. Local UI checks passed: 37 file/service/Bluetooth, 49 panel and 27 theme/credits checks, including two new Xbox 360 image assertions; no asset failures or JavaScript errors.
+- **Evidence:** the UI SVG parses as XML and both UIs reference it directly. The origin and licensing of the reference were not independently verified; see `ui/assets/ASSETS-NOTICE.md`. The unused alternate SVG, raster, PDF and editable VectorCraft export were removed from every published PR commit.
 - **Visual review:** the browser security policy prevented direct inspection of the user's existing `file://` tab by this agent, but João approved stage 3 in that interactive preview on 2026-10-17. No physical controller was involved.
 
 ### Development tools: one check script, a hardware checklist
