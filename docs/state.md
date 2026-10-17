@@ -52,7 +52,7 @@ The service publishes what it knows in `/run/joystickmanager/state.json` (inside
 | `player_led_mask` | integer | The 4-bit player LED pattern the service applies (bit 0 = LED 1); mirrored for the right Joy-Con. |
 | `player_led_manual` | boolean | `true` when the player LEDs were set by hand through the [command channel](command-channel.md) (then `player_led_mask` is that pattern and the service does not refresh or blink them). |
 | `home_led` | string | `on` or `off` (what the service applies to the HOME LED) or `unsupported` when the controller has none. |
-| `battery` | object or null | `percent` (integer or null), `status` (`Charging`, `Discharging`, `Full`, ...) and `level` (`normal`, `low`, `critical`). `null` when the driver exposes no battery. The joycond virtual pair has none: its Joy-Cons report their own. |
+| `battery` | object or null | `percent` (integer or null: a Pro Controller on a cable reports its status but no percentage), `status` (`Charging`, `Discharging`, `Full`, ...) and `level` (`normal`, `low`, `critical`). `null` when the driver exposes no battery. The joycond virtual pair has none: its Joy-Cons report their own. |
 
 ## Reading it
 

@@ -26,7 +26,7 @@ Connect every controller you have (Bluetooth and USB), wait a minute, then:
 tools/measure-service.sh 60
 ```
 
-Expect a few percent of one core at most. With no controllers the service uses about 0.4%; with controllers the cost has never been measured, so **the number is the result**: write it down with the number of controllers it printed.
+Expect a few percent of one core at most. With no controllers the service uses about 0.4%. First measurement with controllers (a DualShock 3 on Bluetooth and a Pro Controller on USB, 2026-10-17): 6.8% before the per-cycle caching, about 2% after, on a replica of the service with the LEDs faked (the installed service must be reinstalled to get it). **The number you get is the result**: write it down with the number of controllers it printed.
 
 ## 2. Soak: 30 minutes, Pro Controller and Joy-Con R
 
