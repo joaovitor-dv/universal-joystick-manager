@@ -97,7 +97,9 @@ sudo systemctl restart joystickmanager
 2. Same, but press a button every minute: it must stay connected.
 3. Pro Controller on USB, untouched for 3 minutes: it must **not** be disconnected.
 
-Remove the drop-in afterwards (`sudo systemctl revert joystickmanager`) and restart. (Older notes mention "original tests 3, 4 and 6" as the condition for returning the default timeout to 300 s; they were never written down. If these three cover what you meant, say so, and the note can be retired.)
+Remove the drop-in afterwards (`sudo systemctl revert joystickmanager`) and restart.
+
+These three scenarios are about the idle power-off. They are **not** the "original tests 3, 4 and 6" that gate returning the default timeout to 300 s: those are step 8.
 
 ## 7. The D-Bus bridge on the real system bus
 
@@ -131,7 +133,17 @@ Expect: each call answers at once; the LEDs follow, and the manual pattern **sta
 
 Expect: the controller disconnects and reconnects, and the card disappears and returns in the window. This is the first time the bridge meets a real BlueZ and a real polkit: anything odd is the result, so keep the exact error text.
 
-## 8. Close the sitting
+## 8. The original tests 3, 4 and 6
+
+Recovered from the first planning notes (2026-10-15). They gate going back from a 1800 s timeout to 300 s: **keep 1800 s until they are done and the maintainer authorizes 300 s.**
+
+- **Test 3, global numbering.** Connect a DualShock 3, a Pro Controller and Joy-Cons in different orders (for example Pro, DS3, Joy-Con; then DS3, Joy-Con, Pro). Players 1 to 8 follow the **connection order**, not the Bluetooth address. Check with `cat /run/joystickmanager/slots.tsv` and the LEDs.
+- **Test 4, Joy-Cons.** Original and third-party Joy-Cons, separate and combined through `joycond`. Expect one slot for the combined pair and the **same LED pattern on both sides** of the virtual controller (the right one also lights its HOME LED, step 4).
+- **Test 6, battery.** Normal, charging, and low or critical, ideally with a partly discharged controller: `grep -H . /sys/class/power_supply/*controller*/{capacity,status}`. Expect the player LED of the slot to stay steady when normal, blink when charging, and show the low pattern when low or critical, and `state.json` to show the same percent and status.
+
+Keep the slot table, `state.json` and a note for each.
+
+## 9. Close the sitting
 
 ```bash
 tools/collect-report.sh
@@ -147,4 +159,5 @@ Send the final report **and** the baseline from step 0, plus your notes below. B
 | 4 Joy-Con R HOME LED | | |
 | 5 `state.json` | | |
 | 6 Idle power-off | | |
+| 8 Original tests 3, 4, 6 | | |
 | 7 Bridge on the system bus | | |
