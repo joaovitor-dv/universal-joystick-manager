@@ -18,6 +18,11 @@ case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
 # sending, so for them the first LED write waits this many seconds (0 = write at once).
 led_settle=${JOYMANAGER_LED_SETTLE:-6}
 case "$led_settle" in ''|*[!0-9]*) led_settle=6;; esac
+# The HOME LED command lights the LED for only about 15 s (measured on a Pro Controller), so unlike
+# the player LEDs, which stay, it is re-sent on its own cadence: one subcommand per controller every
+# JOYMANAGER_HOME_REFRESH seconds (0 = never, and the LED goes dark on its own).
+home_refresh=${JOYMANAGER_HOME_REFRESH:-10}
+case "$home_refresh" in ''|*[!0-9]*) home_refresh=10;; esac
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-300}
@@ -227,7 +232,14 @@ now_s() { printf '%(%s)T\n' -1; }
 declare -gA led_last_refresh=() led_last_battery=()
 # led_manual[ID]=mask: a pattern set by hand (SetPlayerLeds) that wins over the slot pattern.
 # home_off[PREFIX]=1: the HOME LED was turned off by hand (SetHomeLed).
-declare -gA led_manual=() home_off=() led_first_seen=()
+declare -gA led_manual=() home_off=() led_first_seen=() home_last=()
+# home_refresh_due PREFIX: success when the HOME LED is due to be sent again; records the time
+home_refresh_due() {
+    local k=$1 now last
+    now=$(now_s); last=${home_last[$k]:--1}
+    if [ "$last" -lt 0 ] || [ $((now - last)) -ge "$home_refresh" ]; then home_last[$k]=$now; return 0; fi
+    return 1
+}
 
 # nintendo_prefix PREFIX: a HID device of vendor 057E (Bluetooth 0005 or USB 0003)
 nintendo_prefix() { case "$1" in *:057E:*) return 0;; esac; return 1; }
@@ -458,6 +470,8 @@ update_batteries_once() {
             set_player_leds "$prefix" "$slot" "$id" "$reverse"
             set_home_led "$prefix"
         fi
+        # the HOME LED on its own cadence (when the player LEDs were just re-applied it was sent with them)
+        if [ "$home_refresh" -gt 0 ] && home_refresh_due "$prefix"; then [ "$refresh" -eq 1 ] || set_home_led "$prefix"; fi
         set_battery_led "$prefix" "$slot" "$state" "$([ "$status" = Charging ] && printf 1 || printf 0)" "$phase" "$refresh"
         if [ "$refresh" -eq 1 ]; then case "$row" in joycond:*) sync_combined_joycon_leds "$slot";; esac; fi
     done

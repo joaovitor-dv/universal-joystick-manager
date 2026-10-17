@@ -75,7 +75,7 @@ Check it three ways, each time looking at the controller and at the kernel value
 for d in /sys/class/leds/*:blue:player-5; do echo "$d $(cat $d/brightness)/$(cat $d/max_brightness)"; done
 ```
 
-1. **Joy-Con R alone:** the HOME button light should be on (value 15, maximum).
+1. **Joy-Con R alone:** the HOME button light should be on (value 15, maximum) and **stay on**. The controller keeps it lit for only about 15 s per command, so the service re-sends it every 10 s (`JOYMANAGER_HOME_REFRESH`); if it goes dark after 15 s, that cadence is not reaching the controller.
 2. **A `joycond` pair:** the right Joy-Con's light should also be on (this was fixed after an earlier gap: the pair never lit it).
 3. **After turning it off and on again.**
 
