@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Can the LEDs be written only once? (`JOYMANAGER_LED_REFRESH=off`)
+
+- **What changed:** a new value, `off`, applies the player LEDs once per connected controller (each connection gets a new HID device, so a reconnection is applied again) and then writes only real changes: battery state and the charging blink. An invalid value now falls back to `10` instead of failing every comparison silently; in fact the old code already behaved like `off` for any non-number, by accident.
+- **Why:** the periodic re-apply exists because, according to comments from the first days, the firmware or `hid-nintendo` may restore its own LED pattern after an input report. That was never measured. The more likely writer is `joycond`, which drives the LEDs while it waits for L + R and when it combines Joy-Cons. Fewer writes also mean fewer HID subcommands, the cause of the drops fixed in v0.6.1.
+- **Evidence:** 7 new unit checks (applied once, 10 simulated minutes without writes, charging still written, a reconnection applied again, invalid values fall back). **Not tested on hardware yet**: the plan is 15-30 minutes with `off`, first without `joycond` and then with it, watching whether any LED changes by itself.
+- **Open questions:** if `off` holds without `joycond` but not with it, re-apply only when `joycond` acts instead of on a timer.
+
 ### ShellCheck becomes a required check
 
 - **What changed:** the ShellCheck job no longer runs as informational: a new warning in the service scripts now fails CI, like the tests and the interface job.

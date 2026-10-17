@@ -8,8 +8,10 @@ sys_power=${JOYMANAGER_SYS_POWER:-/sys/class/power_supply}
 # Each LED write on a Pro Controller/Joy-Con is an HID subcommand. Rewriting
 # everything every 2 s cycle overloads the controller ("exceeded max attempts" errors and
 # timeout drops). LEDs are only re-applied every JOYMANAGER_LED_REFRESH
-# seconds (0 = every cycle, the old behavior); real changes are written immediately.
+# seconds (0 = every cycle, the old behavior; off = once per connected device, then never
+# again); real changes are written immediately. Anything else falls back to 10.
 led_refresh=${JOYMANAGER_LED_REFRESH:-10}
+case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
 idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
@@ -183,6 +185,12 @@ declare -gA led_last_refresh=() led_last_battery=()
 led_refresh_due() {
     local k=$1 now last
     now=$(now_s); last=${led_last_refresh[$k]:--1}
+    # "off": only the first pass for each connected device (its HID prefix changes on every
+    # connection); after that only real changes (battery, charging blink) are written.
+    if [ "$led_refresh" = off ]; then
+        [ "$last" -lt 0 ] || return 1
+        led_last_refresh[$k]=$now; return 0
+    fi
     if [ "$led_refresh" -le 0 ] 2>/dev/null || [ "$last" -lt 0 ] || [ $((now - last)) -ge "$led_refresh" ]; then
         led_last_refresh[$k]=$now; return 0
     fi

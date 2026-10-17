@@ -209,6 +209,33 @@ t_battery_change_writes_immediately() {
     check "opposite blink phase writes once" $((before + 1)) "$writes"
 }
 
+t_refresh_off_applies_once_then_only_changes() {
+    NOW=1000; led_refresh=off; leds_setup; writes=0
+    update_batteries_once; first=$writes
+    [ "$first" -gt 0 ]; check "off: the first cycle applies the LEDs" 0 $?
+    for ((NOW=1010; NOW<=1600; NOW+=10)); do update_batteries_once; done
+    check "off: 10 simulated minutes write nothing more" "$first" "$writes"
+    printf 'Charging\n' >"$BATT/status"; NOW=1602; before=$writes; update_batteries_once
+    check "off: starting to charge still writes the battery LED" $((before + 1)) "$writes"
+}
+
+t_refresh_off_new_connection_gets_leds() {
+    NOW=1000; led_refresh=off; leds_setup; update_batteries_once; writes=0
+    # reconnection: same controller (same MAC), new HID device and prefix
+    local pre2="0005:057E:2009.0099" n
+    mkdir -p "$T/dev/$pre2"; printf '%s\n' "$A" >"$T/dev/$pre2/uniq"
+    for n in 1 2 3 4; do mkdir -p "$sys_leds/$pre2:green:player-$n"; : >"$sys_leds/$pre2:green:player-$n/brightness"; done
+    ln -sfn "$T/dev/$pre2" "$BATT/device"
+    NOW=1010; update_batteries_once
+    [ "$writes" -gt 0 ]; check "off: a reconnected controller gets its LEDs again" 0 $?
+}
+
+t_invalid_led_refresh_falls_back_to_10() {
+    JOYMANAGER_LED_REFRESH=abc source "$here/joystickmanager.sh"; check "an invalid value falls back to 10" 10 "$led_refresh"
+    JOYMANAGER_LED_REFRESH=off source "$here/joystickmanager.sh"; check "off is kept" off "$led_refresh"
+    JOYMANAGER_LED_REFRESH=0 source "$here/joystickmanager.sh"; check "0 is kept" 0 "$led_refresh"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -226,7 +253,9 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_vendor_rule_requires_js t_extra_dualshock4_nodes_ignored \
          t_non_hid_controller_gets_slot t_without_table_uses_fixed_list t_doctor_lists_controllers \
          t_leds_not_rewritten_within_window t_refresh_zero_keeps_old_behavior \
-         t_battery_change_writes_immediately t_udev_rule_for_pro_controller; do
+         t_battery_change_writes_immediately t_refresh_off_applies_once_then_only_changes \
+         t_refresh_off_new_connection_gets_leds t_invalid_led_refresh_falls_back_to_10 \
+         t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s failure(s)\n' "$fails"

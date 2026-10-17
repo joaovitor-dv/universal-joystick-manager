@@ -155,7 +155,7 @@ then `sudo systemctl restart joystickmanager`.
 | Variable | Default | What it does |
 |---|---|---|
 | `JOYMANAGER_IDLE_TIMEOUT` | `1800` | Seconds of inactivity before a Bluetooth controller is disconnected. The default is deliberately long during the testing phase. |
-| `JOYMANAGER_LED_REFRESH` | `10` | Seconds between LED re-applications. `0` re-applies on every 2 s cycle (the old behavior). Real changes are always written at once. |
+| `JOYMANAGER_LED_REFRESH` | `10` | Seconds between LED re-applications. `off` applies the LEDs once per connected controller and never again (experimental: under test on hardware, see the devlog). `0` re-applies on every 2 s cycle (the old behavior). Any other value falls back to `10`. Real changes, such as starting to charge, are always written at once. |
 | `JOYMANAGER_EXPERIMENTAL` | `0` | `1` enables `experimental` and `planned` controller profiles. |
 | `JOYMANAGER_PROFILES` | auto | Path to a custom profile table. If the file is missing, the service uses its built-in list of validated controllers. |
 | `JOYMANAGER_RUNTIME_DIR` | `/run/joystickmanager` | Where `slots.tsv` lives. |
