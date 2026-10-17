@@ -1,0 +1,86 @@
+name: Release packages
+
+# Builds the installable packages for a release and attaches them to it:
+# .deb (Debian/Ubuntu), .rpm (Fedora), .pkg.tar.zst (Arch), the source tarball and SHA256SUMS.
+# Runs when a release is published, or by hand for an existing tag.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build (for example v0.8.1)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  deb-rpm-tarball:
+    name: .deb, .rpm and source tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends debhelper dpkg-dev rpm
+      - name: Build the .deb
+        run: |
+          mkdir -p dist
+          cp -r packaging/debian debian
+          dpkg-buildpackage -us -uc -b
+          cp ../universal-joystick-manager_*_all.deb dist/
+      - name: Build the .rpm
+        run: |
+          rpmbuild -bb --define "_sourcedir $PWD" --define "_topdir $RUNNER_TEMP/rpm" --define "_unitdir /usr/lib/systemd/system" packaging/fedora/universal-joystick-manager.spec
+          cp "$RUNNER_TEMP"/rpm/RPMS/noarch/*.rpm dist/
+      - name: Source tarball
+        run: |
+          version=${TAG#v}
+          git archive --format=tar.gz --prefix="universal-joystick-manager-$version/" -o "dist/universal-joystick-manager-$version.tar.gz" HEAD
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  arch:
+    name: Arch package
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build tools
+        run: pacman -Syu --noconfirm --needed base-devel git github-cli
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Build the package (makepkg refuses to run as root)
+        run: |
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          cd packaging/arch
+          su builder -c 'makepkg --nodeps -f'
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          gh release upload "$TAG" packaging/arch/*.pkg.tar.zst --clobber --repo "$GITHUB_REPOSITORY"
+
+  checksums:
+    name: SHA256SUMS
+    needs: [deb-rpm-tarball, arch]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checksums of every attached file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist && cd dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --pattern '*.rpm' --pattern '*.pkg.tar.zst' --pattern '*.tar.gz'
+          sha256sum -- * >SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"

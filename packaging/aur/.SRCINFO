@@ -1,0 +1,19 @@
+pkgbase = universal-joystick-manager
+	pkgdesc = UJM - Universal Joystick Manager for Linux
+	pkgver = 0.8.0
+	pkgrel = 1
+	url = https://github.com/joaovitor-dv/universal-joystick-manager
+	arch = any
+	license = MIT
+	depends = bash
+	depends = systemd
+	depends = bluez
+	depends = bluez-utils
+	depends = evtest
+	depends = python
+	optdepends = joycond-git: combine Nintendo Joy-Cons
+	optdepends = upower: desktop battery integration
+	source = universal-joystick-manager-0.8.0.tar.gz::https://github.com/joaovitor-dv/universal-joystick-manager/archive/refs/tags/v0.8.0.tar.gz
+	sha256sums = b177522d191dda84c42d2427c78b52a1ef1fde595b84b9ebdfa66bf0e72baecd
+
+pkgname = universal-joystick-manager

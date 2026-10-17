@@ -57,7 +57,11 @@ Hardware used for validation: 1 original DualShock 3, 2 original Switch Pro Cont
 
 ## Install
 
-**Requirements:** Linux with systemd, udev, D-Bus and BlueZ. Arch Linux/CachyOS is the primary target; Debian/Ubuntu and Fedora packaging exists but **has not been built or tested there**.
+**Requirements:** Linux with systemd, udev, D-Bus and BlueZ. Arch Linux/CachyOS is the primary target.
+
+**Packages:** from the next release on, every release page has a `.deb` (Debian/Ubuntu), an `.rpm` (Fedora), an Arch package and a source tarball, with `SHA256SUMS`. An AUR package is prepared and will be published later. After installing a package, run `sudo systemctl enable --now joystickmanager`. Flatpak and AppImage are planned for the graphical interface only: they cannot install a system service. Details in [docs/packaging.md](docs/packaging.md).
+
+**From source** (any systemd distribution):
 
 ```bash
 git clone https://github.com/joaovitor-dv/universal-joystick-manager.git

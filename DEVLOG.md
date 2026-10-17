@@ -26,6 +26,19 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### The idle power-off could disconnect every Bluetooth controller
+
+- **What changed:** the idle worker now disconnects only after a **full** idle timeout without input, and only Bluetooth devices get one. `evtest`, which it relies on, is a required dependency of every package.
+- **Why:** it treated any end of `evtest` without input as idleness. With `evtest` missing (it was only optional in the packages) or failing, it ended at once, so the service disconnected each Bluetooth controller right after it connected, every 0.25 s. Workers also started for USB controllers and the joycond virtual pair, where there is nothing to disconnect.
+- **Evidence:** unit tests with stub `evtest` and `bluetoothctl`; on the old code the failing-evtest case produced 6 disconnects in 1.5 s, now none. It did not happen on the maintainer's machine because `install.sh` installs `evtest`.
+
+### Packages that actually work, and more formats
+
+- **What changed:** the Arch `PKGBUILD` did not build (it used `../../` sources) and all three packages installed the script to `/usr/bin` while the unit pointed at `/usr/local/bin`, so the service would not have started; the Pro Controller LED helper was not packaged at all; the Debian files were invalid. All fixed (see [docs/packaging.md](docs/packaging.md)). New: an AUR recipe built from the release tarball with an update script, and a **Release packages** workflow that attaches `.deb`, `.rpm`, the Arch package, the source tarball and `SHA256SUMS` to each published release.
+- **Why:** to offer as many Linux install formats as make sense. Flatpak and AppImage are kept for the graphical interface: they cannot install a root service, udev rules or a systemd unit.
+- **Evidence:** the Arch package builds locally, `namcap` reports no errors in the AUR recipe, the package holds the 8 expected files, the unit points at `/usr/bin` and the installed script finds the LED helper. The AUR recipe builds from the real v0.8.0 tarball (checksum verified). The `.deb` and `.rpm` cannot be built here: a new CI job builds and checks them, **first run pending**; the release workflow has not run yet either.
+- **Open questions:** publish to the AUR (needs the maintainer's account), starting with the release after v0.8.0, which has the LED-helper path fix; Copr, OBS or a PPA later.
+
 ### Can the LEDs be written only once? (`JOYMANAGER_LED_REFRESH=off`)
 
 - **What changed:** a new value, `off`, applies the player LEDs once per connected controller (each connection gets a new HID device, so a reconnection is applied again) and then writes only real changes: battery state and the charging blink. An invalid value now falls back to `10` instead of failing every comparison silently; in fact the old code already behaved like `off` for any non-number, by accident.

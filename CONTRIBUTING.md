@@ -61,5 +61,6 @@ SemVer 0.x while the validated hardware matrix is incomplete:
 1. Tag the commit with an **annotated** tag: `git tag -a vX.Y.Z -m "vX.Y.Z - <title>"`, with the classification in the message.
 2. Add its entry to the [devlog](DEVLOG.md).
 3. Update the version in the **README title** and the **Patch notes** table at the end of the README.
-4. Update the package versions (`PKGBUILD`, `.spec`, `debian/changelog`).
-5. Push the branch and the tag, then create the GitHub release (mark it as a pre-release while the version is 0.x).
+4. Update the package versions (`packaging/arch/PKGBUILD`, `.spec`, `debian/changelog`) and the version shown in `ui/index.html`.
+5. Push the branch and the tag, then create the GitHub release (mark it as a pre-release while the version is 0.x). The **Release packages** workflow attaches the `.deb`, `.rpm`, Arch package, tarball and `SHA256SUMS`.
+6. For the AUR: `packaging/aur/update.sh X.Y.Z` (on Arch), check with `makepkg` and `namcap`, then push `PKGBUILD` and `.SRCINFO` to the AUR repository.
