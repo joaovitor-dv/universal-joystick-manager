@@ -136,6 +136,15 @@ class AllowedTests(unittest.TestCase):
         self.assertEqual(self.env.call("GetController", (PRO,), "(s)")[0]["name"], "Pro Controller")
         self.raises("UnknownController", self.env.call, "GetController", ("nobody",), "(s)")
 
+    def test_snapshot_json_matches_the_typed_methods(self):
+        snap = json.loads(self.env.call("GetSnapshotJson")[0])
+        typed = self.env.call("ListControllers")[0]
+        self.assertEqual(snap["api_version"], "1")
+        self.assertEqual(snap["service"]["idle_timeout"], 1800)
+        self.assertEqual([c["id"] for c in snap["controllers"]], [c["id"] for c in typed])
+        pro = next(c for c in snap["controllers"] if c["id"] == PRO)
+        self.assertEqual((pro["name"], pro["battery_percent"], pro["address"]), ("Pro Controller", 55, PRO))
+
     def test_signal_when_the_service_replaces_state_json(self):
         got = []
         sub = self.env.conn.signal_subscribe(NAME, IFACE, "ControllersChanged", PATH, None, Gio.DBusSignalFlags.NONE,

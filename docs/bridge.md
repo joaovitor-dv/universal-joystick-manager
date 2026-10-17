@@ -47,6 +47,7 @@ Signals: `ControllersChanged`, `BluetoothDevicesChanged` (both without payload: 
 |---|---|---|
 | `ListControllers() → aa{sv}` | none | Same list as the `Controllers` property. |
 | `GetController(s id) → a{sv}` | none | `UnknownController` if `id` is not connected. |
+| `GetSnapshotJson() → s` | none | The service status and the controllers as one JSON text (`api_version`, `service`, `controllers`), for clients that cannot unpack `a{sv}` easily: QtDBus from Python cannot. |
 | `GetServiceStatus() → a{sv}` | none | `api_version`, `state_available`, `updated`, `idle_timeout`, `led_refresh`, `experimental`. |
 | `SetControllerAlias(s id, s alias)` | `org.ujm.manager.set-alias` | Only for controllers with a stable address (Bluetooth MAC). Up to 40 printable characters; empty clears it. Stored in `/var/lib/ujm/aliases.json`. |
 | `ConnectBluetooth(s id)`, `DisconnectBluetooth(s id)` | `org.ujm.manager.bluetooth` | Only controllers connected over Bluetooth. Calls BlueZ `Device1.Connect`/`Disconnect`. |
@@ -77,5 +78,5 @@ Measured on the maintainer's machine (see [gui-measurements.md](gui-measurements
 dbus-run-session -- python3 bridge/tests/test_bridge.py
 ```
 
-19 tests on a private session bus with a **fake BlueZ and a fake polkit** (`bridge/tests/fake_bluez.py`): nothing touches the real system bus or Bluetooth. They cover the snapshot and its change signal, bad or foreign `state.json`, aliases (sanitising, persistence, refusal), Bluetooth routing and error passthrough, polkit being asked with the right action and caller (and a refusal blocking the action), the actions that are not available, and the bridge exiting when unused. The test authorizers (`UJM_TEST_AUTH`) are only honoured on a session bus (`UJM_BUS=session`), never on the system bus.
+20 tests on a private session bus with a **fake BlueZ and a fake polkit** (`bridge/tests/fake_bluez.py`): nothing touches the real system bus or Bluetooth. They cover the snapshot and its change signal, bad or foreign `state.json`, aliases (sanitising, persistence, refusal), Bluetooth routing and error passthrough, polkit being asked with the right action and caller (and a refusal blocking the action), the actions that are not available, and the bridge exiting when unused. The test authorizers (`UJM_TEST_AUTH`) are only honoured on a session bus (`UJM_BUS=session`), never on the system bus.
 Not tested: a real BlueZ, a real polkit and the system bus policy files, which need an installed system.

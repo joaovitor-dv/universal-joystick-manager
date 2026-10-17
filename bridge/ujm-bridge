@@ -37,6 +37,7 @@ XML = """
     <method name="ListControllers"><arg direction="out" type="aa{sv}"/></method>
     <method name="GetController"><arg direction="in" type="s" name="id"/><arg direction="out" type="a{sv}"/></method>
     <method name="GetServiceStatus"><arg direction="out" type="a{sv}"/></method>
+    <method name="GetSnapshotJson"><arg direction="out" type="s"/></method>
     <method name="SetControllerAlias"><arg direction="in" type="s" name="id"/><arg direction="in" type="s" name="alias"/></method>
     <method name="ConnectBluetooth"><arg direction="in" type="s" name="id"/></method>
     <method name="DisconnectBluetooth"><arg direction="in" type="s" name="id"/></method>
@@ -451,6 +452,15 @@ class Bridge:
     def do_GetServiceStatus(self, sender, inv):
         s = self.store.service_status()
         inv.return_value(GLib.Variant.new_tuple(GLib.Variant("a{sv}", {k: to_variant(v) for k, v in s.items()})))
+
+    def do_GetSnapshotJson(self, sender, inv):
+        # The same data as GetServiceStatus + ListControllers, as one JSON text. For clients that
+        # cannot unpack a{sv} easily (QtDBus from Python, QML, shell scripts).
+        if self._monitor is None:
+            self.store.reload_state()
+        text = json.dumps({"api_version": API_VERSION, "service": self.store.service_status(),
+                           "controllers": self.store.controllers()}, ensure_ascii=False)
+        inv.return_value(GLib.Variant.new_tuple(GLib.Variant("s", text)))
 
     def do_ListBluetoothDevices(self, sender, inv):
         self.bluez.devices(lambda out: inv.return_value(GLib.Variant.new_tuple(GLib.Variant("aa{sv}", out))),
