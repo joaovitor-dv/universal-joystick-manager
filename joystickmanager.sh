@@ -102,9 +102,9 @@ controller_parent() {
     local p=$1 n
     p=$(readlink -f "$p" 2>/dev/null || true)
     while [ -n "$p" ] && [ "$p" != / ]; do
-        n=$(basename "$p")
+        n=${p##*/}
         case "$n" in 0005:*|0003:*) printf '%s\n' "$n"; return 0;; esac
-        p=$(dirname "$p")
+        p=${p%/*}
     done
     return 1
 }
@@ -114,7 +114,7 @@ controller_id() {
     p=$(readlink -f "$p" 2>/dev/null || true)
     while [ -n "$p" ] && [ "$p" != / ]; do
         if [ -r "$p/uniq" ] && [ -s "$p/uniq" ]; then read_file "$p/uniq"; return 0; fi
-        p=$(dirname "$p")
+        p=${p%/*}
     done
     return 1
 }
@@ -208,14 +208,14 @@ collapse_physical_joycons() {
         [ -n "$id" ] || continue
         name=$(read_file "$sys_input/$event/device/name")
         case "$name" in
-            'Joy-Con (L)'|'Joy-Con (R)') continue;;
+            'Joy-Con (L)'|'Joy-Con (R)') unset "registered_events[$event]"; continue;;
         esac
         printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"
     done <"$slots_file" >"$slots_file.tmp"
     mv "$slots_file.tmp" "$slots_file"
 }
 
-now_s() { date +%s; }
+now_s() { printf '%(%s)T\n' -1; }
 
 # led_refresh_due PREFIX -> success if led_refresh seconds have passed since the last re-apply.
 declare -gA led_last_refresh=() led_last_battery=()
@@ -297,6 +297,8 @@ register_event() {
     tmp="$slots_file.tmp"
     awk -F '\t' -v i="$id" -v p="$prefix" -v e="$event" 'BEGIN{OFS="\t"}$1==i{$3=p;$4=e}{print}' "$slots_file" >"$tmp"
     mv "$tmp" "$slots_file"
+    registered_events[$event]=1; event_name[$event]=$name
+    event_family[$event]=$(profile_for_event "$event" 2>/dev/null | cut -f1)
     [ "$known" -eq 1 ] && return
     if [ "$prefix" != - ]; then
         reverse=0
@@ -329,7 +331,7 @@ cleanup_missing() {
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
         if [ "$event" != - ] && [ ! -e "$sys_input/$event" ]; then
-            stop_idle_worker "$runtime_dir/idle.$slot.pid"; unset "led_manual[$id]"
+            stop_idle_worker "$runtime_dir/idle.$slot.pid"; unset "led_manual[$id]" "registered_events[$event]" "event_name[$event]" "event_family[$event]"
         else printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"; fi
     done <"$slots_file" >"$slots_file.tmp"
     mv "$slots_file.tmp" "$slots_file"
@@ -367,16 +369,18 @@ start_idle_workers() {
 # cycle and match it against the profile table: about 1000 processes every 2 s, ~10% of a core
 # on an idle desktop. Nodes already examined and not a supported controller are skipped
 # until they are re-created (newer than the previous scan) or every rescan_every scans.
-declare -gA ignored_events=()
+declare -gA ignored_events=() registered_events=() event_name=() event_family=()
 scan_count=0
 rescan_every=30
 scan_existing() {
     local p e stamp="$runtime_dir/scan.stamp"
-    (( scan_count++ % rescan_every == 0 )) && ignored_events=()
+    (( scan_count++ % rescan_every == 0 )) && { ignored_events=(); registered_events=(); }
     for p in "$sys_input"/event*; do
         [ -e "$p" ] || continue
         e=${p##*/}
-        if [ -n "${ignored_events[$e]:-}" ] && ! [ "$p" -nt "$stamp" ]; then continue; fi
+        # a node seen before (a controller already registered, or one that is not a controller) and not
+        # re-created since the previous scan has nothing new to tell
+        if [ -n "${ignored_events[$e]:-}${registered_events[$e]:-}" ] && ! [ "$p" -nt "$stamp" ]; then continue; fi
         register_event "$e"
     done
     : >"$stamp"
@@ -408,16 +412,21 @@ update_batteries_once() {
     battery_by_prefix=()
     for b in "$sys_power"/*controller_battery_*; do
         [ -e "$b" ] || continue
-        prefix=$(basename "$(readlink -f "$b/device" 2>/dev/null || true)")
-        id=$(controller_id "$b/device" || true); [ -n "$prefix" ] && [ -n "$id" ] || continue
-        row=$(row_for_id "$id")
+        prefix=$(readlink -f "$b/device" 2>/dev/null || true); prefix=${prefix##*/}
+        [ -n "$prefix" ] || continue
+        # The battery's device is the HID device, and "uniq" lives on its input device, so on current
+        # kernels the id cannot be found from here: the HID prefix identifies the row just as well.
+        id=$(controller_id "$b/device" || true); row=''
+        [ -z "$id" ] || row=$(row_for_id "$id")
         [ -n "$row" ] || row=$(row_for_prefix "$prefix")
         if [ -z "$row" ]; then row=$(awk -F '\t' '$1 ~ /^joycond:/ {print;exit}' "$slots_file"); fi
         [ -n "$row" ] || continue
-        slot=$(printf '%s\n' "$row" | cut -f2); event=$(printf '%s\n' "$row" | cut -f4); name=$(read_file "$sys_input/$event/device/name"); reverse=0
+        [ -n "$id" ] || IFS=$'\t' read -r id _ <<<"$row"
+        IFS=$'\t' read -r _ slot _ event <<<"$row"; name=${event_name[$event]:-}; [ -n "$name" ] || name=$(read_file "$sys_input/$event/device/name"); reverse=0
         [ "$name" = 'Joy-Con (R)' ] && reverse=1
         cap=$(read_file "$b/capacity"); level=$(read_file "$b/capacity_level"); status=$(read_file "$b/status"); state=$(battery_state "$cap" "$level")
-        battery_by_prefix[$prefix]="$cap"$'\t'"$status"$'\t'"$state"
+        # ";" and not a tab: tabs are IFS whitespace, so an empty capacity would be swallowed when read back
+        battery_by_prefix[$prefix]="$cap;$status;$state"
         # A pattern set by hand (SetPlayerLeds) is left alone: no re-apply, no battery blinking.
         [ -z "${led_manual[$id]:-}" ] || continue
         # Every led_refresh s, re-apply the player identification before the battery
@@ -451,8 +460,8 @@ write_state() {
     body='"format":"ujm-state","version":1,"service":{"led_refresh":'"$(json_str "$led_refresh")"',"idle_timeout":'"$(json_int "$idle_timeout")"',"experimental":'"$([ "$experimental" = 1 ] && printf true || printf false)"'},"controllers":['
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
-        name=$(read_file "$sys_input/$event/device/name")
-        family=$(profile_for_event "$event" 2>/dev/null | cut -f1)
+        name=${event_name[$event]:-}; [ -n "$name" ] || name=$(read_file "$sys_input/$event/device/name")
+        if [ -n "${event_family[$event]+x}" ]; then family=${event_family[$event]}; else family=$(profile_for_event "$event" 2>/dev/null | cut -f1); fi
         case "$id:$prefix" in
             joycond:*) transport=virtual; family=${family:-joycon-combined};;
             *:0005:*) transport=bluetooth;;
@@ -465,7 +474,7 @@ write_state() {
         if [ "$prefix" != - ] && [ -e "$sys_leds/$prefix:blue:player-5/brightness" ]; then home=on; [ -z "${home_off[$prefix]:-}" ] || home=off; fi
         battery=null
         if [ "$prefix" != - ] && [ -n "${battery_by_prefix[$prefix]:-}" ]; then
-            IFS=$'\t' read -r cap status state <<<"${battery_by_prefix[$prefix]}"
+            IFS=';' read -r cap status state <<<"${battery_by_prefix[$prefix]}"
             battery='{"percent":'"$(json_int "$cap")"',"status":'"$(json_str "$status")"',"level":'"$(json_str "$state")"'}'
         fi
         [ "$first" -eq 1 ] || body+=','; first=0

@@ -494,6 +494,41 @@ t_command_channel_through_the_fifo_and_the_real_loop() {
     kill -TERM -- "-$pid" 2>/dev/null || true
 }
 
+t_battery_is_found_when_the_id_is_not_above_the_battery_device() {
+    # Real kernels: the battery hangs off the HID device and "uniq" is on the input device below it.
+    cmd_setup; connect event1 "$A"
+    local b="$T/power/sony_controller_battery_x" hid="$T/hidonly/0005:057E:2009.$A"
+    mkdir -p "$b" "$hid"; ln -sfn "$hid" "$b/device"; printf 'Discharging\n' >"$b/status"; printf '80\n' >"$b/capacity"
+    update_batteries_once
+    check "the battery is read through the HID prefix" "{'percent': 80, 'status': 'Discharging', 'level': 'normal'}" "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["battery"]')"
+}
+
+t_battery_without_capacity_reports_the_status_only() {
+    cmd_setup; connect event1 "$A"   # a Pro Controller on a cable: Charging, no capacity file
+    local b="$T/power/nintendo_switch_controller_battery_x" hid="$T/hidonly/0005:057E:2009.$A"
+    mkdir -p "$b" "$hid"; ln -sfn "$hid" "$b/device"; printf 'Charging\n' >"$b/status"
+    update_batteries_once
+    check "no percent, but the status" "{'percent': None, 'status': 'Charging', 'level': 'normal'}" "$(jget "$runtime_dir/state.json" 'd["controllers"][0]["battery"]')"
+}
+
+t_scan_does_not_resolve_known_controllers_again() {
+    cmd_setup; plug event5 'Pro Controller' "$A"
+    scan_existing                       # registers it (the first scan also clears the caches)
+    : >"$T/calls"   # a file, not a variable: the functions run in command substitutions
+    controller_id() { echo x >>"$T/calls"; return 1; }; controller_parent() { echo x >>"$T/calls"; return 1; }
+    scan_existing; scan_existing
+    check "a registered controller is not resolved again each cycle" 0 "$(wc -l <"$T/calls")"
+    unset -f controller_id controller_parent
+}
+
+t_scan_registers_a_registered_node_that_was_replaced() {
+    cmd_setup; plug event5 'Pro Controller' "$A"
+    scan_existing; scan_existing
+    rm -rf "${sys_input:?}/event5"; plug event5 'Pro Controller' "$B"
+    scan_existing
+    check "event5 re-created as another controller is picked up" 2 "$(slot_of "$B")"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -582,6 +617,8 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_command_home_led_can_be_turned_off_and_stays_off t_command_home_led_refuses_controllers_without_one \
          t_command_idle_timeout_is_validated_applied_and_kept t_command_idle_timeout_zero_means_never_and_stops_the_workers \
          t_command_idle_timeout_stops_a_running_worker_and_its_pipeline t_command_channel_through_the_fifo_and_the_real_loop \
+         t_battery_is_found_when_the_id_is_not_above_the_battery_device t_battery_without_capacity_reports_the_status_only \
+         t_scan_does_not_resolve_known_controllers_again t_scan_registers_a_registered_node_that_was_replaced \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
