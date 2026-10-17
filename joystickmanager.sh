@@ -240,13 +240,26 @@ sync_combined_joycon_leds() {
     done
 }
 
+# joycond locks the event node of every Joy-Con it has merged into a combined device (mode 0600,
+# root only) and leaves a free one with its group/other access: the only outward sign of which
+# physical Joy-Cons a "Nintendo Switch Combined Joy-Cons" device stands for (it has no uniq/phys).
+# Seen with a pair merged next to two free Joy-Cons: the merged two were 0600, the free two 0666.
+dev_input=${JOYMANAGER_DEV_INPUT:-/dev/input}
+joycon_merged() { # EVENT: success when joycond holds this Joy-Con's node
+    local m
+    m=$(stat -c %a "$dev_input/$1" 2>/dev/null) || return 1
+    [[ $m == *00 ]]
+}
+
+# collapse_physical_joycons: drop the rows of the Joy-Cons that joycond merged (they are the
+# combined device's slot); a free Joy-Con keeps its own row.
 collapse_physical_joycons() {
     local id slot prefix event name
     while IFS=$'\t' read -r id slot prefix event; do
         [ -n "$id" ] || continue
         name=$(read_file "$sys_input/$event/device/name")
         case "$name" in
-            'Joy-Con (L)'|'Joy-Con (R)') unset "registered_events[$event]"; continue;;
+            'Joy-Con (L)'|'Joy-Con (R)') if joycon_merged "$event"; then unset "registered_events[$event]"; continue; fi;;
         esac
         printf '%s\t%s\t%s\t%s\n' "$id" "$slot" "$prefix" "$event"
     done <"$slots_file" >"$slots_file.tmp"
@@ -332,6 +345,11 @@ register_event() {
     is_supported_controller "$event" "$name" || { ignored_events[$event]=1; return; }
     unset "ignored_events[$event]"
     path="$sys_input/$event/device"
+    case "$name" in
+        'Joy-Con (L)'|'Joy-Con (R)')
+            # merged by joycond into a combined device that already has its slot: not a slot of its own
+            if joycon_merged "$event" && grep -q '^joycond:' "$slots_file" 2>/dev/null; then return; fi;;
+    esac
     if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
         collapse_physical_joycons
         id="joycond:$event"

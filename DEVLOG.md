@@ -26,6 +26,14 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Only the Joy-Cons that `joycond` merged lose their slot
+
+- **What changed:** when a "Nintendo Switch Combined Joy-Cons" device appears, only the physical Joy-Cons that `joycond` merged into it are dropped from the slot table; a Joy-Con that is free keeps its own slot. The service tells them apart by the permission of the input node (mode 0600, root only, while `joycond` holds it). Before, **every** physical Joy-Con was dropped when a combined device registered and came back at the next scan, so a merged pair was counted twice (the combined device plus its two Joy-Cons) and, with a second pair, the free Joy-Cons were wrongly folded in.
+- **Why:** with a white pair merged next to a gray pair left free, the table had seven entries (two Pro Controllers, the combined device and four Joy-Cons) instead of five. A probe that counted button events per joystick node showed the gray Joy-Cons answering on their own nodes (74 and 32 events) and the white ones only on the combined device (44 and 26); the nodes of the white pair were `crw-------`, the gray ones `crw-rw-rw-`.
+- **Evidence:** 3 new unit tests (a merged pair collapses and stays collapsed across scans while a free pair keeps its slots; a dissolved pair gets its slots back; a locked Joy-Con with no combined device is a normal controller); the first two fail on the old behavior. **Not yet run on the real service.**
+- **Open questions:** the permission is a side effect of `joycond`'s udev rules, not a documented interface; a different `joycond` version may not do it. When a pair dissolves, the Joy-Cons come back at the next scan (up to two seconds).
+- **Also found:** a button press on a controller moved the mouse and opened the start menu: Steam Input, which was running, applies its Desktop layout to every controller it sees (README, Troubleshooting). UJM does not write input events.
+
 ### The right Joy-Con's battery LED follows its mirrored pattern
 
 - **What changed:** the battery indication (steady, blinking while charging or when low) now uses the LED that is on for the slot, which for the right Joy-Con is the mirrored one (slot 4 lights LED 1), instead of the LED with the slot's number.

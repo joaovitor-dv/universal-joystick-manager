@@ -88,6 +88,8 @@ Hardware facts reported by the maintainer; whether the kernel exposes a light as
 | Xbox One, Xbox Series X/S | **no** | yes (its only light) | |
 | DualShock 4, DualSense | **no** | no | RGB light bar, not driven by UJM |
 
+**Joy-Cons and `joycond`.** A left and a right Joy-Con merged by `joycond` show up as one `Nintendo Switch Combined Joy-Cons` controller (`transport: virtual`) with one `player`; the two Joy-Cons it stands for have no entry of their own, a free Joy-Con keeps its own. The service tells them apart by the permission of the Joy-Con's input node, which `joycond` sets to root-only (0600) while it holds the Joy-Con; checked on hardware with a gray pair left free and a white pair merged (button presses reached each free Joy-Con's own node, and only the combined device for the merged ones).
+
 Numbering still exists in software for all of them (the `player` field); it just has no LED to show it on.
 
 **Third-party Joy-Cons** (tested with a gray pair) answer to the same commands but behave differently: they accept a player pattern, show it for a few seconds and go back to LED 1 on their own, and the right one never lights its HOME LED. Keeping a pattern there would take a command every few seconds, which is what drops the link, so UJM does not try: they show LED 1. The identifier (`057E:2006` / `2007`) is the same as an original's, so they cannot be told apart; `player_leds` says the controller has LEDs, not that they will stay as asked. The same goes for the HOME LED of any controller, which the controller turns off by itself about 15 s after each command.

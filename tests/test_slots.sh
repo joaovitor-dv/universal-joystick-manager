@@ -685,6 +685,41 @@ t_the_right_joycon_battery_led_follows_its_mirrored_pattern() {
     check "the pattern is the mirrored one and the battery LED did not light LED 4" "1 0 0 0" "$(leds_of "$pre")"
 }
 
+# ---- joycond: which Joy-Cons a combined device stands for -----------------------------------
+# joycond makes the event node of every Joy-Con it merged root-only (0600) and leaves a free one open.
+jc_nodes() { dev_input="$T/devinput"; mkdir -p "$dev_input"; local e; for e in event1 event2 event3 event4 event5; do : >"$dev_input/$e"; chmod 666 "$dev_input/$e"; done; }
+
+t_a_combined_pair_collapses_only_the_joycons_joycond_merged() {
+    cmd_setup; jc_nodes
+    connect event1 "$A" "Joy-Con (L)"; connect event2 "$B" "Joy-Con (R)"     # the free pair
+    connect event3 "$C" "Joy-Con (L)"; connect event4 "$D" "Joy-Con (R)"     # the merged pair
+    chmod 600 "$dev_input/event3" "$dev_input/event4"
+    connect event5 "EE:EE:EE:EE:EE:05" "Nintendo Switch Combined Joy-Cons"
+    check "the merged Joy-Cons have no slot of their own" "" "$(slot_of "$C")$(slot_of "$D")"
+    check "the free pair keeps its two slots" "1 2" "$(slot_of "$A") $(slot_of "$B")"
+    check "and the combined device has one" yes "$([ -n "$(slot_of joycond:event5)" ] && echo yes || echo no)"
+    scan_existing; scan_existing
+    check "the next scans do not bring the merged ones back" "" "$(slot_of "$C")$(slot_of "$D")"
+    check "so the table holds the free pair and the combined device only" 3 "$(wc -l <"$slots_file")"
+}
+
+t_a_dissolved_pair_gives_its_joycons_their_slots_back() {
+    cmd_setup; jc_nodes
+    connect event3 "$C" "Joy-Con (L)"; connect event4 "$D" "Joy-Con (R)"
+    chmod 600 "$dev_input/event3" "$dev_input/event4"
+    connect event5 "EE:EE:EE:EE:EE:05" "Nintendo Switch Combined Joy-Cons"
+    check "merged: only the combined device has a slot" 1 "$(wc -l <"$slots_file")"
+    disconnect event5; cleanup_missing; chmod 666 "$dev_input/event3" "$dev_input/event4"
+    scan_existing; scan_existing
+    check "released by joycond: both Joy-Cons are numbered again" 2 "$(wc -l <"$slots_file")"
+}
+
+t_a_locked_joycon_without_a_combined_device_is_a_normal_controller() {
+    cmd_setup; jc_nodes; chmod 600 "$dev_input/event1"
+    connect event1 "$A" "Joy-Con (L)"
+    check "joycond waiting for a partner does not hide the Joy-Con" 1 "$(slot_of "$A")"
+}
+
 t_udev_rule_for_pro_controller() {
     local rule="$here/udev/99-joystickmanager-procontroller-charge-only.rules"
     [ -r "$rule" ]; check "udev rule exists" 0 $?
@@ -783,6 +818,8 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_an_explicit_request_always_writes \
          t_slot_masks_for_ten_players_are_distinct_and_the_joycon_r_is_mirrored t_ten_controllers_get_players_one_to_ten \
          t_the_right_joycon_battery_led_follows_its_mirrored_pattern \
+         t_a_combined_pair_collapses_only_the_joycons_joycond_merged t_a_dissolved_pair_gives_its_joycons_their_slots_back \
+         t_a_locked_joycon_without_a_combined_device_is_a_normal_controller \
          t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
