@@ -26,12 +26,12 @@ jobs:
           bash -n tests/test_slots.sh
           python3 -m py_compile switchpro-leds.py
           python3 -m py_compile bridge/ujm-bridge bridge/tests/test_bridge.py bridge/tests/fake_bluez.py
-          xmllint --noout --nonet bridge/org.ujm.Manager1.conf bridge/org.ujm.manager.policy
 
       - name: Bridge tests (private D-Bus session, fake BlueZ and polkit)
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-gi gir1.2-glib-2.0 dbus libxml2-utils
+          xmllint --noout --nonet bridge/org.ujm.Manager1.conf bridge/org.ujm.manager.policy
           dbus-run-session -- python3 -W ignore bridge/tests/test_bridge.py
 
       - name: Validate the udev rule
