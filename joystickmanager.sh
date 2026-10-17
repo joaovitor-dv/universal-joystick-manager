@@ -30,7 +30,8 @@ mkdir -p "$runtime_dir"
 touch "$slots_file"
 
 write_led() { local p=$1 v=$2; [ -e "$p" ] && printf '%s\n' "$v" >"$p" 2>/dev/null || true; }
-read_file() { [ -r "$1" ] && cat "$1" || true; }
+# First line of a sysfs attribute (all of them are one-liners). "read" is a builtin: no cat process.
+read_file() { local l=''; [ -r "$1" ] && { IFS= read -r l <"$1" || true; printf '%s\n' "$l"; }; return 0; }
 
 # Path to the profile table. If JOYMANAGER_PROFILES is set it is the only
 # candidate; without a table, register_event uses the fixed name list (legacy).
@@ -248,7 +249,8 @@ battery_state() {
 register_event() {
     local event=$1 name path id prefix slot tmp reverse known prev
     name=$(read_file "$sys_input/$event/device/name")
-    is_supported_controller "$event" "$name" || return
+    is_supported_controller "$event" "$name" || { ignored_events[$event]=1; return; }
+    unset "ignored_events[$event]"
     path="$sys_input/$event/device"
     if [ "$name" = 'Nintendo Switch Combined Joy-Cons' ]; then
         collapse_physical_joycons
@@ -320,7 +322,24 @@ start_idle_workers() {
     done <"$slots_file"
 }
 
-scan_existing() { local p e; for p in "$sys_input"/event*; do [ -e "$p" ] || continue; e=$(basename "$p"); register_event "$e"; done; }
+# The periodic scan used to re-read every input node (keyboards, mice, touchpads...) each
+# cycle and match it against the profile table: about 1000 processes every 2 s, ~10% of a core
+# on an idle desktop. Nodes already examined and not a supported controller are skipped
+# until they are re-created (newer than the previous scan) or every rescan_every scans.
+declare -gA ignored_events=()
+scan_count=0
+rescan_every=30
+scan_existing() {
+    local p e stamp="$runtime_dir/scan.stamp"
+    (( scan_count++ % rescan_every == 0 )) && ignored_events=()
+    for p in "$sys_input"/event*; do
+        [ -e "$p" ] || continue
+        e=${p##*/}
+        if [ -n "${ignored_events[$e]:-}" ] && ! [ "$p" -nt "$stamp" ]; then continue; fi
+        register_event "$e"
+    done
+    : >"$stamp"
+}
 
 monitor_udev() {
     local action='' event='' line

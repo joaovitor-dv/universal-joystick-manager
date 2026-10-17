@@ -26,6 +26,13 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### The service no longer burns ~10% of a core while idle
+
+- **What changed:** the periodic scan (every 2 s) skips input nodes it has already found not to be supported controllers. A node is looked at again when it is re-created (newer than the previous scan) and every 30 scans, so a controller is never missed. `read_file` also uses the shell's `read` instead of starting `cat`.
+- **Why:** measured with a transient systemd scope, an idle service with **no controllers connected** used about **11% of one CPU core**, both the installed copy and this repository. Every cycle it re-read all 29 input nodes of the desktop (keyboards, mice, touchpad, lid switch...) and matched each one against the profile table, around 1000 short-lived processes per cycle. On this machine the installed service had used 1 h 47 min of CPU in 18 h.
+- **Evidence:** after the change the same measurement gives **0.4%** (68 ms of CPU in 17 s). Five new unit checks cover it: nodes are not matched again, a controller plugged after other nodes is still found, a node re-created as a controller is found, a node whose name changes in place is found by the periodic rescan, and a cycle over 30 ordinary nodes never reads the profile table. Two of them fail on the old scan.
+- **Open questions:** the cost with controllers connected has not been measured on hardware; `write_state` and the battery loop still start a few processes per connected controller each cycle.
+
 ### The right Joy-Con HOME LED in a combined pair
 
 - **What changed:** when two Joy-Cons are combined by `joycond`, the service now also turns on the HOME LED of the right Joy-Con, as it already did for a Joy-Con R on its own and for the Pro Controller.

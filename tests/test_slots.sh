@@ -347,6 +347,63 @@ t_udev_rule_for_pro_controller() {
     fi
 }
 
+# plug <event> <name> [mac]: creates an input node without registering it (the periodic scan finds it)
+plug() {
+    local ev=$1 name=$2 mac=${3:-} d="$T/dev/plug.$1"
+    [ -z "$mac" ] || d="$T/dev/0005:057E:2009.$mac"
+    mkdir -p "$d" "$sys_input/$ev"
+    printf '%s\n' "$name" >"$d/name"
+    [ -z "$mac" ] || printf '%s\n' "$mac" >"$d/uniq"
+    ln -sfn "$d" "$sys_input/$ev/device"
+}
+
+t_scan_does_not_rematch_nodes_that_are_not_controllers() {
+    plug event9 'AT Translated Set 2 keyboard'; plug event10 'Logitech USB Mouse'
+    scan_existing
+    local calls=0
+    profile_for_event() { calls=$((calls+1)); return 1; }
+    scan_existing; scan_existing
+    check "keyboard and mouse are not matched against the table again" 0 "$calls"
+}
+
+t_scan_registers_a_controller_plugged_after_other_nodes() {
+    plug event9 'AT Translated Set 2 keyboard'
+    scan_existing
+    plug event11 'Pro Controller' $A
+    scan_existing
+    check "a controller appearing after the keyboard was skipped still gets a slot" 1 "$(slot_of $A)"
+}
+
+t_scan_registers_a_recreated_node() {
+    plug event9 'Some Keyboard'
+    scan_existing
+    rm -rf "${sys_input:?}/event9"
+    plug event9 'Pro Controller' $B
+    scan_existing
+    check "event9 re-created as a controller is picked up" 1 "$(slot_of $B)"
+}
+
+t_scan_rechecks_ignored_nodes_every_so_often() {
+    plug event9 'Late Name'
+    scan_existing
+    mv "$T/dev/plug.event9" "$T/dev/0005:057E:2009.$C"; ln -sfn "$T/dev/0005:057E:2009.$C" "$sys_input/event9/device"
+    printf 'Pro Controller\n' >"$T/dev/0005:057E:2009.$C/name"; printf '%s\n' "$C" >"$T/dev/0005:057E:2009.$C/uniq"
+    local i
+    for ((i = 0; i <= rescan_every; i++)); do scan_existing; done
+    check "a node whose name changed in place is found by the periodic full rescan" 1 "$(slot_of $C)"
+}
+
+t_idle_cycle_does_not_spawn_per_node_processes() {
+    local i
+    for i in $(seq 20 49); do plug "event$i" "Device $i"; done
+    scan_existing
+    # a cycle with nothing new must not read the profile table at all
+    local reads=0
+    profiles_path() { reads=$((reads+1)); return 1; }
+    scan_existing
+    check "second scan of 30 non-controller nodes reads no profile table" 0 "$reads"
+}
+
 for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_reconnect_with_stale_row_not_yet_cleaned t_same_controller_still_present_keeps_slot \
          t_pro_controller_over_usb_is_registered t_connectable_is_reasserted \
@@ -359,7 +416,10 @@ for t in t_arrival_order t_freed_slot_goes_to_next_arrival \
          t_idle_worker_disconnects_after_a_full_timeout t_idle_worker_never_disconnects_when_evtest_fails \
          t_idle_workers_only_for_bluetooth t_switchpro_helper_found_next_to_the_install \
          t_state_json_describes_controllers t_state_json_escapes_and_is_only_rewritten_on_change \
-         t_combined_pair_lights_the_right_joycon_home_led t_udev_rule_for_pro_controller; do
+         t_combined_pair_lights_the_right_joycon_home_led \
+         t_scan_does_not_rematch_nodes_that_are_not_controllers t_scan_registers_a_controller_plugged_after_other_nodes \
+         t_scan_registers_a_recreated_node t_scan_rechecks_ignored_nodes_every_so_often \
+         t_idle_cycle_does_not_spawn_per_node_processes t_udev_rule_for_pro_controller; do
     printf '# %s\n' "$t"; run "$t"
 done
 printf '\n%s failure(s)\n' "$fails"
