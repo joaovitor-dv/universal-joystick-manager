@@ -7,6 +7,7 @@
   <style>
     :root { color-scheme: dark; --desktop:#020402; --window:#050805; --panel:#080d09; --panel-2:#0b110c; --line:#294331; --dark:#e3f6e5; --muted:#91a794; --blue:#85d28a; --green:#71f08e; --orange:#edc56b; --accent:#9cff88; }
     * { box-sizing:border-box; }
+    [hidden] { display:none !important; }
     body { margin:0; min-height:100vh; background:var(--desktop); color:#dff5e1; font:13px "Segoe UI",Tahoma,sans-serif; }
     .window { max-width:1440px; min-height:720px; margin:28px auto; background:var(--window); border:1px solid #23422a; box-shadow:2px 3px 9px #000b; }
     header { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; color:#eaffec; background:linear-gradient(#102014,#071009); border-bottom:1px solid #32633a; }
@@ -14,9 +15,12 @@
     .subtitle,.muted { color:var(--muted); } .subtitle { margin-top:2px; color:#b8d6bb; font-size:12px; }
     button { border:1px solid #3b6444; background:linear-gradient(#18271a,#0a120b); color:#e3f6e5; border-radius:2px; padding:5px 12px; cursor:pointer; box-shadow:inset 0 1px #294331; }
     .menubar { padding:5px 10px; border-bottom:1px solid #294331; background:#080d09; color:#c7e2ca; } .menubar span { margin-right:20px; }
-    main { display:grid; grid-template-columns:280px minmax(0,1fr); gap:10px; padding:10px; }
+    main { display:grid; grid-template-columns:minmax(400px,440px) minmax(0,1fr); gap:10px; padding:10px; }
     .panel,.card { background:var(--panel); border:1px solid var(--line); border-radius:2px; box-shadow:inset 1px 1px #142318; }
-    .panel { padding:10px; } .cards { display:grid; gap:4px; }
+    .panel { padding:10px; } .cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; align-items:start; }
+    .cards > [hidden] { display:none !important; }
+    .card { min-height:75px; }
+    .roster-preview { grid-column:1/-1; padding:6px; border:1px solid var(--accent); color:var(--accent); font-size:12px; }
     .card { padding:8px; cursor:pointer; } .card.selected { background:#102117; border-color:#65bd73; } .card-top,.row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .identity { display:flex; align-items:center; gap:8px; } .player { width:26px; height:26px; display:grid; place-items:center; border:1px solid #47704e; background:#101a12; color:#dff5e1; font-weight:700; }
     .status { color:var(--green); font-size:12px; } .transport { color:var(--blue); font-size:12px; } .battery { color:var(--orange); }
@@ -58,6 +62,12 @@
     .keys[data-controller="joyconr"] .key--nintendo-b .key-symbol { background:#edb929; }
     .keys[data-controller="joyconr"] .key--nintendo-x .key-symbol { background:#2879df; }
     .keys[data-controller="joyconr"] .key--nintendo-y .key-symbol { background:#1dae72; }
+    .keys[data-controller="joyconpair"] .key--face { padding:2px; }
+    .keys[data-controller="joyconpair"] .key--face .key-symbol { width:30px; height:30px; border:0; color:#fff; font-size:17px; }
+    .keys[data-controller="joyconpair"] .key--nintendo-a .key-symbol { background:#e23441; }
+    .keys[data-controller="joyconpair"] .key--nintendo-b .key-symbol { background:#edb929; }
+    .keys[data-controller="joyconpair"] .key--nintendo-x .key-symbol { background:#2879df; }
+    .keys[data-controller="joyconpair"] .key--nintendo-y .key-symbol { background:#1dae72; }
     /* The DS4's long labels need more icon area, not a different button frame. */
     .keys[data-controller="ds4"] .key--wide-system img { display:block; width:34px; height:24px; max-width:none; max-height:none; filter:none; }
     .axis { display:grid; grid-template-columns:65px 1fr 42px; gap:7px; align-items:center; color:#bed8c1; font-size:12px; margin:5px 0; } .axisbar { height:8px; border:1px solid #37543c; background:#101911; } .axisbar span { display:block; height:100%; width:65%; background:#65d77d; }
@@ -99,7 +109,8 @@
     .controller.joycon .part-abxy { display:none; } .controller.joycon .part-shoulder { top:20px; } .controller.joycon .part-l { left:43px; }
     .controller.dualshock { border-radius:70px 70px 45px 45px; } .controller.dualshock .part-left-stick { left:115px; top:105px; } .controller.dualshock .part-right-stick { right:115px; top:105px; }
     .footer { border-top:1px solid #294331; padding:6px 10px; color:#91a794; font-size:12px; display:flex; justify-content:space-between; }
-    @media(max-width:850px){ .window{margin:0;min-height:100vh;} main{grid-template-columns:1fr;padding:6px;} }
+    @media(max-width:1050px){ .window{margin:0;min-height:100vh;} main{grid-template-columns:1fr;padding:6px;} }
+    @media(max-width:460px){ .cards { grid-template-columns:1fr; } }
   </style>
   <style id="ujm-extras">
     /* Menus, toolbar, Credits & Info page and dialogs. Colors are variables of the main stylesheet
@@ -164,34 +175,38 @@
   <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg"><defs><filter id="key-solid-silhouette" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="1" result="expanded-shape"/><feComposite in="expanded-shape" in2="SourceAlpha" operator="out" result="solid-outline-mask"/><feFlood flood-color="#ffffff" result="solid-outline-color"/><feComposite in="solid-outline-color" in2="solid-outline-mask" operator="in" result="solid-outline"/><feColorMatrix in="SourceGraphic" result="white-glyphs" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 .9760 3.2840 .3314 0 -.3267"/><feComposite in="white-glyphs" in2="SourceAlpha" operator="in" result="visible-glyphs"/><feComposite in="visible-glyphs" in2="solid-outline" operator="over"/></filter></defs></svg>
   <div class="window">
   <header><div><h1>UJM — Universal Joystick Manager</h1><p class="subtitle">Game controllers</p></div><button id="header-help" type="button">Help</button></header>
-    <nav class="menubar" id="menubar"><span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span><span class="menu" data-menu="view"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">View</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="theme">Theme…</button></div></span><span class="menu" data-menu="controller"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Controller</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="pair">Pair new controller…</button><button type="button" role="menuitem" data-action="connect">Connect selected</button><button type="button" role="menuitem" data-action="disconnect">Disconnect selected</button><hr><button type="button" role="menuitem" data-action="service-toggle" id="menu-service">Stop service</button></div></span><span>Tools</span><span class="menu" data-menu="help"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Help</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="credits">Credits &amp; Info</button><hr><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager#readme" target="_blank" rel="noopener">User manual (README)</a><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager/issues/new/choose" target="_blank" rel="noopener">Report a bug or test a controller</a><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager/blob/main/DEVLOG.md" target="_blank" rel="noopener">Devlog</a></div></span></nav>
+    <nav class="menubar" id="menubar">
+      <span class="menu" data-menu="file"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">File</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="export-controllers">Export controller profiles…</button><button type="button" role="menuitem" data-action="import-controllers">Import controller profiles…</button><hr><button type="button" role="menuitem" data-action="export-settings">Export app settings…</button><button type="button" role="menuitem" data-action="import-settings">Import app settings…</button><hr><button type="button" role="menuitem" data-action="exit">Exit UJM</button></div></span>
+      <span class="menu" data-menu="view"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">View</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="theme">Theme…</button></div></span>
+      <span class="menu" data-menu="controller"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Controller</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="pair">Pair new controller…</button><button type="button" role="menuitem" data-action="connect">Connect known…</button><button type="button" role="menuitem" data-action="disconnect">Disconnect selected</button><hr><button type="button" role="menuitem" data-action="service-toggle" id="menu-service">Stop service</button></div></span>
+      <span class="menu" data-menu="tools"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Tools</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="create-alias">Create controller alias…</button><button type="button" role="menuitem" data-action="diagram-preview">Preview controller diagram…</button><button type="button" role="menuitem" data-action="preview-ten" id="preview-ten-action">Preview 10-player layout</button></div></span>
+      <span class="menu" data-menu="help"><span class="menu-label" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">Help</span><div class="menu-pop" role="menu" hidden><button type="button" role="menuitem" data-action="credits">Credits &amp; Info</button><hr><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager#readme" target="_blank" rel="noopener">User manual (README)</a><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager/issues/new/choose" target="_blank" rel="noopener">Report a bug or test a controller</a><a role="menuitem" href="https://github.com/joaovitor-dv/universal-joystick-manager/blob/main/DEVLOG.md" target="_blank" rel="noopener">Devlog</a></div></span>
+    </nav>
   <div class="toolbar" id="toolbar" role="toolbar" aria-label="Service and Bluetooth shortcuts">
     <span class="pill" id="svc-pill" data-state="running" title="State of the UJM service (simulated in this prototype)"><span class="pill-dot" aria-hidden="true"></span><span id="svc-label">UJM service: running</span></span>
     <button type="button" id="btn-service" data-action="service-toggle">Stop service</button>
     <span class="sep" aria-hidden="true"></span>
     <button type="button" id="btn-pair" data-action="pair" title="Scan, pair, trust and connect a Bluetooth controller">Pair new controller…</button>
-    <button type="button" id="btn-connect" data-action="connect" title="Connect the selected controller over Bluetooth">Connect</button>
+    <button type="button" id="btn-connect" data-action="connect" title="Connect a known Bluetooth controller">Connect known…</button>
     <button type="button" id="btn-disconnect" data-action="disconnect" title="Disconnect the selected controller">Disconnect</button>
     <span class="grow"></span>
     <span class="muted">Prototype: service and Bluetooth are simulated</span>
   </div>
   <div class="banner" id="svc-banner" role="status" hidden>The UJM service is stopped. Player numbering, LEDs and battery indication are not managed; controllers keep working through the kernel drivers. Actions are disabled until you start the service.</div>
   <main>
-    <section class="panel"><div class="row"><h2>Controllers</h2><button>Refresh</button></div><p class="muted" style="margin-bottom:8px">Devices found: 3</p><div class="cards">
-      <article class="card selected" data-controller="pro" data-player="1"><div class="card-top"><div class="identity"><div class="player">1</div><div><h3>Pro Controller — Blue</h3><p class="muted">Nintendo · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led on"></i><i class="led"></i><i class="led"></i><i class="led"></i></div></article>
-      <article class="card" data-controller="pro" data-player="2"><div class="card-top"><div class="identity"><div class="player">2</div><div><h3>Pro Controller — Red</h3><p class="muted">Nintendo · USB</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led on"></i><i class="led"></i><i class="led"></i></div></article>
-      <article class="card" data-controller="dualshock" data-player="3"><div class="card-top"><div class="identity"><div class="player">3</div><div><h3>DualShock 3</h3><p class="muted">Sony · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led"></i><i class="led on"></i><i class="led"></i></div></article>
-      <article class="card" data-controller="dualsense" data-player="4"><div class="card-top"><div class="identity"><div class="player">4</div><div><h3>DualSense</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <article class="card" data-controller="ds4" data-player="5"><div class="card-top"><div class="identity"><div class="player">5</div><div><h3>DualShock 4</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <article class="card" data-controller="xbox360" data-player="6"><div class="card-top"><div class="identity"><div class="player">6</div><div><h3>Xbox 360 Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <article class="card" data-controller="xboxone" data-player="7"><div class="card-top"><div class="identity"><div class="player">7</div><div><h3>Xbox One Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <article class="card" data-controller="xboxseries" data-player="8"><div class="card-top"><div class="identity"><div class="player">8</div><div><h3>Xbox Series X/S</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <article class="card" data-controller="joyconl" data-player="9"><div class="card-top"><div class="identity"><div class="player">9</div><div><h3>Joy-Con L</h3><p class="muted">Nintendo · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <article class="card" data-controller="joyconr" data-player="10"><div class="card-top"><div class="identity"><div class="player">10</div><div><h3>Joy-Con R</h3><p class="muted">Nintendo · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
-      <div class="pair-heading">Combinations — preview, not detected as a device</div>
-      <article class="card" data-controller="joyconpair"><div class="card-top"><div><h3>Combined Joy-Cons (L + R)</h3><p class="muted">Nintendo · combined panel</p></div><div class="status muted">Preview</div></div></article>
-      <button style="margin-top:5px">Properties</button>
-    </div></section>
+    <section class="panel"><div class="row"><h2>Controllers</h2><button type="button" id="refresh-controllers">Refresh</button></div><p class="muted" id="device-count" style="margin-bottom:8px">Connected: 3 / 10</p><p class="roster-preview" id="roster-preview-note" hidden>Layout preview: ten simulated connections, not detected hardware. Use Tools to return to the connected roster.</p><div class="cards" id="controller-cards">
+      <article class="card selected" data-controller="pro" data-player="1"><div class="card-top"><div class="identity"><div class="player">1</div><div><h3>Nintendo Switch Pro Controller</h3><p class="muted">Nintendo · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led on"></i><i class="led"></i><i class="led"></i><i class="led"></i></div></article>
+      <article class="card" data-controller="pro" data-player="2"><div class="card-top"><div class="identity"><div class="player">2</div><div><h3>Nintendo Switch Pro Controller</h3><p class="muted">Nintendo · USB</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led on"></i><i class="led"></i><i class="led"></i></div></article>
+      <article class="card" data-controller="dualshock" data-player="3"><div class="card-top"><div class="identity"><div class="player">3</div><div><h3>DUALSHOCK 3 Wireless Controller</h3><p class="muted">Sony · Bluetooth</p></div></div><div class="status">Connected</div></div><div class="leds"><i class="led"></i><i class="led"></i><i class="led on"></i><i class="led"></i></div></article>
+      <article class="card" data-controller="dualsense" data-player="4" hidden><div class="card-top"><div class="identity"><div class="player">4</div><div><h3>DualSense Wireless Controller</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="ds4" data-player="5" hidden><div class="card-top"><div class="identity"><div class="player">5</div><div><h3>DUALSHOCK 4 Wireless Controller</h3><p class="muted">Sony · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="xbox360" data-player="6" hidden><div class="card-top"><div class="identity"><div class="player">6</div><div><h3>Xbox 360 Wireless Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="xboxone" data-player="7" hidden><div class="card-top"><div class="identity"><div class="player">7</div><div><h3>Xbox One Wireless Controller</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="xboxseries" data-player="8" hidden><div class="card-top"><div class="identity"><div class="player">8</div><div><h3>Xbox Wireless Controller (Series X|S)</h3><p class="muted">Microsoft · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="joyconl" data-player="9" hidden><div class="card-top"><div class="identity"><div class="player">9</div><div><h3>Joy-Con (L)</h3><p class="muted">Nintendo · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="joyconr" data-player="10" hidden><div class="card-top"><div class="identity"><div class="player">10</div><div><h3>Joy-Con (R)</h3><p class="muted">Nintendo · waiting</p></div></div><div class="status muted">Not connected</div></div></article>
+      <article class="card" data-controller="joyconpair" hidden><div class="card-top"><div><h3>Joy-Con (L) + Joy-Con (R)</h3><p class="muted">Nintendo · diagram preview</p></div><div class="status muted">Preview</div></div></article>
+    </div><p class="muted" id="no-controllers" hidden>No controllers connected. Pair a controller or open a diagram preview in Tools.</p></section>
     <aside class="panel diag" id="diagnostic-panel"><div class="row"><h2>Test controller</h2><span class="status">Connected</span></div><div class="section"><div class="section-title"><b id="selected-name">Player 1 — Pro Controller — Blue</b><span class="transport" id="selected-transport">Bluetooth</span></div><div class="controller-view" id="controller-diagram"><svg class="wireframe" viewBox="0 0 620 300" role="img" aria-label="Pro Controller wireframe diagram"><path class="outline" d="M98 63C65 68 34 105 25 174c-7 53 18 83 57 83 35 0 60-20 81-50 12-18 30-27 51-27h192c21 0 39 9 51 27 21 30 46 50 81 50 39 0 64-30 57-83-9-69-40-106-73-111-24-4-44 8-60 31-9 13-18 18-35 18H193c-17 0-26-5-35-18-16-23-36-35-60-31Z"/><path class="detail" d="M119 67c8-22 27-33 52-27l28 8m274 19c-8-22-27-33-52-27l-28 8M214 105h192v48H214z"/><circle class="button" cx="142" cy="157" r="38"/><circle class="button" cx="478" cy="157" r="38"/><path class="detail" d="M142 130v54M115 157h54M478 130v54M451 157h54"/><circle class="button" cx="142" cy="157" r="14"/><circle class="button" cx="478" cy="157" r="14"/><circle class="button" cx="263" cy="200" r="24"/><circle class="button" cx="357" cy="200" r="24"/><circle class="button" cx="310" cy="116" r="12"/><rect class="button" x="287" y="104" width="18" height="8" rx="3"/><rect class="button" x="315" y="104" width="18" height="8" rx="3"/><circle class="button pressed" cx="504" cy="126" r="11"/><circle class="button" cx="478" cy="101" r="11"/><circle class="button" cx="452" cy="126" r="11"/><circle class="button" cx="478" cy="151" r="11"/><text x="504" y="126">A</text><text x="478" y="101">X</text><text x="452" y="126">Y</text><text x="478" y="151">B</text><text x="142" y="157">D-pad</text><text x="310" y="200">HOME</text><text x="310" y="116">+</text><text x="296" y="108">−</text><text x="324" y="108">+</text></svg></div><p class="diagram-caption" id="diagram-caption">Front wireframe · A pressed · sticks at neutral position</p></div><div class="section"><div class="section-title"><b>Stick values</b><span class="muted">X / Y normalized</span></div><div class="stick-grid"><div><p class="muted">Left</p><div class="stick"><span class="dot"></span></div></div><div><p class="muted">Right</p><div class="stick"><span class="dot" style="left:42%;top:57%"></span></div></div></div></div><div class="section"><div class="section-title"><b>Buttons and triggers</b><span class="muted">A pressed</span></div><div class="keys"><span class="key active">A</span><span class="key">B</span><span class="key">X</span><span class="key">Y</span><span class="key">L</span><span class="key">R</span><span class="key">ZL</span><span class="key">ZR</span><span class="key">+</span><span class="key">−</span></div></div><div class="section"><div class="section-title"><b>Additional readings</b><span class="muted">Normalized values</span></div><div class="axis"><span>Accel X</span><div class="axisbar"><span style="width:45%"></span></div><b>0.45</b></div><div class="axis"><span>Accel Y</span><div class="axisbar"><span style="width:61%"></span></div><b>0.61</b></div><div class="axis"><span>Gyro Z</span><div class="axisbar"><span style="width:28%"></span></div><b>0.28</b></div></div></aside>
   </main>
   <div class="footer"><span>Ready</span><span>Inputs: 12 · Refresh: 60 Hz</span></div>
@@ -247,7 +262,7 @@
   <div class="modal" id="pair-modal" hidden>
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pair-title">
       <div class="dialog-head"><h2 id="pair-title">Pair a new controller</h2><button type="button" id="pair-close">Close</button></div>
-      <ol style="margin:6px 0 0;padding-left:20px">
+      <ol id="pair-steps" style="margin:6px 0 0;padding-left:20px">
         <li>Put the controller in pairing mode (Joy-Con and Pro Controller: hold the small sync button until the player LEDs sweep; for other controllers see their manual).</li>
         <li>Press <b>Scan</b> and pick it from the list.</li>
         <li>UJM pairs, trusts and connects it, and it takes the next free player slot.</li>
@@ -265,6 +280,25 @@
       <div class="dialog-actions"><button type="button" id="confirm-cancel">Cancel</button><button type="button" id="confirm-ok">OK</button></div>
     </div>
   </div>
+  <div class="modal" id="alias-modal" hidden>
+    <form class="dialog" id="alias-form" role="dialog" aria-modal="true" aria-labelledby="alias-title">
+      <div class="dialog-head"><h2 id="alias-title">Create controller alias</h2><button type="button" id="alias-close">Close</button></div>
+      <p class="muted" id="alias-device"></p>
+      <label for="alias-input">Alias for this controller</label>
+      <input id="alias-input" type="text" maxlength="40" autocomplete="off" style="display:block;width:100%;margin-top:6px;padding:7px;border:1px solid var(--line);background:var(--panel);color:var(--dark)">
+      <p class="muted" style="margin-top:8px">Prototype only: the alias lasts in this tab; export a controller profile to keep it. The native app will save it by device identity.</p>
+      <div class="dialog-actions"><button type="button" id="alias-reset">Remove alias</button><button type="submit">Save alias</button></div>
+    </form>
+  </div>
+  <div class="modal" id="preview-modal" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div class="dialog-head"><h2 id="preview-title">Controller diagram preview</h2><button type="button" id="preview-close">Close</button></div>
+      <p class="muted">This gallery is for design review. Preview models are not connected controllers.</p>
+      <label for="preview-model">Model</label>
+      <select id="preview-model" style="display:block;width:100%;margin-top:6px;padding:7px;border:1px solid var(--line);background:var(--panel);color:var(--dark)"></select>
+      <div class="dialog-actions"><button type="button" id="preview-show">Show diagram</button></div>
+    </div>
+  </div>
   <div class="modal" id="exit-screen" hidden>
     <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="exit-title">
       <div class="dialog-head"><h2 id="exit-title">UJM has exited</h2></div>
@@ -277,7 +311,7 @@
   <input type="file" id="import-file" accept="application/json,.json" hidden>
   </div>
   <script>
-    const names = { pro: ['Pro Controller', 'Bluetooth'], dualshock: ['DualShock 3', 'Bluetooth + USB charging'], dualsense: ['DualSense', 'Bluetooth / USB'], ds4: ['DualShock 4', 'Bluetooth / USB'], xbox360: ['Xbox 360 Controller', 'USB'], xboxone: ['Xbox One Controller', 'Bluetooth / USB'], xboxseries: ['Xbox Series X/S', 'Bluetooth / USB'], joyconl: ['Joy-Con L', 'Bluetooth'], joyconr: ['Joy-Con R', 'Bluetooth'], joyconpair: ['Combined Joy-Cons', 'Bluetooth · L + R'] };
+    const names = { pro: ['Nintendo Switch Pro Controller', 'Bluetooth / USB'], dualshock: ['DUALSHOCK 3 Wireless Controller', 'Bluetooth / USB charging'], dualsense: ['DualSense Wireless Controller', 'Bluetooth / USB'], ds4: ['DUALSHOCK 4 Wireless Controller', 'Bluetooth / USB'], xbox360: ['Xbox 360 Wireless Controller', 'USB'], xboxone: ['Xbox One Wireless Controller', 'Bluetooth / USB'], xboxseries: ['Xbox Wireless Controller (Series X|S)', 'Bluetooth / USB'], joyconl: ['Joy-Con (L)', 'Bluetooth'], joyconr: ['Joy-Con (R)', 'Bluetooth'], joyconpair: ['Joy-Con (L) + Joy-Con (R)', 'Diagram preview'] };
     const images = {
       pro: 'assets/controller-references/steam/switch-pro.png',
       dualshock: 'assets/controller-references/dualshock-3-transparent-white.png',
@@ -503,29 +537,45 @@
       ).join('');
     }
     function renderController() {
-      const pair = currentMode === 'pair';
+      const pair = currentCard.dataset.controller === 'joyconpair';
+      const preview = currentMode === 'preview' || pair;
       const type = pair ? 'joyconpair' : currentCard.dataset.controller;
       const player = currentCard.dataset.player;
-      const [name,transport] = pair ? ['Combined Joy-Cons','Bluetooth · L + R'] : names[type];
-      selectedName.textContent = pair ? name : `Player ${player} — ${name}${type === 'pro' ? (player === '1' ? ' — Blue' : ' — Red') : ''}`;
-      selectedTransport.textContent = transport;
+      const name = names[type][0];
+      selectedName.textContent = preview ? `${name} — diagram preview` : `Player ${player} — ${currentCard.querySelector('h3').textContent}`;
+      selectedTransport.textContent = preview ? 'Not connected' : currentCard.querySelector('p.muted').textContent.split(' · ').slice(1).join(' · ');
       diagram.innerHTML = pair ? pairedDiagram() : controllerDiagram(type);
       buttonKeys.dataset.controller = type;
       buttonKeys.innerHTML = renderKeySectors(type);
       adaptivePanel.hidden = type !== 'dualsense';
       inputHint.textContent = 'Preview · no live reading';
-      connectionStatus.textContent = pair ? 'Preview' : currentCard.querySelector('.status').textContent;
+      connectionStatus.textContent = preview ? 'Preview only' : currentCard.querySelector('.status').textContent;
       stickGrid.classList.toggle('is-single',type==='joyconl'||type==='joyconr');
       stickGrid.children[0].hidden = type==='joyconr';
       stickGrid.children[1].hidden = type==='joyconl';
-      caption.textContent = pair ? 'Combined Joy-Cons preview · test position' : `${name} diagram · input reading overlaid later`;
-      cards.forEach(item => item.classList.toggle('selected',pair ? item.dataset.controller==='joyconpair' : item===currentCard));
+      caption.textContent = preview ? `${name} diagram preview · no connected device` : `${name} diagram · input reading overlaid later`;
+      cards.forEach(item => item.classList.toggle('selected', !preview && item === currentCard));
     }
     cards.forEach(card => card.addEventListener('click', () => {
       currentCard = card;
-      currentMode = card.dataset.controller === 'joyconpair' ? 'pair' : 'single';
+      currentMode = card.dataset.controller === 'joyconpair' || card.hidden ? 'preview' : 'single';
+      document.getElementById('diagnostic-panel').hidden = false;
       renderController();
     }));
+    window.UJMPreview = {
+      show: function (type) {
+        const card = Array.from(cards).find(item => item.dataset.controller === type);
+        if (!card) return false;
+        currentCard = card; currentMode = 'preview'; document.getElementById('diagnostic-panel').hidden = false; renderController(); return true;
+      },
+      selected: function () { return currentCard; },
+      refresh: renderController,
+      returnToConnected: function () {
+        const card = Array.from(cards).find(item => item.dataset.player && !item.hidden);
+        if (card) { currentCard = card; currentMode = 'single'; document.getElementById('diagnostic-panel').hidden = false; renderController(); }
+        else { currentMode = 'empty'; document.getElementById('diagnostic-panel').hidden = true; }
+      }
+    };
     renderController();
   </script>
   <script id="ujm-extras-js">
@@ -761,11 +811,84 @@
       function nameEl(c) { var h = $('h3', c); if (!h.hasAttribute('data-orig')) h.setAttribute('data-orig', h.textContent); return h; }
       function cardName(c) { return nameEl(c).getAttribute('data-orig'); }
       function cardShownName(c) { return nameEl(c).textContent; }
-      function setAlias(c, alias) { nameEl(c).textContent = alias || cardName(c); }
+      function setAlias(c, alias) { nameEl(c).textContent = alias || cardName(c); if (c.classList.contains('selected')) window.UJMPreview.refresh(); }
       function cardDetail(c) { return $('.muted', c).textContent.trim(); }
       function setDetail(c, transport) { var p = $('.muted', c); p.textContent = p.textContent.split(' · ')[0] + ' · ' + transport; }
       function isConnected(c) { return $('.status', c).textContent.trim() === 'Connected'; }
-      function setConnected(c, on) { var st = $('.status', c); st.textContent = on ? 'Connected' : 'Not connected'; st.classList.toggle('muted', !on); }
+      var SLOT_LED_MASKS = [0,1,2,4,8,9,10,12,13,14,15];
+      function renderConnectedCards() {
+        var connected = cards().filter(isConnected);
+        cards().forEach(function (c) {
+          c.hidden = !isConnected(c);
+          var type = c.getAttribute('data-controller');
+          var supportsNumberLeds = ['pro','dualshock','joyconl','joyconr'].includes(type);
+          var leds = $('.leds', c);
+          if (supportsNumberLeds && !leds) {
+            leds = document.createElement('div'); leds.className = 'leds';
+            for (var i = 0; i < 4; i++) { var led = document.createElement('i'); led.className = 'led'; leds.appendChild(led); }
+            c.appendChild(leds);
+          }
+          if (leds) {
+            leds.hidden = !supportsNumberLeds || c.hidden;
+            var mask = SLOT_LED_MASKS[Number(c.getAttribute('data-player'))] || 0;
+            $$('.led', leds).forEach(function (led, i) { led.classList.toggle('on', !!(mask & (1 << i))); });
+          }
+        });
+        $('#device-count').textContent = 'Connected: ' + connected.length + ' / 10';
+        $('#no-controllers').hidden = connected.length !== 0;
+        if ($('.card.selected') && $('.card.selected').hidden) window.UJMPreview.returnToConnected();
+      }
+      function setConnected(c, on) { var st = $('.status', c); st.textContent = on ? 'Connected' : 'Not connected'; st.classList.toggle('muted', !on); renderConnectedCards(); }
+      var fullRosterSnapshot = null;
+      function toggleTenPlayerPreview() {
+        if (!fullRosterSnapshot) {
+          fullRosterSnapshot = cards().map(function (c) { return { card:c, connected:isConnected(c), detail:$('.muted', c).textContent }; });
+          cards().forEach(function (c) {
+            var st = $('.status', c); st.textContent = 'Connected'; st.classList.remove('muted'); setDetail(c, 'layout preview');
+          });
+          $('#preview-ten-action').textContent = 'Return to connected roster';
+          $('#roster-preview-note').hidden = false;
+        } else {
+          fullRosterSnapshot.forEach(function (entry) {
+            var st = $('.status', entry.card); st.textContent = entry.connected ? 'Connected' : 'Not connected';
+            st.classList.toggle('muted', !entry.connected);
+            $('.muted', entry.card).textContent = entry.detail;
+          });
+          fullRosterSnapshot = null;
+          $('#preview-ten-action').textContent = 'Preview 10-player layout';
+          $('#roster-preview-note').hidden = true;
+        }
+        renderConnectedCards(); window.UJMPreview.returnToConnected(); updateActions();
+      }
+
+      /* ---------------- controller alias and diagram gallery (simulated) ---------------- */
+      var aliasModal = $('#alias-modal'), aliasInput = $('#alias-input');
+      function closeAlias() { aliasModal.hidden = true; }
+      function openAlias() {
+        var c = $('.card.selected'); if (!c || !isConnected(c)) return;
+        $('#alias-device').textContent = cardName(c) + ' · Player ' + c.getAttribute('data-player');
+        aliasInput.value = cardShownName(c) === cardName(c) ? '' : cardShownName(c);
+        aliasModal.hidden = false; aliasInput.focus();
+      }
+      $('#alias-form').addEventListener('submit', function (e) {
+        e.preventDefault(); var c = $('.card.selected'); if (!c || !isConnected(c)) return;
+        var alias = aliasInput.value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 40);
+        if (!alias) { aliasInput.focus(); return; }
+        setAlias(c, alias); closeAlias(); toast('Alias saved in this prototype tab.');
+      });
+      $('#alias-reset').addEventListener('click', function () { var c = $('.card.selected'); if (c) setAlias(c, null); closeAlias(); });
+      $('#alias-close').addEventListener('click', closeAlias);
+      aliasModal.addEventListener('click', function (e) { if (e.target === aliasModal) closeAlias(); });
+      var previewModal = $('#preview-modal'), previewSelect = $('#preview-model');
+      previewSelect.innerHTML = $$('.card[data-controller]').map(function (c) {
+        return '<option value="' + c.dataset.controller + '">' + esc(cardName(c)) + '</option>';
+      }).filter(function (value, index, all) { return all.indexOf(value) === index; }).join('');
+      function closePreview() { previewModal.hidden = true; }
+      function openPreview() { previewModal.hidden = false; previewSelect.focus(); }
+      $('#preview-show').addEventListener('click', function () { window.UJMPreview.show(previewSelect.value); closePreview(); updateActions(); });
+      $('#preview-close').addEventListener('click', closePreview);
+      previewModal.addEventListener('click', function (e) { if (e.target === previewModal) closePreview(); });
+      $('#refresh-controllers').addEventListener('click', function () { renderConnectedCards(); toast('Controller list refreshed (simulated).'); });
 
       /* ---------------- export / import ---------------- */
       function stamp() { return new Date().toISOString().slice(0, 10).replace(/-/g, ''); }
@@ -883,11 +1006,13 @@
         var running = svcState === 'running';
         var sel = $('.card.selected'), real = !!sel && sel.getAttribute('data-controller') !== 'joyconpair';
         var usb = real && /USB/.test(cardDetail(sel)), conn = real && isConnected(sel);
-        var rules = { pair: running, connect: running && real && !usb && !conn, disconnect: running && real && !usb && conn };
+        var hasKnown = cards().some(function (c) { return !isConnected(c) && !/USB/.test(cardDetail(c)); });
+        var rules = { pair: running && !fullRosterSnapshot, connect: running && hasKnown && !fullRosterSnapshot, disconnect: running && real && !usb && conn && !fullRosterSnapshot, 'create-alias': real && conn && !fullRosterSnapshot };
         var why = {
-          pair: 'Start the service first',
-          connect: !running ? 'Start the service first' : !real ? 'Select a controller first' : usb ? 'USB controllers connect by cable' : 'Already connected',
-          disconnect: !running ? 'Start the service first' : !real ? 'Select a controller first' : usb ? 'USB controllers disconnect by unplugging' : 'Not connected'
+          pair: fullRosterSnapshot ? 'Return to the connected roster first' : 'Start the service first',
+          connect: fullRosterSnapshot ? 'Return to the connected roster first' : !running ? 'Start the service first' : 'No known disconnected Bluetooth controllers',
+          disconnect: fullRosterSnapshot ? 'Return to the connected roster first' : !running ? 'Start the service first' : !real ? 'Select a controller first' : usb ? 'USB controllers disconnect by unplugging' : 'Not connected',
+          'create-alias': fullRosterSnapshot ? 'Return to the connected roster first' : 'Select a connected controller first'
         };
         $$('[data-action]').forEach(function (el) {
           var a = el.getAttribute('data-action'); if (!(a in rules)) return;
@@ -899,12 +1024,12 @@
         var c = $('.card.selected'); if (!c || c.getAttribute('data-controller') === 'joyconpair') return;
         toast((on ? 'Connecting ' : 'Disconnecting ') + cardName(c) + '…');
         setTimeout(function () {
-          setConnected(c, on); setDetail(c, on ? 'Bluetooth' : 'waiting'); c.click(); updateActions();
+          setConnected(c, on); setDetail(c, on ? 'Bluetooth' : 'waiting'); if (on) c.click(); updateActions();
           toast(cardName(c) + (on ? ' connected (simulated).' : ' disconnected (simulated).'));
         }, 600);
       }
       var pairModal = $('#pair-modal'), pairList = $('#pair-list'), pairLog = $('#pair-log'), pairGo = $('#pair-go'), pairScan = $('#pair-scan');
-      var pairBusy = false, found = [];
+      var pairBusy = false, pairMode = 'pair', found = [];
       var PAIR_IDLE = 'Nothing yet. This is a simulation: the prototype does not talk to BlueZ.';
       function fakeAddr(i) { return ['E4:17:D8', '98:B6:E9', '50:23:6D', '20:1C:3A'][i % 4] + ':XX:XX:XX'; }
       function renderFound() {
@@ -913,24 +1038,35 @@
         }).join('');
         pairGo.disabled = true;
       }
-      function openPair() { found = []; pairList.innerHTML = ''; pairLog.textContent = PAIR_IDLE; pairGo.disabled = true; pairScan.disabled = false; pairModal.hidden = false; pairScan.focus(); }
+      function openPair(mode) {
+        pairMode = mode === 'connect' ? 'connect' : 'pair';
+        $('#pair-title').textContent = pairMode === 'connect' ? 'Connect a known controller' : 'Pair a new controller';
+        $('#pair-steps').innerHTML = pairMode === 'connect'
+          ? '<li>Choose a previously known Bluetooth controller.</li><li>UJM reconnects it and shows it in the player roster.</li>'
+          : '<li>Put the controller in pairing mode (Joy-Con and Pro Controller: hold the small sync button until the player LEDs sweep; for other controllers see their manual).</li><li>Press <b>Scan</b> and pick it from the list.</li><li>UJM pairs, trusts and connects it, and it takes the next free player slot.</li>';
+        pairGo.textContent = pairMode === 'connect' ? 'Connect' : 'Pair and connect';
+        pairScan.textContent = pairMode === 'connect' ? 'Find known controllers' : 'Scan for controllers';
+        found = []; pairList.innerHTML = ''; pairLog.textContent = PAIR_IDLE; pairGo.disabled = true; pairScan.disabled = false; pairModal.hidden = false; pairScan.focus();
+      }
       function closePair() { if (!pairBusy) pairModal.hidden = true; }
       pairList.addEventListener('change', function () { pairGo.disabled = !$('input[name="pair-dev"]:checked', pairList); });
       pairScan.addEventListener('click', function () {
         if (pairBusy) return; pairBusy = true; pairScan.disabled = true; pairGo.disabled = true;
-        pairLog.textContent = '$ bluetoothctl --timeout 10 scan on\nScanning…';
+        pairLog.textContent = pairMode === 'connect' ? 'Looking for known controllers…' : '$ bluetoothctl --timeout 10 scan on\nScanning…';
         setTimeout(function () {
           var waiting = cards().filter(function (c) { return !isConnected(c) && !/USB/.test(cardDetail(c)); }).slice(0, 4);
           found = waiting.map(function (c, i) { return { card: c, addr: fakeAddr(i) }; });
           renderFound();
-          pairLog.textContent += found.length ? '\nFound ' + found.length + ' controller(s). Pick one and press "Pair and connect".' : '\nNo new controllers found: every known controller is already connected.';
+          pairLog.textContent += found.length ? '\nFound ' + found.length + ' controller(s). Pick one and press "' + pairGo.textContent + '".' : '\nNo available controllers found.';
           pairBusy = false; pairScan.disabled = false;
         }, 1100);
       });
       pairGo.addEventListener('click', function () {
         var r = $('input[name="pair-dev"]:checked', pairList); if (!r || pairBusy) return;
         var d = found[Number(r.value)]; pairBusy = true; pairGo.disabled = true; pairScan.disabled = true;
-        var lines = ['$ bluetoothctl pair ' + d.addr, 'Pairing successful', '$ bluetoothctl trust ' + d.addr, 'Changing ' + d.addr + ' trust succeeded', '$ bluetoothctl connect ' + d.addr, 'Connection successful'];
+        var lines = pairMode === 'connect'
+          ? ['$ bluetoothctl connect ' + d.addr, 'Connection successful']
+          : ['$ bluetoothctl pair ' + d.addr, 'Pairing successful', '$ bluetoothctl trust ' + d.addr, 'Changing ' + d.addr + ' trust succeeded', '$ bluetoothctl connect ' + d.addr, 'Connection successful'];
         pairLog.textContent = '';
         (function step(i) {
           if (i < lines.length) { pairLog.textContent += (i ? '\n' : '') + lines[i]; setTimeout(function () { step(i + 1); }, 380); return; }
@@ -956,13 +1092,13 @@
 
       /* ---------------- actions and keyboard ---------------- */
       var ACTIONS = {
-        theme: openTheme, credits: openCredits,
+        theme: openTheme, credits: openCredits, 'create-alias': openAlias, 'diagram-preview': openPreview, 'preview-ten': toggleTenPlayerPreview,
         'export-controllers': function () { download('ujm-controller-profiles-' + stamp() + '.json', buildControllerProfiles()); toast('Controller profiles exported.'); },
         'import-controllers': function () { pickFile('controllers'); },
         'export-settings': function () { download('ujm-app-settings-' + stamp() + '.json', buildAppSettings()); toast('App settings exported.'); },
         'import-settings': function () { pickFile('settings'); },
-        exit: doExit, pair: openPair,
-        connect: function () { doConnect(true); }, disconnect: function () { doConnect(false); },
+        exit: doExit, pair: function () { openPair('pair'); },
+        connect: function () { openPair('connect'); }, disconnect: function () { doConnect(false); },
         'service-toggle': toggleService
       };
       function runAction(name) { var f = ACTIONS[name]; if (f) f(); }
@@ -971,16 +1107,18 @@
         closeMenus();
         if (!confirmModal.hidden) closeConfirm(false);
         else if (!pairModal.hidden) closePair();
+        else if (!aliasModal.hidden) closeAlias();
+        else if (!previewModal.hidden) closePreview();
         else if (!modal.hidden) closeTheme();
         else if (!credits.hidden) closeCredits();
       });
       $$('.card').forEach(function (c) { c.addEventListener('click', updateActions); });
 
       var saved = load(); if (saved) applyTheme(saved);
-      syncInputs(); renderService();
+      syncInputs(); renderConnectedCards(); renderService();
       // handy in the console and for the automated test
       window.UJMTheme = { current: function () { return current; }, apply: applyTheme, check: check };
-      window.UJMTools = { buildControllerProfiles: buildControllerProfiles, buildAppSettings: buildAppSettings, importControllers: importControllers, importSettings: importSettings, handleImport: handleImport, serviceState: function () { return svcState; } };
+      window.UJMTools = { buildControllerProfiles: buildControllerProfiles, buildAppSettings: buildAppSettings, importControllers: importControllers, importSettings: importSettings, handleImport: handleImport, serviceState: function () { return svcState; }, simulateConnection: function (player, on) { var c = cards().find(function (card) { return Number(card.dataset.player) === player; }); if (!c) return false; setConnected(c, !!on); updateActions(); return true; } };
     })();
   </script>
 </body>

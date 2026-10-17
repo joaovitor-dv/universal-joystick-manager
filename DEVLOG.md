@@ -26,6 +26,14 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### Ten-slot controller roster and model-name preview (stage 6, awaiting visual review)
+
+- **What changed:** the HTML prototype now shows only connected controllers in a two-column roster with capacity for ten slots. It uses manufacturers' model names, adds Tools actions for a selected controller's temporary alias, a separate diagram gallery and an explicitly marked ten-player layout preview, and provides a Connect known picker since disconnected controllers no longer appear in the roster. The layout preview shows player LED masks 14 (LEDs 2–4) and 15 (LEDs 1–4) for slots 9 and 10. The combined Joy-Con face-button strip uses legible four-color disks.
+- **Why:** disconnected examples should not masquerade as active hardware, while every diagram must remain available for design review. Aliases must be distinct from the official model name.
+- **Evidence:** inline scripts and panel-test source parse, and the local pre-push checks passed without the browser suite. The change awaits João's interactive visual review and CI. The HTML data, connection changes and aliases are simulated; no physical controller was tested.
+- **Open questions:** the real service is currently limited to eight slots and has no automatic masks for 9/10. The native QML roster and persistent alias action require backend coordination. The right Joy-Con mirrors LED numbering in the service, so its physical mask for player 9 needs an explicit test.
+- **Naming references:** [Nintendo Pro Controller](https://en-americas-support.nintendo.com/app/answers/detail/a_id/27538/p/989/c/286) and [Joy-Con (L/R)](https://www.nintendo.com/ph/support/switch/controller/nintendoswitchpro.html); [PlayStation accessories](https://www.playstation.com/en-us/accessories/) and [DUALSHOCK 3](https://www.sony.com/en/SonyInfo/design/gallery/CECH-ZC2/); [Xbox 360](https://download.microsoft.com/download/2/8/c/28cdbb94-1c41-4131-8e03-1b91765d382e/emeacontrollerwirelessenfres.pdf), [Xbox One](https://www.microsoft.com/en-ca/p/xbox-wireless-controller/8vcw8gln9vrf/) and [Xbox Wireless Controller](https://www.xbox.com/en-US/accessories/controllers/xbox-wireless-controller). “Series X|S” in parentheses is a UI disambiguator, not part of Microsoft's product name.
+
 ### Joy-Con rail and shoulder controls in the prototype
 
 - **What changed:** the individual Joy-Con L and R diagrams now show four separate L/SL/SR/ZL or R/SL/SR/ZR miniatures. Their SL/SR icons are oriented for the horizontal controller view; Joy-Con R face-button tiles use the same readable four-color disks as the Pro Controller. The combined Joy-Con panel is unchanged in this commit.

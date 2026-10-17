@@ -32,7 +32,7 @@ t.ok('import cuts long aliases to 40 characters', (await cardTitle('.card[data-c
 t.ok('the summary counts applied, unknown and invalid entries', /3 applied.*1 unknown.*1 invalid/.test(await toast()), await toast());
 t.ok('a long alias without spaces does not overflow the list', (await ev(`[...document.querySelectorAll('main > section.panel .card')].filter(c => c.scrollWidth > c.clientWidth + 1).length`)) === 0);
 await importJson('controllers', JSON.stringify({ format: 'ujm-controller-profiles', version: 1, controllers: [{ id: 'pro-1', alias: null }, { id: 'pro-2', alias: null }, { id: 'xbox360-6', alias: null }] }));
-t.ok('alias null restores the original name', (await cardTitle('.card[data-controller=pro][data-player="1"]')) === 'Pro Controller — Blue');
+t.ok('alias null restores the official model name', (await cardTitle('.card[data-controller=pro][data-player="1"]')) === 'Nintendo Switch Pro Controller');
 await importJson('controllers', 'not json at all');
 t.ok('invalid JSON is reported', (await toast()).includes('not valid JSON'), await toast());
 await importJson('controllers', JSON.stringify({ format: 'something-else', version: 1 }));
@@ -61,14 +61,18 @@ t.ok('Pair, Connect and Disconnect are disabled and say why', await ev(`['pair',
 await menu('controller', 'service-toggle'); await sleep(1300);
 t.ok('the Controller menu starts it again', (await ev(`window.UJMTools.serviceState()`)) === 'running' && (await hidden('#svc-banner')));
 
-// --- connect / disconnect
-await click('.card[data-controller=xbox360]');
-await click('#btn-connect'); await sleep(1000);
-t.ok('Connect marks the selected controller Connected over Bluetooth', (await text('.card[data-controller=xbox360] .status')) === 'Connected' && (await text('.card[data-controller=xbox360] .muted')) === 'Microsoft · Bluetooth');
+// --- connect / disconnect: disconnected devices are absent from the roster, but reachable in Connect known.
+await click('#btn-connect');
+t.ok('Connect known opens a separate chooser', !(await hidden('#pair-modal')) && (await text('#pair-title')) === 'Connect a known controller');
+await click('#pair-scan'); await sleep(1600);
+await click('#pair-list input[value="2"]');
+await click('#pair-go'); await sleep(1300);
+t.ok('Connect known adds the chosen controller to the roster', (await text('.card[data-controller=xbox360] .status')) === 'Connected' && !(await hidden('.card[data-controller=xbox360]')) && (await text('.card[data-controller=xbox360] .muted')) === 'Microsoft · Bluetooth');
+await click('#pair-close');
 await click('#btn-disconnect'); await sleep(1000);
-t.ok('Disconnect marks it Not connected', (await text('.card[data-controller=xbox360] .status')) === 'Not connected');
+t.ok('Disconnect removes it from the visible roster', (await text('.card[data-controller=xbox360] .status')) === 'Not connected' && (await hidden('.card[data-controller=xbox360]')));
 await click('.card[data-controller=pro][data-player="2"]');
-t.ok('a USB controller has no Bluetooth actions', await ev(`document.querySelector('#btn-connect').disabled && document.querySelector('#btn-disconnect').disabled`));
+t.ok('a USB controller cannot be disconnected over Bluetooth; Connect known stays available', await ev(`!document.querySelector('#btn-connect').disabled && document.querySelector('#btn-disconnect').disabled`));
 
 // --- pairing
 await click('#btn-pair');

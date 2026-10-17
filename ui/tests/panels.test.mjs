@@ -7,7 +7,22 @@ const t = reporter('panels');
 const { ev, click } = page;
 
 const cards = await ev(`[...document.querySelectorAll('.card[data-controller]')].map(c => [c.dataset.controller, c.dataset.player || ''])`);
-t.ok('the list has 11 controller panels (10 controllers and the combined Joy-Cons)', cards.length === 11, String(cards.length));
+t.ok('the prototype retains 10 slots and a separate Joy-Con pair diagram for review', cards.length === 11, String(cards.length));
+const initialRoster = await ev(`(() => ({
+  connected:[...document.querySelectorAll('.card[data-player]')].filter(c => !c.hidden).map(c => c.dataset.player),
+  disconnectedVisible:[...document.querySelectorAll('.card[data-player]')].filter(c => c.querySelector('.status').textContent === 'Not connected' && !c.hidden).length,
+  pairHidden:document.querySelector('.card[data-controller="joyconpair"]').hidden,
+  columns:getComputedStyle(document.querySelector('.cards')).gridTemplateColumns.split(' ').length,
+  count:document.querySelector('#device-count').textContent
+}))()`);
+t.ok('only connected controllers appear in the two-column roster',
+  JSON.stringify(initialRoster.connected) === JSON.stringify(['1','2','3']) && initialRoster.disconnectedVisible === 0 &&
+  initialRoster.pairHidden && initialRoster.columns === 2 && initialRoster.count === 'Connected: 3 / 10', JSON.stringify(initialRoster));
+const officialNames = await ev(`[...document.querySelectorAll('.card[data-player] h3')].map(el => el.textContent)`);
+t.ok('cards use model names rather than color nicknames or series-as-product names',
+  officialNames[0] === 'Nintendo Switch Pro Controller' && officialNames[2] === 'DUALSHOCK 3 Wireless Controller' &&
+  officialNames[7] === 'Xbox Wireless Controller (Series X|S)' && officialNames[8] === 'Joy-Con (L)' && officialNames[9] === 'Joy-Con (R)',
+  JSON.stringify(officialNames));
 for (const [ctrl, player] of cards) {
   const sel = player ? `.card[data-controller="${ctrl}"][data-player="${player}"]` : `.card[data-controller="${ctrl}"]`;
   const before = page.errors.length;
@@ -98,6 +113,24 @@ t.ok('Joy-Con R face buttons use visible SNES-color disks like the Pro Controlle
   joyconR.faces.length === 4 && joyconR.faces.every(face => face.width === 30 && face.color === 'rgb(255, 255, 255)' && face.background !== 'rgba(0, 0, 0, 0)'),
   JSON.stringify(joyconR.faces));
 
+await click('.card[data-controller="joyconpair"]'); await sleep(500);
+const joyconPairFaces = await ev(`(() => ['A','B','X','Y'].map(label => {
+  const key = document.querySelector('.keys[data-controller="joyconpair"] .key--nintendo-' + label.toLowerCase());
+  const symbol = key?.querySelector('.key-symbol');
+  const frame = key?.getBoundingClientRect(), face = symbol?.getBoundingClientRect();
+  const style = symbol && getComputedStyle(symbol);
+  return {label, width:face?.width, height:face?.height, color:style?.color, background:style?.backgroundColor,
+    topGap:frame && face ? face.top-frame.top : null, bottomGap:frame && face ? frame.bottom-face.bottom : null,
+    leftGap:frame && face ? face.left-frame.left : null, rightGap:frame && face ? frame.right-face.right : null};
+}))()`);
+const joyconPairColors = {A:'rgb(226, 52, 65)', B:'rgb(237, 185, 41)', X:'rgb(40, 121, 223)', Y:'rgb(29, 174, 114)'};
+t.ok('Combined Joy-Cons A/B/X/Y use centered, readable SNES-color disks',
+  joyconPairFaces.length === 4 && joyconPairFaces.every(face =>
+    face.width === 30 && face.height === 30 && face.color === 'rgb(255, 255, 255)' &&
+    face.background === joyconPairColors[face.label] &&
+    Math.abs(face.topGap-face.bottomGap) <= 0.5 && Math.abs(face.leftGap-face.rightGap) <= 0.5),
+  JSON.stringify(joyconPairFaces));
+
 // Perspective diagrams must expose four distinct, separated shoulder/trigger shapes,
 // and the filtered source linework must be mapped to a visible cool-white rather than shell black.
 const shoulders = {
@@ -143,6 +176,34 @@ const ds4System = await ev(`(() => ['SHARE', 'OPTIONS'].map(label => {
     loaded:!!img?.complete && img.naturalWidth > 0 };
 }))()`);
 t.ok('DualShock 4 Share/Options use legible icons centered in standard 42×38 frames', ds4System.every(s => s.loaded && s.frameWidth === 42 && s.frameHeight === 38 && s.iconWidth === 34 && s.iconHeight === 24 && Math.abs(s.topGap-s.bottomGap) <= 0.5), JSON.stringify(ds4System));
+
+await click('.card[data-controller="pro"][data-player="1"]');
+await page.menu('tools', 'create-alias');
+const aliasOpen = await ev(`!document.querySelector('#alias-modal').hidden && document.querySelector('#alias-device').textContent.includes('Nintendo Switch Pro Controller')`);
+await ev(`document.querySelector('#alias-input').value = 'Living room controller'; document.querySelector('#alias-form').requestSubmit()`);
+const aliasResult = await ev(`({name:document.querySelector('.card[data-player="1"] h3').textContent, selected:document.querySelector('#selected-name').textContent, exported:window.UJMTools.buildControllerProfiles().controllers[0].alias})`);
+t.ok('Tools creates an alias for the selected connected controller without changing its official model',
+  aliasOpen && aliasResult.name === 'Living room controller' && aliasResult.selected.includes('Living room controller') && aliasResult.exported === 'Living room controller', JSON.stringify(aliasResult));
+await page.menu('tools', 'diagram-preview');
+const previewOptions = await ev(`({open:!document.querySelector('#preview-modal').hidden, models:[...document.querySelector('#preview-model').options].map(o=>o.value)})`);
+await ev(`document.querySelector('#preview-model').value = 'joyconpair'`);
+await click('#preview-show');
+const previewResult = await ev(`({selected:document.querySelector('#selected-name').textContent, active:document.querySelectorAll('.card.selected').length, status:document.querySelector('#diagnostic-panel > .row .status').textContent})`);
+t.ok('Tools diagram gallery keeps disconnected models out of the live roster', previewOptions.open && previewOptions.models.includes('joyconpair') && previewResult.selected.includes('diagram preview') && previewResult.active === 0 && previewResult.status === 'Preview only', JSON.stringify({previewOptions,previewResult}));
+await page.menu('tools', 'preview-ten');
+const highSlots = await ev(`(() => [9,10].map(player => { const c=document.querySelector('.card[data-player="'+player+'"]'); return {player,visible:!c.hidden,mask:[...c.querySelectorAll('.led')].map(l=>l.classList.contains('on'))}; }))()`);
+t.ok('ten-player preview shows the four-LED patterns 2+3+4 and 1+2+3+4',
+  highSlots[0].visible && highSlots[1].visible &&
+  JSON.stringify(highSlots[0].mask) === JSON.stringify([false,true,true,true]) &&
+  JSON.stringify(highSlots[1].mask) === JSON.stringify([true,true,true,true]), JSON.stringify(highSlots));
+const tenGrid = await ev(`({count:document.querySelector('#device-count').textContent, rows:getComputedStyle(document.querySelector('.cards')).gridTemplateRows.split(' ').length, preview:!document.querySelector('#roster-preview-note').hidden})`);
+t.ok('the explicit layout preview uses two columns and five rows for ten simulated controllers', tenGrid.count === 'Connected: 10 / 10' && tenGrid.rows === 5 && tenGrid.preview, JSON.stringify(tenGrid));
+await page.menu('tools', 'preview-ten');
+const restored = await ev(`({count:document.querySelector('#device-count').textContent, hidden:document.querySelector('.card[data-player="9"]').hidden, preview:document.querySelector('#roster-preview-note').hidden})`);
+t.ok('leaving the layout preview restores the original connected roster', restored.count === 'Connected: 3 / 10' && restored.hidden && restored.preview, JSON.stringify(restored));
+await ev(`window.UJMTools.simulateConnection(1,false)`);
+const disconnected = await ev(`({hidden:document.querySelector('.card[data-player="1"]').hidden, count:document.querySelector('#device-count').textContent, alias:document.querySelector('.card[data-player="1"] h3').textContent})`);
+t.ok('disconnecting removes a card from the roster without losing its alias', disconnected.hidden && disconnected.count === 'Connected: 2 / 10' && disconnected.alias === 'Living room controller', JSON.stringify(disconnected));
 
 const assetFailures = page.failed.filter(f => !/favicon\.ico/.test(f));
 t.ok('no asset request failed', assetFailures.length === 0, assetFailures.join(' | '));
