@@ -24,7 +24,7 @@ UJM is **pre-release software** (version 0.x). It was developed and tested on Ar
 | **Player numbering** | Controllers get player 1-8 **by connection order**, not by MAC address. A controller that reconnects takes the lowest free slot; one that switches from Bluetooth to USB keeps its slot. |
 | **Player LEDs** | The player number is shown on the controller's LEDs. Players 5-8 use combinations of the four LEDs. |
 | **Battery indication** | Where the driver exposes a battery, the player LED stays steady when the level is normal, blinks while charging, and pulses at low (25% or less) and critical (10% or less) levels. |
-| **Idle power-off (Bluetooth)** | A Bluetooth controller with no input for 30 minutes (configurable) is disconnected to save its battery. |
+| **Idle power-off (Bluetooth)** | A Bluetooth controller with no input for 5 minutes (configurable) is disconnected to save its battery. |
 | **`joycond` integration (optional)** | With the optional [`joycond`](https://github.com/DanielOgorchock/joycond), two Joy-Cons combined into one virtual device take one slot and keep their LEDs in sync. `joycond` also manages **Pro Controllers**: while it runs, each one waits for a logical pairing (blinking player LEDs) until you press L + R on it. |
 | **Pro Controller on USB** | A Pro Controller plugged in by cable is recognized and numbered like any other. |
 | **Reliable reconnection** | UJM keeps the Bluetooth adapter *connectable* (it needs `btmgmt`, from `bluez-utils` on Arch), so pressing HOME on a Pro Controller reconnects it. |
@@ -159,7 +159,7 @@ then `sudo systemctl restart joystickmanager`.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `JOYMANAGER_IDLE_TIMEOUT` | `1800` | Seconds of inactivity before a Bluetooth controller is disconnected. The default is deliberately long during the testing phase. |
+| `JOYMANAGER_IDLE_TIMEOUT` | `300` | Seconds of inactivity before a Bluetooth controller is disconnected; `0` turns it off. It was 1800 during the testing phase, until the numbering, Joy-Con and battery tests passed. |
 | `JOYMANAGER_LED_REFRESH` | `10` | Seconds between LED re-applications. `off` applies the LEDs once per connected controller and never again (experimental: under test on hardware, see the devlog). `0` re-applies on every 2 s cycle (the old behavior). Any other value falls back to `10`. Real changes, such as starting to charge, are always written at once. |
 | `JOYMANAGER_EXPERIMENTAL` | `0` | `1` enables `experimental` and `planned` controller profiles. |
 | `JOYMANAGER_PROFILES` | auto | Path to a custom profile table. If the file is missing, the service uses its built-in list of validated controllers. |

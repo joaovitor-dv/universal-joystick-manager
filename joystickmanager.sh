@@ -14,9 +14,9 @@ led_refresh=${JOYMANAGER_LED_REFRESH:-10}
 case "$led_refresh" in off) ;; ''|*[!0-9]*) led_refresh=10;; esac
 slots_file="$runtime_dir/slots.tsv"
 max_players=8
-idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-1800}
+idle_timeout=${JOYMANAGER_IDLE_TIMEOUT:-300}
 # 0 turns the idle power-off off; anything else must be a whole number of seconds.
-case "$idle_timeout" in ''|*[!0-9]*) idle_timeout=1800;; esac
+case "$idle_timeout" in ''|*[!0-9]*) idle_timeout=300;; esac
 # Settings changed at run time (command channel, docs/command-channel.md) are kept in a small file and
 # win over the unit's Environment= after a restart.
 state_dir=${JOYMANAGER_STATE_DIR:-/var/lib/joystickmanager}

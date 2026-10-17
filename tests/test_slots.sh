@@ -305,7 +305,7 @@ t_state_json_describes_controllers() {
     check "player LED masks" "[1, 2, 4]" "$(jget "$f" '[c["player_led_mask"] for c in d["controllers"]]')"
     check "battery of the Bluetooth controller" "{'percent': 55, 'status': 'Charging', 'level': 'normal'}" "$(jget "$f" 'd["controllers"][0]["battery"]')"
     check "no battery reading means null" "None" "$(jget "$f" 'd["controllers"][1]["battery"]')"
-    check "the service settings are included" "{'led_refresh': '10', 'idle_timeout': 1800, 'experimental': False}" "$(jget "$f" 'd["service"]')"
+    check "the service settings are included" "{'led_refresh': '10', 'idle_timeout': 300, 'experimental': False}" "$(jget "$f" 'd["service"]')"
     check "the file is readable by everyone (the interface runs as a user)" 644 "$(stat -c %a "$f")"
 }
 
@@ -397,7 +397,7 @@ t_command_ignores_malformed_requests() {
     req "../../etc" idle_timeout 120; req short idle_timeout 120; handle_command "garbage line" 2>/dev/null
     handle_command "$(printf 'XXX\tccccccc01\tidle_timeout\t120')" 2>/dev/null
     check "no answer file for a bad id, a short id or another tag" 0 "$(ls "$ack_dir" 2>/dev/null | wc -l)"
-    check "and nothing was changed" 1800 "$idle_timeout"
+    check "and nothing was changed" 300 "$idle_timeout"
     req ccccccc02 reboot now;  check "an unknown command is refused" "error|unknown command" "$(ack ccccccc02)"
     req ccccccc03 idle_timeout "120; touch $T/pwned"; check "an argument with shell syntax is just refused" "error" "$(ack ccccccc03 | cut -d'|' -f1)"
     check "and was not executed" no "$([ -e "$T/pwned" ] && echo yes || echo no)"
@@ -436,14 +436,14 @@ t_command_idle_timeout_is_validated_applied_and_kept() {
     done
     check "values outside 0 or 60-86400 and non-numbers are refused" 120 "$idle_timeout"
     check "and the file is unchanged" "idle_timeout=120" "$(cat "$settings_file")"
-    idle_timeout=1800; load_settings
+    idle_timeout=300; load_settings
     check "after a restart the saved value wins over the environment" 120 "$idle_timeout"
-    printf 'idle_timeout=5\nsomething=else\n' >"$settings_file"; idle_timeout=1800; load_settings
-    check "an invalid saved value is ignored" 1800 "$idle_timeout"
-    state_dir=/proc/nonexistent; settings_file="$state_dir/settings"; idle_timeout=1800
+    printf 'idle_timeout=5\nsomething=else\n' >"$settings_file"; idle_timeout=300; load_settings
+    check "an invalid saved value is ignored" 300 "$idle_timeout"
+    state_dir=/proc/nonexistent; settings_file="$state_dir/settings"; idle_timeout=300
     req fffffff20 idle_timeout 300
     check "an unwritable state directory refuses the change" "error|the setting could not be saved" "$(ack fffffff20)"
-    check "and does not apply it" 1800 "$idle_timeout"
+    check "and does not apply it" 300 "$idle_timeout"
 }
 
 t_command_idle_timeout_zero_means_never_and_stops_the_workers() {

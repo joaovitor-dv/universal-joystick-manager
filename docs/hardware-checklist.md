@@ -30,7 +30,7 @@ Expect a few percent of one core at most. With no controllers the service uses a
 
 ## 2. Soak: 30 minutes, Pro Controller and Joy-Con R
 
-With the idle timeout at its default of 1800 s (`systemctl show joystickmanager -p Environment`), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.
+With the idle timeout at its default of 300 s (`systemctl show joystickmanager -p Environment`), keep the Pro Controller and the Joy-Con R connected and use them now and then for 30 minutes.
 
 ```bash
 journalctl -u joystickmanager -n 200 --no-pager | grep -iE "error|exceeded|fail" || echo "no errors"
@@ -135,7 +135,7 @@ Expect: the controller disconnects and reconnects, and the card disappears and r
 
 ## 8. The original tests 3, 4 and 6
 
-Recovered from the first planning notes (2026-10-15). They gate going back from a 1800 s timeout to 300 s: **keep 1800 s until they are done and the maintainer authorizes 300 s.**
+Recovered from the first planning notes (2026-10-15). They gated going back from a 1800 s timeout to 300 s: they passed and the maintainer authorized 300 s on 2026-10-17, which is now the default.
 
 - **Test 3, global numbering.** Connect a DualShock 3, a Pro Controller and Joy-Cons in different orders (for example Pro, DS3, Joy-Con; then DS3, Joy-Con, Pro). Players 1 to 8 follow the **connection order**, not the Bluetooth address. Check with `cat /run/joystickmanager/slots.tsv` and the LEDs.
 - **Test 4, Joy-Cons.** Original and third-party Joy-Cons, separate and combined through `joycond`. Expect one slot for the combined pair and the **same LED pattern on both sides** of the virtual controller (the right one also lights its HOME LED, step 4).
@@ -159,5 +159,5 @@ Send the final report **and** the baseline from step 0, plus your notes below. B
 | 4 Joy-Con R HOME LED | | |
 | 5 `state.json` | | |
 | 6 Idle power-off | | |
-| 8 Original tests 3, 4, 6 | done | Passed, reported by the maintainer on 2026-10-17 (no report file attached, so no numbers). The idle timeout stays at 1800 s until the maintainer authorizes 300 s. |
+| 8 Original tests 3, 4, 6 | done | Passed, reported by the maintainer on 2026-10-17 (no report file attached, so no numbers). The default idle timeout became 300 s. |
 | 7 Bridge on the system bus | | |
