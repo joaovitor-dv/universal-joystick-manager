@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UJM — Project status</title>
+<style>
+:root { color-scheme: dark; --bg:#0f1318; --panel:#161c24; --line:#27313d; --text:#e6ebf1; --mute:#8d9aab; --accent:#8fe39a; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+       padding:32px max(16px, env(safe-area-inset-right,0px)) 48px max(16px, env(safe-area-inset-left,0px)); }
+main { max-width:860px; margin:0 auto; }
+h1 { font-size:24px; margin:0 0 6px; color:var(--accent); }
+.sub { color:var(--mute); margin:0 0 24px; }
+table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+th, td { text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); }
+tr:last-child td { border-bottom:0; }
+td.num { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; min-width:90px; }
+.bar > i { display:block; height:100%; background:var(--accent); }
+a { color:var(--accent); }
+footer { margin-top:24px; color:var(--mute); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>UJM — Universal Joystick Manager</h1>
+  <p class="sub">Project status as of 2026-10-22. Latest release: v0.8.0 (pre-release). Work after v0.8.0 is not released yet.</p>
+  <table>
+    <thead><tr><th>Area</th><th>Progress</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>Service and D-Bus bridge</td><td class="num">2 of 6<div class="bar"><i style="width:33%"></i></div></td><td>Command channel, bridge and tests are in place; the Joy-Con pairing rule is under review.</td></tr>
+      <tr><td>Native interface (Qt/QML)</td><td class="num">4 of 6<div class="bar"><i style="width:67%"></i></div></td><td>Overview, controller details and diagrams are in place; hardware review and remaining settings are open.</td></tr>
+      <tr><td>LED identification</td><td class="num">3 of 5<div class="bar"><i style="width:60%"></i></div></td><td>Player numbers 1 to 10 and mirrored right Joy-Con patterns are implemented; hardware checks are pending.</td></tr>
+      <tr><td>Hardware validation</td><td class="num">4 of 10<div class="bar"><i style="width:40%"></i></div></td><td>Controller sessions follow the published hardware checklist.</td></tr>
+      <tr><td>Release 0.9.0</td><td class="num">0 of 4<div class="bar"><i style="width:0%"></i></div></td><td>Waiting for hardware results and review.</td></tr>
+      <tr><td>Distribution</td><td class="num">0 of 3<div class="bar"><i style="width:0%"></i></div></td><td>AUR and other repositories wait for account setup.</td></tr>
+    </tbody>
+  </table>
+  <footer>Source and details: <a href="https://github.com/joaovitor-dv/universal-joystick-manager">the repository</a>. This page is a summary and is updated by hand.</footer>
+</main>
+</body>
+</html>
