@@ -45,7 +45,8 @@ How slots map to LEDs (left Joy-Con, Pro Controller and DualShock 3 patterns; th
 |---|---|---|---|
 | DualShock 3 (original) | validated | Bluetooth, USB | `hid_sony` |
 | Switch Pro Controller (original) | validated | Bluetooth, USB | `hid_nintendo` |
-| Joy-Con L/R (original and third-party) | validated | Bluetooth | `hid_nintendo` |
+| Joy-Con L/R (original) | validated | Bluetooth | `hid_nintendo` |
+| Joy-Con L/R **third-party clones** | **not supported** | Bluetooth | `hid_nintendo` (see [Troubleshooting](#troubleshooting)) |
 | Combined Joy-Cons via `joycond` | validated | virtual | `uinput` |
 | Xbox 360 / One / Series (wired) | experimental | USB | `xpad` |
 | Xbox One / Series over Bluetooth | experimental | Bluetooth | `hid_microsoft` (optional external: `xpadneo`) |
@@ -53,7 +54,7 @@ How slots map to LEDs (left Joy-Con, Pro Controller and DualShock 3 patterns; th
 | 8BitDo, GameSir, Logitech, Razer, Redragon, XInput clones | experimental | varies | `xpad`, `hid_generic`, ... depends on model and mode |
 | Switch 2 Pro Controller / Joy-Con 2 | planned | - | no stable driver yet |
 
-Hardware used for validation: 1 original DualShock 3, 2 original Switch Pro Controllers, 1 pair of original Joy-Cons, 1 pair of third-party Joy-Cons. A brand name alone never decides support: model, connection mode and driver all matter. Own one of the experimental controllers? [Help us test](#help-us-test).
+Hardware used for validation: 1 original DualShock 3, 2 original Switch Pro Controllers, 1 pair of original Joy-Cons. A pair of third-party Joy-Cons was also tried and is **not** counted as validated: see Troubleshooting. A brand name alone never decides support: model, connection mode and driver all matter. Own one of the experimental controllers? [Help us test](#help-us-test).
 
 ## Install
 
@@ -177,6 +178,7 @@ then `sudo systemctl restart joystickmanager`.
 | **LEDs show the wrong pattern for a few seconds** | A Nintendo controller finishes initialising a few seconds after connecting and rewrites its own LEDs (and turns the HOME LED off), so UJM waits `JOYMANAGER_LED_SETTLE` seconds (6) before the first write; after that the firmware can still restore its pattern, and UJM fixes it at the next refresh (10 s by default; with `LED_REFRESH=off` it does not). The HOME LED is different: the controller keeps it lit for only about 15 s per command, and keeping it lit would cost a command every few seconds, which can drop the link, so UJM lights it once when a controller connects and leaves it. Lower `JOYMANAGER_LED_REFRESH` if it bothers you, but very low values can overload the controller. |
 | **Pressing HOME on a controller moves the mouse or opens the start menu** | That is not UJM, which only reads controllers and writes LEDs. While Steam is running, **Steam Input** takes any controller it sees (it opened the Joy-Cons over `hidraw`, with its own mapping) and applies its *Desktop* layout: sticks move the pointer, buttons become keys, and the Guide/HOME button opens Steam or sends the Super key. Turn off Steam Input for your controller type in Steam's controller settings, or quit Steam. |
 | **Two Joy-Cons show as one controller and I wanted them separate** | `joycond` merges a left and a right Joy-Con into one "Nintendo Switch Combined Joy-Cons" device. UJM numbers that device once and does not number the two Joy-Cons it stands for; it tells them apart from a free Joy-Con by the permission of the input node (joycond makes a merged one root-only). To use a Joy-Con alone, release it in `joycond` (press SL and SR on it). |
+| **A third-party (clone) Joy-Con keeps disconnecting, shows only LED 1, or the whole Bluetooth stops answering** | Clones copy the identity of an original (name, USB id, serial number and colours read from their memory are an original's) but answer the driver's commands slowly. `hid_nintendo` sends them in quick succession and gives up (`failed reading SPI flash`, `exceeded max attempts`, `timeout waiting for input report`); the pair we tested sometimes failed to initialise, kept dropping gyroscope reports, and twice left `bluetoothd` stuck until the controller was switched off, which stops **every** Bluetooth controller. Their firmware cannot be updated from here (they do not run Nintendo's). UJM cannot tell a clone from an original (same ids), so it does not detect them: if a Joy-Con behaves like this, switch it off, remove its pairing (`bluetoothctl remove ADDRESS`) and use an original. A weak signal makes it worse (a clone's advertisement was seen at -80 dBm). |
 | **Player LEDs keep blinking (Joy-Cons or Pro Controllers)** | `joycond` is waiting for a logical pairing: press **L + R** (Pro Controller) or **+ and -** (combined Joy-Cons). |
 | **I need logs** | `journalctl -u joystickmanager`, `journalctl -k \| grep -i nintendo`, `journalctl -u bluetooth`. |
 
