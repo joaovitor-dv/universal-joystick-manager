@@ -8,6 +8,7 @@
 | `controller-icons/*.svg` (65 files) | Derived from SVGs in the Steam client (`controller_base/images/api/`): recolored, outlined or cropped. A few were drawn for this project in the same style (for example the Joy-Con SL/SR icons and the inverted DualShock 4 PS button). | The originals are © Valve Corporation. |
 | `controller-references/xbox-360-dark-reference-user.png` | Supplied by the project owner as a reference image. **Its original source and license were not recorded.** | Unknown. |
 | `controller-references/xbox-360-outline.svg`, `controller-references/xbox-360-silhouette-band.svg` | Traced for this project from the Xbox 360 reference image above. | Derivative of an image with unknown rights. |
+| `controller-references/xbox-360-xcf-ui.svg` | Runtime vector traced for UJM from an Xbox 360 reference supplied by the project owner. The underlying image's original source and license were not independently verified. | Rights remain unknown; not covered by MIT. The editable XCF and unused exports are kept outside the published branch. |
 | `controller-references/dualshock-3-clean.png`, `controller-references/dualshock-3-transparent-white.png` | Processed reference images of the DualShock 3. **Their original source was not recorded.** | Unknown. |
 
 Nintendo Switch, Joy-Con, PlayStation, DualShock, DualSense, Xbox and Steam are trademarks of their respective owners. UJM is an independent project and is not affiliated with or endorsed by them.

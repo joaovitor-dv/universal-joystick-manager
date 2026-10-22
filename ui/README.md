@@ -18,9 +18,9 @@ python3 -m http.server --directory ui 8000
 
 ## What it shows
 
-- The controller list with player numbers, transport and LEDs, and a **Combined Joy-Cons** entry.
+- A connected-only controller roster with ten simulated slots and a separate Combined Joy-Cons diagram preview. Numbered LEDs, DUALSHOCK 4 light-bar colors, DualSense white player indicators and the Xbox 360 ring are shown as **slot references**, never as live hardware readings. RGB color for DualSense and undefined patterns above the manufacturer's four-player convention are reported as unknown.
 - A per-controller diagram with the real button names of each family, stick values and extra readings.
-- **File**: export and import controller profiles and app settings as JSON, and Exit.
+- **File**: export and import controller profiles and app settings as JSON, **Update UJM…** (opens the official release downloads after confirmation; no automatic installation), and Exit.
 - A toolbar with a **Start/Stop service** button (the interface is read-only while the service is stopped) and Bluetooth shortcuts: **Pair new controller…**, **Connect**, **Disconnect**.
 - **View → Theme…**: your own background, accent and text colors, or a preset. Dark themes only, on purpose.
 - **Help → Credits & Info**, mirroring [`CREDITS.md`](../CREDITS.md).

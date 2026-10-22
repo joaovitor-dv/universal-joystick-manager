@@ -26,6 +26,89 @@ When you cut a release: add the tag, add its entry here, update the version in t
 
 ## Unreleased
 
+### QML honors the service's player-LED capability
+
+- **What changed:** controller cards now consume the `playerLeds` model role. An explicit `player_leds: false` hides the numbered-LED row; the documented family table remains a conservative fallback for older service states that omit the field.
+- **Why:** after integrating the service/model changes from `main`, relying only on the family list would ignore an explicit capability reported by the service.
+- **Evidence:** `tools/check.sh --gui --ui` passed with 0 failures and 0 warnings; ShellCheck was the only skipped check because it is not installed. The QML suite passed 20/20, including a new test for explicit `false`. Protected service/bridge files match `origin/main`; no physical hardware was tested.
+
+### Ten-player LED references and explicit releases confirmation
+
+- **What changed:** the HTML preview now uses the documented slot masks (standard players 9/10: 3 and 5; solo right Joy-Con: players 8/9/10 use 11/12/10). Both previews suppress player-number dots for DualShock 4, DualSense, and Xbox One/Series, while retaining the Xbox 360 row. The QML cards show the expected pattern for slots 8–10. The File menu label matches between HTML and QML; native QML now confirms that opening releases does not download or install anything.
+- **Why:** make the two-column ten-player preview agree with the service table and avoid implying LED numbering on controllers that expose a different kind of light.
+- **Evidence:** `UJM_UI_PORT=18768 timeout 180s tools/check.sh --gui --ui` passed: 0 failures, 0 warnings, 1 skip (ShellCheck is not installed); QML 19/19 and browser suites 70/70 + 27/27. `bridge/tests/test_bridge.py` separately passed 32 tests for commit `482f4fa`, including case changes and migration of older lower-case alias keys. No hardware, merge, or push was involved.
+- **Current behavior:** QML now consumes the `playerLeds` model role added on `main`, with the documented family table as fallback for older service data; this visual follow-up does not modify the backend.
+
+### Native QML roster uses the ten-slot grid
+
+- **What changed:** the connected-controller roster now uses two columns and up to five rows, with names allowed to wrap in compact cards. The File action is labeled "Open UJM releases page" to match its actual behavior.
+- **Why:** carry the approved ten-player roster layout into the native interface without implying that the releases link installs an update.
+- **Evidence:** all 14 file-backed/no-service QML tests passed; the two D-Bus integration tests were skipped because this session cannot open a private bus. A rendered synthetic ten-controller state showed the two-column/five-row layout and masks 14 and 15 for players 9 and 10. No hardware was tested.
+- **Open questions:** the service still caps real player assignment at eight, and persistent QML alias editing still needs a backend action. The HTML browser suite could not be run locally because Chromium did not open a DevTools port.
+
+### Fix PlayStation face-overlay mapping and preserve controller selection
+
+- **What changed:** map the PlayStation Cross overlay to the actual `ps_wire_button_x.svg` asset; keep the selected controller across roster resets when it remains connected, and clear selection when it disconnects without auto-selecting a different controller.
+- **Why:** adversarial review reproduced a missing Cross overlay on DualSense/DualShock 4 and unexpected selection jumps on connection changes.
+- **Evidence:** added QML tests for both PlayStation families' four rendered face overlays and for connect/disconnect selection transitions. The two focused tests pass offscreen; CI is pending for this follow-up. No hardware behavior changed.
+- **Open questions:** the separate asset provenance/size review finding remains open pending the project owner's decision; do not merge the PR until that is resolved.
+
+### Player-light slot references and Update entry (visual preview)
+
+- **What changed:** the HTML roster and native QML show a four-color DUALSHOCK 4 light-bar reference for slots 1–4, the DualSense white five-LED player-indicator reference, and the Xbox 360 four-quadrant ring reference. Undefined slots stay unknown; these are clearly marked as not live. The File menu offers Update UJM, which takes users to official releases instead of running a package manager or claiming to install software.
+- **Why:** those three controllers use different kinds of lights; a generic four-dot row misrepresents PlayStation RGB colors and the Xbox 360 ring. Updates must honor the installation method and must not mutate the service from a browser prototype.
+- **Evidence:** Sony's DUALSHOCK 4 manual defines the blue/red/green/pink order; Sony's DualSense documentation distinguishes the light bar from the player indicator; Linux `hid-playstation` defines the centered five-LED pattern; Microsoft documents the Xbox 360's four ring quadrants. The HTML script passes a syntax check and 12 file-backed QML tests pass. Browser UI tests and hardware LED readings were not available in this restricted session.
+- **Open questions:** the service/bridge currently publishes neither live RGB values nor Xbox 360 LED state. A true update installer must detect how UJM was installed and perform a privileged, verified package upgrade; the menu currently opens the release page only.
+
+### Ten-slot controller roster and model-name preview (stage 6, awaiting visual review)
+
+- **What changed:** the HTML prototype now shows only connected controllers in a two-column roster with capacity for ten slots. It uses manufacturers' model names, adds Tools actions for a selected controller's temporary alias, a separate diagram gallery and an explicitly marked ten-player layout preview, and provides a Connect known picker since disconnected controllers no longer appear in the roster. The layout preview shows player LED masks 14 (LEDs 2–4) and 15 (LEDs 1–4) for slots 9 and 10. The combined Joy-Con face-button strip uses legible four-color disks.
+- **Why:** disconnected examples should not masquerade as active hardware, while every diagram must remain available for design review. Aliases must be distinct from the official model name.
+- **Evidence:** inline scripts and panel-test source parse, and the local pre-push checks passed without the browser suite. The change awaits João's interactive visual review and CI. The HTML data, connection changes and aliases are simulated; no physical controller was tested.
+- **Open questions:** the real service is currently limited to eight slots and has no automatic masks for 9/10. The native QML roster and persistent alias action require backend coordination. The right Joy-Con mirrors LED numbering in the service, so its physical mask for player 9 needs an explicit test.
+- **Naming references:** [Nintendo Pro Controller](https://en-americas-support.nintendo.com/app/answers/detail/a_id/27538/p/989/c/286) and [Joy-Con (L/R)](https://www.nintendo.com/ph/support/switch/controller/nintendoswitchpro.html); [PlayStation accessories](https://www.playstation.com/en-us/accessories/) and [DUALSHOCK 3](https://www.sony.com/en/SonyInfo/design/gallery/CECH-ZC2/); [Xbox 360](https://download.microsoft.com/download/2/8/c/28cdbb94-1c41-4131-8e03-1b91765d382e/emeacontrollerwirelessenfres.pdf), [Xbox One](https://www.microsoft.com/en-ca/p/xbox-wireless-controller/8vcw8gln9vrf/) and [Xbox Wireless Controller](https://www.xbox.com/en-US/accessories/controllers/xbox-wireless-controller). “Series X|S” in parentheses is a UI disambiguator, not part of Microsoft's product name.
+
+### Joy-Con rail and shoulder controls in the prototype
+
+- **What changed:** the individual Joy-Con L and R diagrams now show four separate L/SL/SR/ZL or R/SL/SR/ZR miniatures. Their SL/SR icons are oriented for the horizontal controller view; Joy-Con R face-button tiles use the same readable four-color disks as the Pro Controller. The combined Joy-Con panel is unchanged in this commit.
+- **Why:** the rail buttons had no independent diagram indicators and their tile labels read sideways; A/B/X/Y on the right Joy-Con were too dim at tile size.
+- **Evidence:** João approved the Joy-Con L and R previews separately. Browser tests for the indicator count, separation, icon orientation and face-button styling were added. The UI browser suite passed 117 checks after the L change; after the R change, syntax and diff checks passed, but the local browser test was not rerun because the session's browser policy blocks automated observation of the local file preview. CI results remain to be checked after push. No hardware input was involved.
+- **Open questions:** the combined Joy-Con face-button tiles are a separate visual-review step; native QML parity and hardware behavior remain outside this change.
+
+### Native controller details show current LED modes
+
+- **What changed:** the selected controller's QML details now show HOME LED on/off when the service reports it, plus a badge when player LEDs use a manual pattern. Unknown and unsupported HOME states add no badge. The panel still has no LED-writing action.
+- **Why:** the newly exposed `homeLed` and `ledManual` model roles should be visible without mistaking missing data from an older service for an off LED.
+- **Evidence:** 13/13 native QML tests passed in an offscreen session, including updates from on/manual to off/automatic and then unsupported. `tools/check.sh --gui` finished with 0 failures and 1 skip (ShellCheck not installed locally). A QML preview with synthetic LED state was rendered and inspected. These are file-backed example states, not observations on a physical controller.
+- **Open questions:** user actions still need backend slots and real system-bus/polkit validation.
+
+### Command channel: bridge LED and idle-timeout actions
+
+- **What changed:** the service now handles requests on a root-owned FIFO, and the bridge exposes `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` through it ([docs/command-channel.md](docs/command-channel.md)). A manual player-LED mask takes precedence over the automatic pattern until reset or disconnection; the idle timeout persists across service restarts. `state.json` includes `player_led_manual` and `home_led`. `PairJoycond` is not available because pairing is completed on the controllers with L+R or SL+SR.
+- **Why:** the service remains the only LED writer; the GUI and bridge must not bypass that authority.
+- **Evidence:** Claude's 2026-10-17 handoff reports 14 new service unit tests, one FIFO integration test and eight bridge tests with fake devices/service. The local `tools/check.sh --gui --packages` passed in Claude's run, except ShellCheck was unavailable locally. This agent did not repeat those service/package checks.
+- **Open questions:** real controller behavior, system-bus/polkit/BlueZ integration and the installed service sandbox remain unverified.
+
+### Xbox Series Share and DualShock 4 system-button legibility
+
+- **What changed:** moved the Xbox Series Share symbol to the center bridge, above the sticks, in the HTML prototype and native QML details. Rebuilt the DualShock 4 Share and Options SVGs with larger, high-contrast lettering; both still fit and center inside the standard button frames.
+- **Why:** the Share symbol was too low and the two PlayStation labels were difficult to read at actual button-strip size.
+- **Evidence:** the browser panel suite passed 51/51 checks (including measured Share coordinates and equal top/bottom icon gaps), and the native QML suite passed 12/12. A DualShock 4 QML preview was rendered and inspected. No hardware input or live telemetry was involved.
+- **Visual review:** João approved interface stages 3 and 4 in the interactive HTML tab on 2026-10-17. The native silhouettes still need full visual parity with the composited prototype.
+
+### Native QML controller details reuse prototype artwork
+
+- **What changed:** selecting a controller in the native QML overview opens a read-only details panel. It maps the service's controller family to the prototype's diagrams, colored face-button overlays and family-specific button icons, grouped into face, D-pad, shoulder/trigger and system sections. Xbox 360 uses the new upper-layer XCF SVG directly. The side list was adjusted so names, battery status and LEDs do not overlap.
+- **Why:** migrate the established prototype visuals into the lower-memory native application without duplicating the daemon's device logic or presenting simulated input as telemetry.
+- **Evidence:** 12 offscreen QML tests passed on example state data, including model selection, all covered artwork families, Xbox Series Share and button SVG loading. Pro Controller, DualShock 4 and Xbox 360 screenshots were inspected visually. No live controller or system-bus bridge was used for these visual checks.
+- **Open questions:** the HTML's composited silhouettes and elevated shoulder art are not yet fully reproduced in QML; pressed-state highlights, sticks, triggers and motion readings require a backend telemetry contract. The full `tools/check.sh --gui` run was not conclusive in this restricted session (private D-Bus creation failed there, and concurrent service-command tests failed); the isolated QML suite passed in a permitted local session.
+
+### Xbox 360 diagram from the editable 4K source
+
+- **What changed:** the HTML and QML previews display one SVG traced from the upper layer of the 4K XCF reference supplied by the project owner. The lower layer is excluded. Only the runtime SVG is included in the published branch; the editable XCF and unused exports remain in the owner's local working files. The previous stack of outline, dark raster and text overlays is no longer used for the Xbox 360 panel.
+- **Why:** those overlapping layers produced doubled labels and irregular edges; a single transparent diagram preserves the source artwork and scales in the interactive preview.
+- **Evidence:** the UI SVG parses as XML and both UIs reference it directly. The origin and licensing of the reference were not independently verified; see `ui/assets/ASSETS-NOTICE.md`. The unused alternate SVG, raster, PDF and editable VectorCraft export were removed from every published PR commit.
+- **Visual review:** the browser security policy prevented direct inspection of the user's existing `file://` tab by this agent, but João approved stage 3 in that interactive preview on 2026-10-17. No physical controller was involved.
 ### Third-party Joy-Cons are recorded as not supported
 
 - **What changed:** the README no longer lists third-party Joy-Cons as validated; a Troubleshooting entry explains the symptoms and what to do.
@@ -60,7 +143,7 @@ When you cut a release: add the tag, add its entry here, update the version in t
 ### Development tools: one check script, a hardware checklist
 
 - **What changed:** `tools/check.sh` runs what CI runs (unit tests, syntax, the udev rule, the profile table, the bridge XML and tests, ShellCheck) and, on request, the interface tests, the QML tests and the package builds (`.deb` and `.rpm` in Docker, Arch with `makepkg`). CI's Tests job now calls the same script. `tools/collect-report.sh` writes one diagnostic file with Bluetooth addresses masked; `tools/measure-service.sh` measures the running service's CPU from its cgroup. [docs/hardware-checklist.md](docs/hardware-checklist.md) turns every check that needs a real controller into one ordered session with expected results.
-- **Why:** two CI failures in one day (a missing build dependency and a tool used before it was installed) were both cheap to catch locally, and the hardware checks were scattered across notes, one of them ("original tests 3, 4 and 6") never written down.
+- **Why:** two CI failures in one day (a missing build dependency and a tool used before it was installed) were both cheap to catch locally, and the hardware checks were scattered across notes. The original numbered tests 3, 4 and 6 were absent from the project files but later recovered from the 2026-10-15 assistant history: global player ordering, original/third-party Joy-Con pairing, and normal/charging/low battery states.
 - **Evidence:** `tools/check.sh` passes here and fails (exit status 1, with the parser error) when a bridge XML file is broken; `--gui` and `--packages` pass; the address masking has a self-test that `check.sh` runs. On this machine ShellCheck is not installed, and the script says so instead of passing.
 - **Open questions:** nothing here has been used on a second machine; the checklist itself has not been run.
 
@@ -77,7 +160,7 @@ When you cut a release: add the tag, add its entry here, update the version in t
 - **What changed:** new `bridge/ujm-bridge`, a small Python program (PyGObject/GIO) that republishes `state.json` on the system bus, stores controller aliases, and drives BlueZ for scan, pair, connect and disconnect, asking polkit before every action. Bus-activated, and it exits 30 s after its last client leaves. Details in [docs/bridge.md](docs/bridge.md). `install.sh --with-bridge` and the three packages ship it (its dependencies are optional).
 - **Why:** the interface must not run `bluetoothctl`, `sudo` or read `/dev/input`, and the shell service cannot speak D-Bus. GIO was chosen over `dbus-fast`/`jeepney`: one dependency that every Linux desktop already has, an idle main loop that costs nothing, and inotify built in.
 - **Evidence:** 19 tests on a private session bus with a fake BlueZ and a fake polkit (the real `CheckAuthorization` call is exercised); measured 0.00% CPU and 19.6 MiB while running, nothing when stopped. The `.deb`, `.rpm` and Arch packages were built with the bridge and inspected.
-- **Open questions:** `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` return `NotSupported` until the shell service has a command channel. Not tested: a real BlueZ, a real polkit, the system bus policy on an installed system.
+- **At this stage:** `SetIdleTimeout`, `SetPlayerLeds` and `SetHomeLed` returned `NotSupported`; the command channel entry above records their later implementation. Still not tested here: a real BlueZ, a real polkit, or the system bus policy on an installed system.
 
 ### Interface measurements: Chromium against QML
 
