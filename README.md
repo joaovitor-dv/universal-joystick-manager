@@ -195,6 +195,22 @@ A graphical interface is being designed. Today it is a static HTML **prototype w
 
 What the prototype already explores: a list of controllers with player number, transport and LEDs; a per-controller diagram with the real button names of each family; stick values; a **Combined Joy-Cons** entry in the list (it is just another controller, not a separate tab); a **File** menu (export and import **controller profiles** and **app settings** as JSON files, and **Exit UJM**); a toolbar with a **Start/Stop service** button and Bluetooth shortcuts (**Pair new controller…**, **Connect**, **Disconnect**); **Help → Credits & Info** (version, collaborators, the volunteer testers from [`CREDITS.md`](CREDITS.md), third-party software and trademarks); and **View → Theme…**, where you pick your own background, accent and text colors or a preset. The theme is **dark only, on purpose**: the interface has no light mode, and anyone who tries to force one gets teased for it. Semantic colors such as the A/B/X/Y buttons are never recolored. The service button and the Bluetooth shortcuts are **simulated** in the prototype: with the service stopped the interface shows a banner and disables the actions, because the real application will be read-only whenever the service is not running.
 
+## Project status
+
+Snapshot as of 2026-10-22. The latest release is **v0.8.0** (pre-release). Work since then is on `main` or
+in review and is not released yet.
+
+| Area | Progress | State |
+|---|---|---|
+| Service and D-Bus bridge | 2 of 6 | Command channel, bridge and its tests are in place; the Joy-Con pairing rule is under review |
+| Native interface (Qt/QML) | 4 of 6 | Overview, controller details and diagrams are in place; hardware review and remaining settings are open |
+| LED identification | 3 of 5 | Player numbers 1 to 10 and mirrored right Joy-Con patterns are implemented; hardware checks are pending |
+| Hardware validation | 4 of 10 | Controller sessions are planned in the [hardware checklist](docs/hardware-checklist.md) |
+| Release 0.9.0 | 0 of 4 | Waiting for hardware results and review |
+| Distribution | 0 of 3 | AUR and repositories wait for account setup |
+
+The full checklist is kept in the development notes and updated with each change.
+
 ## Roadmap
 
 Nothing below is promised for a date. The order follows the current priorities.
